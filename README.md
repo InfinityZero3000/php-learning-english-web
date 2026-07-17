@@ -1,58 +1,69 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Website học tiếng Anh
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Bộ khung Laravel MVC cho đồ án lập trình mã nguồn mở của Nhóm 8.
 
-## About Laravel
+## Công nghệ
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- Laravel 13, PHP 8.5
+- Nginx 1.28, MySQL 8.4, Redis 8
+- Bootstrap 5.3 qua CDN
+- PHPUnit và Laravel Pint
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Khởi động bằng Docker
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+Yêu cầu: Docker Desktop hoặc Docker Engine có Compose.
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+cp .env.example .env
+docker compose build
+docker compose run --rm app composer install
+docker compose run --rm app php artisan key:generate
+docker compose up -d
+docker compose exec app php artisan migrate:fresh --seed
+docker compose exec app php artisan test
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Mở <http://localhost:8080>. Các điểm kiểm tra:
 
-## Contributing
+- `GET /`: trang skeleton.
+- `GET /health`: `{"status":"ok"}`.
+- `GET /admin`: trang quản trị placeholder, chưa có xác thực.
+- `GET /api/status`: `{"status":"ok","version":"v1"}`.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Lệnh kiểm tra
 
-## Code of Conduct
+```bash
+docker compose config
+docker compose exec app ./vendor/bin/pint --test
+docker compose exec app php artisan test
+docker compose exec app php artisan migrate:rollback
+docker compose exec app php artisan migrate
+docker compose exec redis redis-cli ping
+curl http://localhost:8080/health
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Redis phải trả `PONG`; health endpoint phải trả HTTP 200.
 
-## Security Vulnerabilities
+## Cấu trúc phát triển
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+- `app/Models`: model và quan hệ Eloquent nền.
+- `database/migrations`: schema cho nội dung học, quiz và tiến độ.
+- `database/seeders`: role, level và topic mẫu; không tạo user.
+- `resources/views`: layout Bootstrap và trang placeholder.
+- `routes`: điểm vào web và API.
+- `docs/PROJECT_PLAN.md`: phân chia nhiệm vụ và phụ thuộc.
 
-## License
+Controller, Form Request, Policy, Resource và Service chỉ được tạo khi module nghiệp vụ tương ứng bắt đầu.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+## Xử lý lỗi thường gặp
+
+- **Port 8080, 3306 hoặc 6379 bị chiếm:** đổi `APP_PORT`, `FORWARD_DB_PORT` hoặc `FORWARD_REDIS_PORT` trong `.env`, rồi chạy lại Compose.
+- **Thiếu application key:** chạy `docker compose exec app php artisan key:generate`.
+- **Không kết nối MySQL:** kiểm tra `docker compose ps`; `mysql` phải ở trạng thái healthy và `DB_HOST=mysql`.
+- **Không ghi được storage:** chạy `docker compose exec app chmod -R ug+rw storage bootstrap/cache`.
+- **Thay đổi env chưa có hiệu lực:** chạy `docker compose exec app php artisan config:clear`.
+- **Muốn làm sạch database dev:** chạy `docker compose exec app php artisan migrate:fresh --seed` (lệnh này xóa dữ liệu hiện có).
+
+## Phạm vi skeleton
+
+Chưa triển khai Auth, CRUD, phân quyền, chấm quiz, upload, API nghiệp vụ hoặc production deployment. Xem [đặc tả skeleton](docs/superpowers/specs/2026-07-17-laravel-mvc-skeleton-design.md) trước khi phát triển tiếp.
