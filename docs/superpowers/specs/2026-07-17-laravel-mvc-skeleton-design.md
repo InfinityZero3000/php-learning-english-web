@@ -42,18 +42,20 @@ Mọi bảng có `id` bigint và timestamps, trừ pivot. Các cột chuỗi có
 - `users`: cột mặc định Laravel và `role_id` nullable; xóa role đặt khóa ngoại thành null.
 - `levels`: `name`, `slug` unique, `sort_order` unsigned integer mặc định 0.
 - `topics`: `name`, `slug` unique.
-- `courses`: `level_id` nullable, `title`, `slug` unique, `description` nullable, `status` mặc định `draft`; index `(status, level_id)`.
+- `courses`: `level_id` nullable và `nullOnDelete`, `title` string, `slug` string unique, `description` text nullable, `status` string mặc định `draft`; index `(status, level_id)`.
 - `course_topic`: khóa ghép (`course_id`, `topic_id`), cascade khi course/topic bị xóa.
-- `lessons`: `course_id`, `title`, `slug`, `content` nullable, `sort_order` mặc định 0, `status` mặc định `draft`; unique `(course_id, slug)` và cascade theo course.
-- `vocabularies`: `lesson_id` nullable, `topic_id` nullable, `word`, `meaning`, `example` nullable, `image_path` nullable, `audio_path` nullable; xóa lesson/topic đặt null, index `word`.
+- `lessons`: `course_id`, `title` string, `slug` string, `content` longText nullable, `sort_order` mặc định 0, `status` string mặc định `draft`; unique `(course_id, slug)` và cascade theo course.
+- `vocabularies`: `lesson_id` nullable, `topic_id` nullable, `word` string, `meaning` text, `example` text nullable, `image_path` string nullable, `audio_path` string nullable; xóa lesson/topic đặt null, index `word`.
 - `quizzes`: `lesson_id`, `title`, `passing_score` unsigned tiny integer mặc định 60, `status` mặc định `draft`; cascade theo lesson.
-- `questions`: `quiz_id`, `content`, `explanation` nullable, `sort_order` mặc định 0; cascade theo quiz.
-- `answers`: `question_id`, `content`, `is_correct` boolean mặc định false; cascade theo question.
+- `questions`: `quiz_id`, `content` text, `explanation` text nullable, `sort_order` mặc định 0; cascade theo quiz.
+- `answers`: `question_id`, `content` text, `is_correct` boolean mặc định false; cascade theo question.
 - `attempts`: `user_id`, `quiz_id`, `score` unsigned tiny integer, `started_at` nullable, `completed_at` nullable; cascade theo user/quiz, index `(user_id, quiz_id)`.
 - `progress`: `user_id`, `lesson_id`, `completed_at` nullable; unique `(user_id, lesson_id)`, cascade theo user/lesson.
 - `bookmarks`: `user_id`, `vocabulary_id`; unique `(user_id, vocabulary_id)`, cascade theo user/vocabulary.
 
-Các giá trị trạng thái ban đầu chỉ gồm chuỗi `draft` và `published`, được lưu bằng `string` thay vì DB enum để module CRUD có thể thay đổi quy tắc sau này. `passing_score` và `score` được giới hạn 0–100 ở tầng migration bằng unsigned tiny integer và sẽ được validation nghiệp vụ bổ sung sau.
+Skeleton dùng mặc định `draft`; giá trị `published` được dành cho module CRUD sau này. Cột string không giới hạn tập trạng thái ở tầng database để quy tắc có thể được thêm cùng nghiệp vụ. `passing_score` và `score` dùng unsigned tiny integer; giới hạn nghiệp vụ 0–100 sẽ do Form Request thực thi khi tính năng quiz được triển khai.
+
+Mọi `foreignId()->constrained()` tạo index khóa ngoại theo Laravel/MySQL. `level_id`, `lesson_id`, `topic_id` nullable dùng `nullOnDelete`; các quan hệ sở hữu còn lại dùng `cascadeOnDelete` như liệt kê.
 
 Các quan hệ chính:
 
@@ -79,7 +81,7 @@ Trang `GET /` render Blade layout Bootstrap và thông báo skeleton sẵn sàng
 - `nginx`: image `nginx:1.28-alpine`, mount cấu hình read-only và mã nguồn, phụ thuộc `app`, public port `${APP_PORT:-8080}:80`.
 - `mysql`: image `mysql:8.4`, volume `mysql-data`, public port `${FORWARD_DB_PORT:-3306}:3306`, healthcheck bằng `mysqladmin ping`.
 - `redis`: image `redis:8-alpine`, volume `redis-data`, public port `${FORWARD_REDIS_PORT:-6379}:6379`, healthcheck bằng `redis-cli ping`.
-- `app` phụ thuộc healthcheck MySQL/Redis. Lệnh mặc định chạy PHP-FPM; cài dependency và migrate là các lệnh setup tách biệt để không tự sửa database mỗi lần container khởi động.
+- `app` phụ thuộc healthcheck MySQL/Redis. Lệnh mặc định chạy PHP-FPM; cài dependency và migrate là các lệnh setup tách biệt để không tự sửa database mỗi lần container khởi động. MySQL và Redis có trạng thái healthy; app và Nginx chỉ cần running vì Compose không dùng healthcheck cho hai service này.
 
 Biến môi trường bắt buộc: `APP_PORT`, `APP_URL`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, `DB_ROOT_PASSWORD`; nội bộ dùng `DB_HOST=mysql`, `DB_PORT=3306`, `REDIS_HOST=redis`, `REDIS_PORT=6379`.
 
@@ -94,10 +96,10 @@ Biến môi trường bắt buộc: `APP_PORT`, `APP_URL`, `DB_DATABASE`, `DB_US
 
 Một smoke test xác nhận trang chính hoặc health endpoint trả phản hồi thành công. Các kiểm tra hoàn thành:
 
-1. `docker compose config` hợp lệ; `docker compose up -d --build` đưa bốn service về trạng thái running/healthy.
+1. `docker compose config` hợp lệ; `docker compose up -d --build` đưa app/Nginx về trạng thái running và MySQL/Redis về trạng thái healthy.
 2. Sau setup, `curl http://localhost:8080/health` nhận HTTP 200 và JSON `status=ok`; `/`, `/admin`, `/api/status` trả đúng response nêu trên.
-3. `docker compose exec app php artisan migrate:fresh --seed` thành công; `migrate:rollback` rồi `migrate` thành công; kiểm tra schema có đủ 14 bảng miền và pivot `course_topic`.
-4. Seeder tạo đúng role `admin`, `learner`, ít nhất ba level và một topic mẫu; không tạo user.
+3. `docker compose exec app php artisan migrate:fresh --seed` thành công; `migrate:rollback` rồi `migrate` thành công; kiểm tra schema có đủ 13 bảng miền và pivot `course_topic`.
+4. Seeder tạo role `Admin/admin`, `Learner/learner`; level `Beginner/beginner/1`, `Intermediate/intermediate/2`, `Advanced/advanced/3`; topic `General/general`; không tạo user.
 5. `docker compose exec app php artisan test` chạy smoke test cho bốn endpoint và thành công.
 6. Redis được xác minh bằng `docker compose exec redis redis-cli ping` trả `PONG`; Laravel có `CACHE_STORE=redis` và `QUEUE_CONNECTION=redis` trong `.env.example`.
 7. README chứa đúng chuỗi lệnh: copy env, build/up, Composer install, app key, migrate/seed, test và URL mong đợi; có mục xử lý port, `storage`, app key và DB.
