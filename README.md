@@ -52,6 +52,7 @@ Redis phải trả `PONG`; health endpoint phải trả HTTP 200.
 - `resources/views`: layout Bootstrap và trang placeholder.
 - `routes`: điểm vào web và API.
 - `docs/PROJECT_PLAN.md`: phân chia nhiệm vụ và phụ thuộc.
+- `docs/DEVELOPMENT_WORKFLOW.md`: branch, push, Pull Request, PHPUnit và CI/CD Fly.io.
 
 Controller, Form Request, Policy, Resource và Service chỉ được tạo khi module nghiệp vụ tương ứng bắt đầu.
 
@@ -66,4 +67,6 @@ Controller, Form Request, Policy, Resource và Service chỉ được tạo khi 
 
 ## Phạm vi skeleton
 
-Chưa triển khai Auth, CRUD, phân quyền, chấm quiz, upload, API nghiệp vụ hoặc production deployment. Xem [đặc tả skeleton](docs/superpowers/specs/2026-07-17-laravel-mvc-skeleton-design.md) trước khi phát triển tiếp.
+Chưa triển khai Auth, CRUD, phân quyền, chấm quiz, upload hoặc API nghiệp vụ. Fly.io CD hiện chỉ phục vụ mức demo đồ án; chưa có staging, worker hay object storage. Xem [đặc tả skeleton](docs/superpowers/specs/2026-07-17-laravel-mvc-skeleton-design.md) trước khi phát triển tiếp.
+
+Quy trình cộng tác và tự động deploy được mô tả tại [Development Workflow](docs/DEVELOPMENT_WORKFLOW.md).
