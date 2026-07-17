@@ -163,12 +163,12 @@ Không đưa các giá trị này vào `fly.toml`, `.env.example`, Issue hoặc 
 
 ## 7. Tự động deploy
 
-Khi Pull Request được merge vào `main`:
+Mỗi push vào `main` (thông thường là commit tạo bởi Squash and merge):
 
 1. Job `tests` chạy Pint, migration và PHPUnit.
 2. Nếu mọi PHP matrix đều đạt, job `deploy` chạy `flyctl deploy --remote-only`.
 3. Fly build `Dockerfile.fly`, chạy `php artisan migrate --force`, sau đó rolling deploy.
-4. Fly chỉ chuyển traffic khi `/health` trả HTTP 200.
+4. Fly chỉ chuyển traffic khi `/health` trả HTTP 200. Endpoint này kiểm tra HTTP/process liveness; kết nối MySQL/Redis được xác minh bởi release migration và log ứng dụng.
 
 Pull Request, branch khác, scheduled test hoặc CI thất bại sẽ không deploy.
 
@@ -200,4 +200,4 @@ Rollback image **không rollback database**. Migration production phải tương
 
 - Chưa có staging, queue worker, cron hoặc multi-region.
 - Filesystem Fly Machine là tạm thời; module upload phải dùng object storage trước production.
-- `composer.lock` cần được tạo và commit ngay khi nhóm có môi trường PHP/Composer hoạt động ổn định để dependency build có thể tái lập.
+- `composer.lock` phải được cập nhật cùng `composer.json`; không xóa lockfile khỏi Pull Request.

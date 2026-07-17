@@ -13,6 +13,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   tests:
     runs-on: ubuntu-latest
@@ -88,10 +92,6 @@ jobs:
     needs: tests
     runs-on: ubuntu-latest
     environment: production
-    concurrency:
-      group: fly-production
-      cancel-in-progress: false
-
     steps:
       - name: Checkout code
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -99,7 +99,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup flyctl
-        uses: superfly/flyctl-actions/setup-flyctl@master
+        uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # master 2026-04-08
 
       - name: Deploy
         run: flyctl deploy --remote-only --app "${FLY_APP}"
