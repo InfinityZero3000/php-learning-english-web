@@ -9,21 +9,90 @@ Bộ khung Laravel MVC cho đồ án lập trình mã nguồn mở của Nhóm 8
 - Bootstrap 5.3 qua CDN
 - PHPUnit và Laravel Pint
 
-## Khởi động bằng Docker
+## Cài đặt cho thành viên nhóm
 
 Yêu cầu: Docker Desktop hoặc Docker Engine có Compose.
 
+### 1. Clone repository
+
+```bash
+git clone https://github.com/InfinityZero3000/php-learning-english-web.git
+cd php-learning-english-web
+```
+
+Nếu đã clone trước đó:
+
+```bash
+git switch main
+git pull --ff-only origin main
+```
+
+### 2. Khởi tạo môi trường
+
+Tạo `.env` cá nhân từ file mẫu. Không gửi file này cho thành viên khác và không commit lên Git.
+
 ```bash
 cp .env.example .env
+```
+
+Các biến development quan trọng:
+
+| Biến | Giá trị mặc định | Mục đích |
+|---|---|---|
+| `APP_KEY` | Để trống ban đầu | Khóa mã hóa của Laravel; tạo ở bước tiếp theo |
+| `APP_URL` | `http://localhost:8080` | URL chạy local |
+| `APP_PORT` | `8080` | Port website trên máy host |
+| `DB_HOST` | `mysql` | Tên service MySQL trong Docker |
+| `DB_DATABASE` | `english_learning` | Database local |
+| `DB_USERNAME` / `DB_PASSWORD` | `laravel` / `secret` | Tài khoản MySQL local |
+| `DB_ROOT_PASSWORD` | `root` | Mật khẩu root MySQL local |
+| `REDIS_HOST` | `redis` | Tên service Redis trong Docker |
+
+Các giá trị này chỉ dành cho development. Production/Fly.io phải dùng secrets riêng theo [Development Workflow](docs/DEVELOPMENT_WORKFLOW.md).
+
+### 3. Build và cài dependency
+
+```bash
 docker compose build
 docker compose run --rm app composer install
 docker compose run --rm app php artisan key:generate
+```
+
+Lệnh `key:generate` tự ghi `APP_KEY` vào `.env`. Mỗi thành viên dùng key local riêng; không copy key production vào máy cá nhân.
+
+### 4. Khởi động và tạo database
+
+```bash
 docker compose up -d
-docker compose exec app php artisan migrate:fresh --seed
+docker compose exec app php artisan migrate --seed
 docker compose exec app php artisan test
 ```
 
-Mở <http://localhost:8080>. Các điểm kiểm tra:
+Kiểm tra trạng thái container:
+
+```bash
+docker compose ps
+```
+
+`mysql` và `redis` phải ở trạng thái healthy. Sau đó mở <http://localhost:8080>.
+
+### 5. Làm việc hằng ngày
+
+```bash
+docker compose up -d
+docker compose exec app php artisan migrate
+docker compose exec app php artisan test
+```
+
+Dừng project mà vẫn giữ database:
+
+```bash
+docker compose down
+```
+
+Không dùng `docker compose down -v` trừ khi muốn xóa toàn bộ dữ liệu MySQL/Redis local.
+
+Các điểm kiểm tra:
 
 - `GET /`: trang skeleton.
 - `GET /health`: `{"status":"ok"}`.
