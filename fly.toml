@@ -1,37 +1,44 @@
-primary_region = "sin"
+# fly.toml app configuration file generated for linguist on 2026-07-18T11:18:14Z
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'linguist'
+primary_region = 'sin'
 
 [build]
-  dockerfile = "Dockerfile.fly"
+  dockerfile = 'Dockerfile.fly'
 
 [deploy]
-  release_command = "php artisan migrate --force"
-  strategy = "rolling"
+  strategy = 'rolling'
+  release_command = 'php artisan migrate --force'
 
 [env]
-  APP_ENV = "production"
-  APP_DEBUG = "false"
-  LOG_CHANNEL = "stderr"
-  DB_CONNECTION = "mysql"
-  SESSION_DRIVER = "database"
-  CACHE_STORE = "redis"
-  QUEUE_CONNECTION = "redis"
-  REDIS_CLIENT = "phpredis"
+  APP_DEBUG = 'false'
+  APP_ENV = 'production'
+  CACHE_STORE = 'redis'
+  DB_CONNECTION = 'mysql'
+  LOG_CHANNEL = 'stderr'
+  QUEUE_CONNECTION = 'redis'
+  REDIS_CLIENT = 'phpredis'
+  SESSION_DRIVER = 'database'
 
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = "stop"
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 0
 
   [[http_service.checks]]
-    grace_period = "15s"
-    interval = "30s"
-    method = "GET"
-    timeout = "5s"
-    path = "/health"
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '15s'
+    method = 'GET'
+    path = '/health'
 
 [[vm]]
-  memory = "512mb"
-  cpu_kind = "shared"
+  memory = '512mb'
+  cpu_kind = 'shared'
   cpus = 1
+  memory_mb = 512
