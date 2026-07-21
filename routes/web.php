@@ -60,3 +60,15 @@ Route::middleware('auth')->group(function () {
     Route::put('/profile', [ProfileController::class, 'update'])
         ->name('profile.update');
 });
+
+/*
+|--------------------------------------------------------------------------
+| Admin (Yêu cầu đăng nhập & Quyền Admin)
+|--------------------------------------------------------------------------
+*/
+Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
+    // Trang Dashboard Admin
+    Route::get('/dashboard', function () {
+        return view('admin');
+    })->name('dashboard');
+});
