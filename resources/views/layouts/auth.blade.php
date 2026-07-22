@@ -221,27 +221,124 @@
         }
 
         .socials {
-            display: flex;
-            gap: 12px;
-        }
+        display: flex;
+        gap: 12px;
+        margin-top: 16px;
+    }
 
-        .btn-social {
-            flex: 1;
-            border: 2px solid #e5e5e5;
-            background: #fff;
-            font-family: 'Fredoka', sans-serif;
-            font-weight: 700;
-            font-size: 14px;
-            padding: 13px;
-            border-radius: 16px;
-            box-shadow: 0 3px 0 #e5e5e5;
-            cursor: not-allowed;
-            opacity: .55;
-        }
 
-        .btn-social.facebook { color: #3c5998; }
-        .btn-social.google { color: #5b6b62; }
+    .btn-social {
 
+        flex: 1;
+
+        display: flex;
+
+        justify-content: center;
+
+        align-items: center;
+
+
+        border: none;
+
+
+        font-family: 'Fredoka', sans-serif;
+
+        font-weight: 700;
+
+        font-size: 15px;
+
+
+        padding: 14px;
+
+
+        border-radius: 16px;
+
+
+        cursor: pointer;
+
+
+        text-decoration: none;
+
+
+        opacity: 1;
+
+
+        transition: all .25s ease;
+
+    }
+
+
+
+    /* FACEBOOK */
+
+    .btn-social.facebook {
+
+        background: #1877F2;
+
+
+        color: white;
+
+
+        box-shadow:
+
+        0 4px 0 #0d5dcc;
+
+    }
+
+
+
+    .btn-social.facebook:hover {
+
+        background: #2d88ff;
+
+
+        transform: translateY(-2px);
+
+
+        box-shadow:
+
+        0 6px 0 #0d5dcc;
+
+    }
+
+
+
+
+
+    /* GOOGLE */
+
+    .btn-social.google {
+
+
+        background: #EA4335;
+
+
+        color: white;
+
+
+        box-shadow:
+
+        0 4px 0 #b3261e;
+
+
+    }
+
+
+
+    .btn-social.google:hover {
+
+
+        background: #ff5a4f;
+
+
+        transform: translateY(-2px);
+
+
+        box-shadow:
+
+        0 6px 0 #b3261e;
+
+    }
         .terms {
             text-align: center;
             color: #afafaf;

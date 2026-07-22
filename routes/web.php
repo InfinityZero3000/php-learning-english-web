@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\ForgotPasswordController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SocialController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -33,7 +34,18 @@ Route::post('/register', [AuthController::class, 'register'])->name('register.st
 // Đăng nhập
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login'])->name('login.store');
+// Đăng nhập Google
+Route::get('/auth/google', [SocialController::class, 'google'])
+    ->name('google.login');
 
+Route::get('/auth/google/callback', [SocialController::class, 'googleCallback'])
+    ->name('google.callback');
+    // Đăng nhập Facebook
+Route::get('/auth/facebook', [SocialController::class, 'facebook'])
+    ->name('facebook.login');
+
+Route::get('/auth/facebook/callback', [SocialController::class, 'facebookCallback'])
+    ->name('facebook.callback');
 // Quên mật khẩu
 Route::get('/forgot-password', [ForgotPasswordController::class, 'showForgotForm'])
     ->name('password.request');
