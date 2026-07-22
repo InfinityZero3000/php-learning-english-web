@@ -1,295 +1,201 @@
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hồ sơ người học</title>
+@extends('layouts.auth')
 
-    <style>
-        *{
-            box-sizing:border-box;
-            font-family: 'Segoe UI', Arial, sans-serif;
-        }
+@section('title', 'Hồ sơ · LexiLingo')
 
-        body{
-            margin:0;
-            background:linear-gradient(135deg,#e0f2fe,#f8fafc);
-        }
+@section('styles')
+    .panel {
+        max-width: 760px;
+    }
 
-        .container{
-            width:900px;
-            max-width:95%;
-            margin:50px auto;
-        }
+    .profile-banner {
+        background: linear-gradient(120deg, var(--green-d), var(--green));
+        border-radius: 22px;
+        padding: 28px;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        margin-bottom: 22px;
+    }
 
-        .profile-card{
-            background:white;
-            border-radius:20px;
-            padding:35px;
-            box-shadow:0 10px 30px rgba(0,0,0,0.1);
-        }
+    .profile-avatar {
+        width: 76px;
+        height: 76px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, .2);
+        border: 3px solid rgba(255, 255, 255, .4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: 'Fredoka', sans-serif;
+        font-weight: 700;
+        font-size: 34px;
+        flex-shrink: 0;
+    }
 
-        .header{
-            display:flex;
-            align-items:center;
-            gap:25px;
-            border-bottom:1px solid #eee;
-            padding-bottom:25px;
-        }
+    .profile-name {
+        font-family: 'Fredoka', sans-serif;
+        font-weight: 700;
+        font-size: 24px;
+    }
 
-        .avatar{
-            width:100px;
-            height:100px;
-            border-radius:50%;
-            background:#2563eb;
-            color:white;
-            display:flex;
-            justify-content:center;
-            align-items:center;
-            font-size:40px;
-            font-weight:bold;
-        }
+    .profile-meta {
+        opacity: .9;
+        font-size: 14px;
+        margin-top: 2px;
+    }
 
-        .header h2{
-            margin:0;
-            color:#1e293b;
-        }
+    .profile-form {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 26px;
+        margin-bottom: 18px;
+    }
 
-        .header p{
-            color:#64748b;
-            margin-top:8px;
-        }
+    .section-title {
+        font-family: 'Fredoka', sans-serif;
+        font-weight: 600;
+        font-size: 19px;
+        margin: 0 0 18px;
+    }
 
+    .section-title.spaced {
+        margin-top: 24px;
+    }
 
-        .form-group{
-            margin-top:25px;
-        }
+    .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
 
-        label{
-            display:block;
-            font-weight:600;
-            margin-bottom:8px;
-            color:#334155;
-        }
+    .form-field label {
+        display: block;
+        font-weight: 600;
+        font-size: 14px;
+        margin-bottom: 7px;
+    }
 
-        input{
-            width:100%;
-            padding:13px;
-            border:1px solid #cbd5e1;
-            border-radius:10px;
-            font-size:15px;
-            outline:none;
-        }
+    .form-field input {
+        width: 100%;
+        border: 2px solid var(--line);
+        border-radius: 12px;
+        padding: 13px 15px;
+        font-family: 'Be Vietnam Pro', sans-serif;
+        font-size: 15px;
+        outline: none;
+        color: var(--ink);
+    }
 
-        input:focus{
-            border-color:#2563eb;
-        }
+    .form-field input:focus {
+        border-color: var(--green);
+    }
 
+    .form-actions {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-top: 24px;
+    }
 
-        .btn{
-            margin-top:30px;
-            padding:13px 25px;
-            border:none;
-            border-radius:10px;
-            cursor:pointer;
-            font-size:15px;
-        }
+    .btn-save {
+        display: inline-block;
+        width: auto;
+        margin-top: 0;
+        border: none;
+        cursor: pointer;
+        background: linear-gradient(135deg, var(--green), var(--green-d));
+        color: #fff;
+        font-family: 'Be Vietnam Pro', sans-serif;
+        font-weight: 700;
+        font-size: 15px;
+        text-transform: none;
+        letter-spacing: normal;
+        padding: 13px 28px;
+        border-radius: 12px;
+        box-shadow: none;
+    }
 
-        .btn-update{
-            background:#2563eb;
-            color:white;
-        }
+    .save-success {
+        color: var(--green-dd);
+        font-weight: 600;
+        font-size: 14px;
+    }
 
-        .btn-update:hover{
-            background:#1d4ed8;
-        }
+    .btn-logout-outline {
+        border: 2px solid #fecdca;
+        cursor: pointer;
+        background: var(--card);
+        color: #d92d20;
+        font-family: 'Be Vietnam Pro', sans-serif;
+        font-weight: 700;
+        font-size: 15px;
+        padding: 13px 24px;
+        border-radius: 12px;
+    }
+@endsection
 
+@section('content')
+    @if(session('success'))
+        <div class="flash-success">{{ session('success') }}</div>
+    @endif
 
-        .btn-logout{
-            background:#ef4444;
-            color:white;
-            margin-left:10px;
-        }
-
-        .btn-logout:hover{
-            background:#dc2626;
-        }
-
-
-        .success{
-            background:#dcfce7;
-            color:#166534;
-            padding:12px;
-            border-radius:10px;
-            margin-bottom:20px;
-        }
-
-
-        .error{
-            color:#dc2626;
-            font-size:14px;
-            margin-top:5px;
-        }
-
-
-        .info{
-            display:flex;
-            gap:20px;
-            margin-top:25px;
-        }
-
-        .box{
-            flex:1;
-            background:#f8fafc;
-            padding:20px;
-            border-radius:15px;
-            text-align:center;
-        }
-
-        .box h3{
-            margin:0;
-            color:#2563eb;
-        }
-
-        .box p{
-            color:#64748b;
-        }
-
-    </style>
-
-</head>
-
-<body>
-
-
-<div class="container">
-
-    <div class="profile-card">
-
-
-        @if(session('success'))
-            <div class="success">
-                {{ session('success') }}
-            </div>
-        @endif
-
-
-        <div class="header">
-
-            <div class="avatar">
-                {{ strtoupper(substr($user->name,0,1)) }}
-            </div>
-
-            <div>
-                <h2>{{ $user->name }}</h2>
-
-                <p>
-                    {{ $user->email }}
-                </p>
-
-                <p>
-                    Thành viên học tiếng Anh
-                </p>
-            </div>
-
+    <div class="profile-banner">
+        <div class="profile-avatar">{{ strtoupper(substr($user->name, 0, 1)) }}</div>
+        <div>
+            <div class="profile-name">{{ $user->name }}</div>
+            <div class="profile-meta">{{ $user->email }} · {{ $user->role?->slug === 'admin' ? 'Quản trị viên' : 'Học viên' }}</div>
         </div>
-
-
-
-        <div class="info">
-
-            <div class="box">
-                <h3>0</h3>
-                <p>Bài học hoàn thành</p>
-            </div>
-
-
-            <div class="box">
-                <h3>0</h3>
-                <p>Từ vựng đã học</p>
-            </div>
-
-
-            <div class="box">
-                <h3>0</h3>
-                <p>Bài kiểm tra</p>
-            </div>
-
-        </div>
-
-
-
-
-        <form action="{{ route('profile.update') }}" method="POST">
-
-            @csrf
-            @method('PUT')
-
-
-            <div class="form-group">
-
-                <label>Họ và tên</label>
-
-                <input 
-                    type="text"
-                    name="name"
-                    value="{{ old('name',$user->name) }}"
-                >
-
-                @error('name')
-                    <div class="error">
-                        {{ $message }}
-                    </div>
-                @enderror
-
-            </div>
-
-
-
-            <div class="form-group">
-
-                <label>Email</label>
-
-                <input 
-                    type="email"
-                    name="email"
-                    value="{{ old('email',$user->email) }}"
-                >
-
-                @error('email')
-                    <div class="error">
-                        {{ $message }}
-                    </div>
-                @enderror
-
-            </div>
-
-
-
-            <button class="btn btn-update">
-                Lưu thay đổi
-            </button>
-
-
-        </form>
-
-
-
-        <form action="{{ route('logout') }}" method="POST">
-
-            @csrf
-
-            <button class="btn btn-logout">
-                Đăng xuất
-            </button>
-
-        </form>
-
-
     </div>
 
-</div>
+    <form class="profile-form" action="{{ route('profile.update') }}" method="POST">
+        @csrf
+        @method('PUT')
 
+        <h3 class="section-title">Thông tin cá nhân</h3>
+        <div class="form-grid">
+            <div class="form-field">
+                <label>Họ và tên</label>
+                <input type="text" name="name" value="{{ old('name', $user->name) }}">
+                @error('name')
+                    <div class="field-error">{{ $message }}</div>
+                @enderror
+            </div>
+            <div class="form-field">
+                <label>Email</label>
+                <input type="email" name="email" value="{{ old('email', $user->email) }}">
+                @error('email')
+                    <div class="field-error">{{ $message }}</div>
+                @enderror
+            </div>
+        </div>
 
-</body>
-</html>
+        <h3 class="section-title spaced">Đổi mật khẩu</h3>
+        <div class="form-grid">
+            <div class="form-field">
+                <label>Mật khẩu hiện tại</label>
+                <input type="password" name="current_password" placeholder="••••••••">
+                @error('current_password')
+                    <div class="field-error">{{ $message }}</div>
+                @enderror
+            </div>
+            <div class="form-field">
+                <label>Mật khẩu mới</label>
+                <input type="password" name="new_password" placeholder="Tối thiểu 8 ký tự">
+                @error('new_password')
+                    <div class="field-error">{{ $message }}</div>
+                @enderror
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn-save">Lưu thay đổi</button>
+        </div>
+    </form>
+
+    <form action="{{ route('logout') }}" method="POST">
+        @csrf
+        <button type="submit" class="btn-logout-outline">&#9099; Đăng xuất</button>
+    </form>
+@endsection

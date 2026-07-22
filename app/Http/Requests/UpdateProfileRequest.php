@@ -27,6 +27,8 @@ class UpdateProfileRequest extends FormRequest
                 'email',
                 Rule::unique('users')->ignore($this->user()->id),
             ],
+            'current_password' => 'nullable|required_with:new_password|current_password',
+            'new_password' => 'nullable|required_with:current_password|min:8',
         ];
     }
 
@@ -40,6 +42,10 @@ class UpdateProfileRequest extends FormRequest
             'email.required' => 'Vui lòng nhập email.',
             'email.email' => 'Email không đúng định dạng.',
             'email.unique' => 'Email đã được sử dụng.',
+            'current_password.required_with' => 'Vui lòng nhập mật khẩu hiện tại.',
+            'current_password.current_password' => 'Mật khẩu hiện tại không đúng.',
+            'new_password.required_with' => 'Vui lòng nhập mật khẩu mới.',
+            'new_password.min' => 'Mật khẩu mới phải có ít nhất 8 ký tự.',
         ];
     }
 }
