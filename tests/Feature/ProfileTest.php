@@ -28,21 +28,31 @@ class ProfileTest extends TestCase
         $response->assertRedirect(route('login'));
     }
 
-    public function test_user_can_update_name_and_email(): void
+    public function test_user_can_update_name(): void
     {
         $user = User::factory()->create();
 
         $response = $this->actingAs($user)->put(route('profile.update'), [
             'name' => 'Updated Name',
-            'email' => 'updated@example.com',
         ]);
 
         $response->assertRedirect(route('profile'));
         $response->assertSessionHas('success');
 
-        $user->refresh();
-        $this->assertSame('Updated Name', $user->name);
-        $this->assertSame('updated@example.com', $user->email);
+        $this->assertSame('Updated Name', $user->fresh()->name);
+    }
+
+    public function test_email_cannot_be_changed_via_profile_update(): void
+    {
+        $user = User::factory()->create(['email' => 'original@example.com']);
+
+        $response = $this->actingAs($user)->put(route('profile.update'), [
+            'name' => $user->name,
+            'email' => 'attacker@example.com',
+        ]);
+
+        $response->assertRedirect(route('profile'));
+        $this->assertSame('original@example.com', $user->fresh()->email);
     }
 
     public function test_user_can_change_password_with_correct_current_password(): void
@@ -51,7 +61,6 @@ class ProfileTest extends TestCase
 
         $response = $this->actingAs($user)->put(route('profile.update'), [
             'name' => $user->name,
-            'email' => $user->email,
             'current_password' => 'old-password123',
             'new_password' => 'new-password123',
         ]);
@@ -66,7 +75,6 @@ class ProfileTest extends TestCase
 
         $response = $this->actingAs($user)->put(route('profile.update'), [
             'name' => $user->name,
-            'email' => $user->email,
             'current_password' => 'wrong-password',
             'new_password' => 'new-password123',
         ]);
@@ -81,11 +89,30 @@ class ProfileTest extends TestCase
 
         $response = $this->actingAs($user)->put(route('profile.update'), [
             'name' => $user->name,
-            'email' => $user->email,
             'current_password' => 'old-password123',
         ]);
 
         $response->assertSessionHasErrors('new_password');
         $this->assertTrue(Hash::check('old-password123', $user->fresh()->password));
+    }
+
+    public function test_user_can_delete_own_account(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->delete(route('profile.destroy'));
+
+        $response->assertRedirect(route('login'));
+        $response->assertSessionHas('success');
+
+        $this->assertGuest();
+        $this->assertModelMissing($user);
+    }
+
+    public function test_guest_cannot_delete_account(): void
+    {
+        $response = $this->delete(route('profile.destroy'));
+
+        $response->assertRedirect(route('login'));
     }
 }
