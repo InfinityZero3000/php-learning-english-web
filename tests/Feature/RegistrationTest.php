@@ -26,13 +26,43 @@ class RegistrationTest extends TestCase
             'password_confirmation' => 'password123',
         ]);
 
-        $response->assertRedirect(route('login'));
-        $response->assertSessionHas('success');
+        $response->assertRedirect(route('verification.notice'));
+        $response->assertSessionHas('verify_email', 'a@example.com');
 
         $user = User::where('email', 'a@example.com')->firstOrFail();
 
         $this->assertNull($user->email_verified_at);
         $this->assertSame(Role::query()->where('slug', 'learner')->value('id'), $user->role_id);
+
+        Notification::assertSentTo($user, VerifyEmail::class);
+    }
+
+    public function test_verify_notice_page_shows_registered_email(): void
+    {
+        $response = $this->withSession(['verify_email' => 'a@example.com'])
+            ->get(route('verification.notice'));
+
+        $response->assertOk();
+        $response->assertSee('a@example.com');
+    }
+
+    public function test_verify_notice_redirects_to_register_without_pending_email(): void
+    {
+        $response = $this->get(route('verification.notice'));
+
+        $response->assertRedirect(route('register'));
+    }
+
+    public function test_user_can_resend_verification_email(): void
+    {
+        Notification::fake();
+        $user = User::factory()->unverified()->create(['email' => 'a@example.com']);
+
+        $response = $this->withSession(['verify_email' => 'a@example.com'])
+            ->post(route('verification.send'));
+
+        $response->assertRedirect(route('verification.notice'));
+        $response->assertSessionHas('success');
 
         Notification::assertSentTo($user, VerifyEmail::class);
     }
