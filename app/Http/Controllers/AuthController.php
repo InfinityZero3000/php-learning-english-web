@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\RegisterRequest;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -24,14 +25,17 @@ class AuthController extends Controller
      */
     public function register(RegisterRequest $request)
     {
-        User::create([
+        $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+            'role_id' => Role::query()->where('slug', 'learner')->value('id'),
         ]);
 
+        $user->sendEmailVerificationNotification();
+
         return redirect()->route('login')
-            ->with('success', 'Đăng ký thành công! Vui lòng đăng nhập.');
+            ->with('success', 'Đăng ký thành công! Vui lòng kiểm tra email để xác nhận tài khoản, sau đó đăng nhập.');
     }
 
     /**
@@ -57,7 +61,7 @@ class AuthController extends Controller
         }
 
         return back()->withErrors([
-            'email' => 'Email hoặc mật khẩu không đúng.'
+            'email' => 'Email hoặc mật khẩu không đúng.',
         ])->withInput();
     }
 
