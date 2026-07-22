@@ -282,10 +282,6 @@
 
     <header class="topbar">
         <a class="topbar-close" href="{{ url('/') }}">&times;</a>
-        <div class="topbar-brand">
-            <div class="topbar-logo"><span>L</span></div>
-            <strong>LexiLingo</strong>
-        </div>
         @yield('topbar-switch')
     </header>
 

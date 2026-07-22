@@ -2,6 +2,10 @@
 
 @section('title', 'Đặt lại mật khẩu · LexiLingo')
 
+@section('topbar-switch')
+    <a class="topbar-switch" href="{{ route('login') }}">Đăng nhập</a>
+@endsection
+
 @section('styles')
     h1 {
         font-size: 28px;
