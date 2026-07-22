@@ -46,6 +46,12 @@ Route::post('/logout', [AuthController::class, 'logout'])
     ->name('logout');
 
 // Xác nhận email
+Route::get('/verify-email', [EmailVerificationController::class, 'notice'])
+    ->name('verification.notice');
+
+Route::post('/verify-email/resend', [EmailVerificationController::class, 'resend'])
+    ->name('verification.send');
+
 Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])
     ->middleware(['auth', 'signed'])
     ->name('verification.verify');

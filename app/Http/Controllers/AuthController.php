@@ -34,8 +34,9 @@ class AuthController extends Controller
 
         $user->sendEmailVerificationNotification();
 
-        return redirect()->route('login')
-            ->with('success', 'Đăng ký thành công! Vui lòng kiểm tra email để xác nhận tài khoản, sau đó đăng nhập.');
+        $request->session()->put('verify_email', $user->email);
+
+        return redirect()->route('verification.notice');
     }
 
     /**
