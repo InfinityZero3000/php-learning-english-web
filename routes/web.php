@@ -53,7 +53,7 @@ Route::post('/verify-email/resend', [EmailVerificationController::class, 'resend
     ->name('verification.send');
 
 Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])
-    ->middleware(['auth', 'signed'])
+    ->middleware('signed')
     ->name('verification.verify');
 
 /*

@@ -94,7 +94,7 @@ class RegistrationTest extends TestCase
         $response->assertSessionHasErrors('email');
     }
 
-    public function test_verification_link_marks_email_as_verified(): void
+    public function test_verification_link_marks_email_as_verified_without_login(): void
     {
         $user = User::factory()->unverified()->create();
 
@@ -104,9 +104,27 @@ class RegistrationTest extends TestCase
             ['id' => $user->id, 'hash' => sha1($user->email)]
         );
 
-        $response = $this->actingAs($user)->get($url);
+        // Guest, chưa đăng nhập — vì user chưa xác minh thì chưa thể đăng nhập được.
+        $response = $this->get($url);
 
         $response->assertRedirect(route('login'));
         $this->assertNotNull($user->fresh()->email_verified_at);
+        $this->assertGuest();
+    }
+
+    public function test_verification_link_rejects_wrong_hash(): void
+    {
+        $user = User::factory()->unverified()->create();
+
+        $url = URL::temporarySignedRoute(
+            'verification.verify',
+            now()->addMinutes(60),
+            ['id' => $user->id, 'hash' => sha1('someone-else@example.com')]
+        );
+
+        $response = $this->get($url);
+
+        $response->assertForbidden();
+        $this->assertNull($user->fresh()->email_verified_at);
     }
 }

@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\Request;
 
 class EmailVerificationController extends Controller
@@ -44,10 +43,22 @@ class EmailVerificationController extends Controller
 
     /**
      * Xác nhận email từ link gửi qua thư điện tử.
+     *
+     * Route dùng chữ ký tạm thời (signed) để xác thực quyền sở hữu email,
+     * nên không yêu cầu đăng nhập trước — vì lúc này user chưa xác minh
+     * thì cũng chưa thể đăng nhập được.
      */
-    public function verify(EmailVerificationRequest $request)
+    public function verify(Request $request, int $id, string $hash)
     {
-        $request->fulfill();
+        $user = User::findOrFail($id);
+
+        if (! hash_equals($hash, sha1($user->getEmailForVerification()))) {
+            abort(403);
+        }
+
+        if (! $user->hasVerifiedEmail()) {
+            $user->markEmailAsVerified();
+        }
 
         return redirect()->route('login')
             ->with('success', 'Email đã được xác nhận. Vui lòng đăng nhập.');
