@@ -77,4 +77,8 @@ Route::middleware('auth')->group(function () {
     // Cập nhật hồ sơ
     Route::put('/profile', [ProfileController::class, 'update'])
         ->name('profile.update');
+
+    // Xóa tài khoản
+    Route::delete('/profile', [ProfileController::class, 'destroy'])
+        ->name('profile.destroy');
 });

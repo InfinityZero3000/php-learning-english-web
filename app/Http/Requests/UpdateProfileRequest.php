@@ -3,7 +3,6 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class UpdateProfileRequest extends FormRequest
 {
@@ -22,11 +21,6 @@ class UpdateProfileRequest extends FormRequest
     {
         return [
             'name' => 'required|string|max:100',
-            'email' => [
-                'required',
-                'email',
-                Rule::unique('users')->ignore($this->user()->id),
-            ],
             'current_password' => 'nullable|required_with:new_password|current_password',
             'new_password' => 'nullable|required_with:current_password|min:8',
         ];
@@ -39,9 +33,6 @@ class UpdateProfileRequest extends FormRequest
     {
         return [
             'name.required' => 'Vui lòng nhập họ tên.',
-            'email.required' => 'Vui lòng nhập email.',
-            'email.email' => 'Email không đúng định dạng.',
-            'email.unique' => 'Email đã được sử dụng.',
             'current_password.required_with' => 'Vui lòng nhập mật khẩu hiện tại.',
             'current_password.current_password' => 'Mật khẩu hiện tại không đúng.',
             'new_password.required_with' => 'Vui lòng nhập mật khẩu mới.',
