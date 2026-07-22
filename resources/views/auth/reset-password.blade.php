@@ -1,215 +1,40 @@
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Đặt lại mật khẩu · LexiLingo</title>
+@extends('layouts.auth')
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@700;800;900&family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+@section('title', 'Đặt lại mật khẩu · LexiLingo')
 
-    <style>
-        :root {
-            --green: #12b76a;
-            --green-d: #039855;
-            --green-dd: #027a48;
-            --ink: #0c1f16;
-            --muted: #5c6b63;
-            --card: #ffffff;
-        }
+@section('styles')
+    h1 {
+        font-size: 28px;
+        margin: 0 0 8px;
+    }
+@endsection
 
-        * { box-sizing: border-box; }
+@section('content')
+    <h1>Đặt lại mật khẩu</h1>
+    <p class="subtitle">Nhập mật khẩu mới cho tài khoản của bạn.</p>
 
-        body {
-            margin: 0;
-            font-family: 'Be Vietnam Pro', system-ui, sans-serif;
-            color: var(--ink);
-            background: var(--card);
-        }
+    <form action="{{ route('password.update') }}" method="POST">
+        @csrf
 
-        a { text-decoration: none; }
+        <input type="hidden" name="token" value="{{ $token }}">
+        <input type="hidden" name="email" value="{{ old('email', $email) }}">
 
-        .topbar {
-            height: 64px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 22px;
-            border-bottom: 2px solid #f0f0f0;
-        }
-
-        .topbar-close {
-            border: none;
-            background: transparent;
-            cursor: pointer;
-            color: #afafaf;
-            font-size: 26px;
-            font-weight: 700;
-            line-height: 1;
-            padding: 6px;
-        }
-
-        .topbar-brand {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .topbar-logo {
-            width: 30px;
-            height: 30px;
-            border-radius: 10px;
-            background: linear-gradient(135deg, var(--green), var(--green-d));
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .topbar-logo span {
-            font-family: 'Fredoka', sans-serif;
-            font-weight: 700;
-            color: #fff;
-            font-size: 17px;
-        }
-
-        .topbar-brand strong {
-            font-family: 'Fredoka', sans-serif;
-            font-weight: 700;
-            font-size: 20px;
-            color: var(--green-dd);
-        }
-
-        .wrap {
-            display: flex;
-            align-items: flex-start;
-            justify-content: center;
-            padding: 56px 24px;
-        }
-
-        .panel {
-            width: 100%;
-            max-width: 380px;
-        }
-
-        h1 {
-            font-family: 'Nunito', sans-serif;
-            font-weight: 800;
-            font-size: 28px;
-            text-align: center;
-            margin: 0 0 8px;
-        }
-
-        .subtitle {
-            color: var(--muted);
-            text-align: center;
-            margin: 0 0 24px;
-        }
-
-        .field-group {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .field-group input {
-            width: 100%;
-            border: 2px solid #e5e5e5;
-            border-radius: 14px;
-            background: #f7f7f7;
-            padding: 15px 16px;
-            font-family: 'Be Vietnam Pro', sans-serif;
-            font-size: 16px;
-            outline: none;
-            color: var(--ink);
-        }
-
-        .field-group input:focus {
-            background: #fff;
-            border-color: #b7d9c8;
-        }
-
-        .field-error {
-            color: #f04438;
-            font-size: 13px;
-            margin-top: 8px;
-        }
-
-        .btn-submit {
-            width: 100%;
-            margin-top: 18px;
-            border: none;
-            cursor: pointer;
-            background: var(--green);
-            color: #fff;
-            font-family: 'Fredoka', sans-serif;
-            font-weight: 700;
-            font-size: 17px;
-            letter-spacing: .5px;
-            text-transform: uppercase;
-            padding: 15px;
-            border-radius: 16px;
-            box-shadow: 0 4px 0 var(--green-dd);
-        }
-
-        .btn-submit:active {
-            transform: translateY(2px);
-            box-shadow: 0 2px 0 var(--green-dd);
-        }
-
-        .back-link {
-            text-align: center;
-            margin-top: 18px;
-        }
-
-        .back-link a {
-            color: #1cb0f6;
-            font-weight: 700;
-            font-size: 14px;
-        }
-    </style>
-</head>
-<body>
-
-    <header class="topbar">
-        <a class="topbar-close" href="{{ url('/') }}">&times;</a>
-        <div class="topbar-brand">
-            <div class="topbar-logo"><span>L</span></div>
-            <strong>LexiLingo</strong>
+        <div class="field-group">
+            <input type="password" name="password" placeholder="Mật khẩu mới (tối thiểu 8 ký tự)">
+            <input type="password" name="password_confirmation" placeholder="Xác nhận mật khẩu mới">
         </div>
-    </header>
 
-    <div class="wrap">
-        <div class="panel">
-            <h1>Đặt lại mật khẩu</h1>
-            <p class="subtitle">Nhập mật khẩu mới cho tài khoản của bạn.</p>
+        @error('email')
+            <div class="field-error">{{ $message }}</div>
+        @enderror
+        @error('password')
+            <div class="field-error">{{ $message }}</div>
+        @enderror
 
-            <form action="{{ route('password.update') }}" method="POST">
-                @csrf
+        <button type="submit" class="btn-submit">Đặt lại mật khẩu</button>
 
-                <input type="hidden" name="token" value="{{ $token }}">
-                <input type="hidden" name="email" value="{{ old('email', $email) }}">
-
-                <div class="field-group">
-                    <input type="password" name="password" placeholder="Mật khẩu mới (tối thiểu 8 ký tự)">
-                    <input type="password" name="password_confirmation" placeholder="Xác nhận mật khẩu mới">
-                </div>
-
-                @error('email')
-                    <div class="field-error">{{ $message }}</div>
-                @enderror
-                @error('password')
-                    <div class="field-error">{{ $message }}</div>
-                @enderror
-
-                <button type="submit" class="btn-submit">Đặt lại mật khẩu</button>
-
-                <div class="back-link">
-                    <a href="{{ route('login') }}">&larr; Quay lại đăng nhập</a>
-                </div>
-            </form>
+        <div class="back-link">
+            <a href="{{ route('login') }}">&larr; Quay lại đăng nhập</a>
         </div>
-    </div>
-
-</body>
-</html>
+    </form>
+@endsection
