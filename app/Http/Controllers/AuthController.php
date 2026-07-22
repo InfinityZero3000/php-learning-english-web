@@ -55,6 +55,16 @@ class AuthController extends Controller
         $credentials = $request->only('email', 'password');
 
         if (Auth::attempt($credentials)) {
+            $user = Auth::user();
+
+            if (! $user->hasVerifiedEmail()) {
+                Auth::logout();
+
+                $request->session()->put('verify_email', $user->email);
+
+                return redirect()->route('verification.notice')
+                    ->with('notice', 'Vui lòng xác nhận email trước khi đăng nhập.');
+            }
 
             $request->session()->regenerate();
 

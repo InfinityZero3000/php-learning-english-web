@@ -15,6 +15,7 @@
             --green-d: #039855;
             --green-dd: #027a48;
             --amber: #f79009;
+            --amber-d: #dc6803;
             --ink: #0c1f16;
             --muted: #5c6b63;
         }
@@ -206,6 +207,17 @@
             margin-top: 14px;
         }
 
+        .flash-notice {
+            background: #fff5e6;
+            color: var(--amber-d);
+            font-weight: 600;
+            font-size: 14px;
+            text-align: center;
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin: 0 0 20px;
+        }
+
         .footer-link {
             display: block;
             margin-top: 20px;
@@ -234,6 +246,10 @@
             </div>
 
             <h1>Kiểm tra hộp thư</h1>
+
+            @if(session('notice'))
+                <div class="flash-notice">{{ session('notice') }}</div>
+            @endif
 
             <p>Chúng tôi đã gửi liên kết xác minh đến <b>{{ $email }}</b>. Vui lòng kiểm tra email để kích hoạt tài khoản.</p>
 
