@@ -11,144 +11,242 @@
 
     <style>
         :root {
-            --teal: #2dd4bf;
-            --teal-d: #14b8a6;
-            --bg: #0b1512;
-            --card-muted: #9fb0aa;
-            --line: #16241f;
+            --green: #12b76a;
+            --green-d: #039855;
+            --green-dd: #027a48;
+            --amber: #f79009;
+            --ink: #0c1f16;
+            --muted: #5c6b63;
         }
 
         * { box-sizing: border-box; }
 
         body {
             margin: 0;
-            min-height: 100vh;
             font-family: 'Be Vietnam Pro', system-ui, sans-serif;
-            background: var(--bg);
-            color: #fff;
+            color: var(--ink);
+            background: #fff;
         }
 
         a { text-decoration: none; }
 
         .topbar {
-            text-align: center;
-            padding: 26px 22px 0;
-            color: #cfe0da;
-            font-weight: 600;
-            font-size: 15px;
-            letter-spacing: .2px;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 22px;
+            border-bottom: 2px solid #f0f0f0;
         }
 
-        .wrap {
-            min-height: calc(100vh - 70px);
+        .topbar-close {
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            color: #afafaf;
+            font-size: 26px;
+            font-weight: 700;
+            line-height: 1;
+            padding: 6px;
+        }
+
+        .topbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .topbar-logo {
+            width: 30px;
+            height: 30px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--green), var(--green-d));
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 40px 24px;
+        }
+
+        .topbar-logo span {
+            font-family: 'Fredoka', sans-serif;
+            font-weight: 700;
+            color: #fff;
+            font-size: 17px;
+        }
+
+        .topbar-brand strong {
+            font-family: 'Fredoka', sans-serif;
+            font-weight: 700;
+            font-size: 20px;
+            color: var(--green-dd);
+        }
+
+        .topbar-switch {
+            border: 2px solid #e5e5e5;
+            background: #fff;
+            cursor: pointer;
+            color: var(--green-dd);
+            font-family: 'Fredoka', sans-serif;
+            font-weight: 700;
+            font-size: 14px;
+            letter-spacing: .4px;
+            text-transform: uppercase;
+            padding: 9px 16px;
+            border-radius: 14px;
+            box-shadow: 0 3px 0 #e5e5e5;
+        }
+
+        .wrap {
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 56px 24px;
         }
 
         .panel {
             width: 100%;
             max-width: 380px;
             text-align: center;
+            padding-top: 6px;
         }
 
         .icon {
-            width: 88px;
-            height: 88px;
-            margin: 0 auto 28px;
+            width: 110px;
+            height: 110px;
+            margin: 0 auto 26px;
+            border: 3px solid var(--green);
             border-radius: 50%;
-            border: 2px solid var(--teal);
             display: flex;
             align-items: center;
             justify-content: center;
             position: relative;
         }
 
-        .icon svg { display: block; }
+        .icon span.emoji {
+            font-size: 46px;
+            line-height: 1;
+        }
 
         .icon .dot {
             position: absolute;
-            top: 18px;
-            right: 20px;
-            width: 10px;
-            height: 10px;
+            top: 12px;
+            right: 16px;
+            width: 14px;
+            height: 14px;
+            background: var(--amber);
             border-radius: 50%;
-            background: var(--teal);
+            border: 3px solid #fff;
         }
 
         h1 {
             font-family: 'Fredoka', sans-serif;
             font-weight: 700;
             font-size: 28px;
-            margin: 0 0 14px;
+            margin: 0 0 12px;
         }
 
         p {
-            color: var(--card-muted);
+            color: var(--muted);
+            line-height: 1.65;
             font-size: 15px;
-            line-height: 1.6;
-            margin: 0 0 34px;
+            margin: 0 auto 28px;
+            max-width: 340px;
         }
 
-        p b { color: #fff; font-weight: 600; }
+        p b { color: var(--ink); }
 
-        .btn-resend {
+        .btn-verify {
             width: 100%;
             border: none;
             cursor: pointer;
-            background: var(--teal);
-            color: #06201b;
+            background: var(--green);
+            color: #fff;
             font-family: 'Fredoka', sans-serif;
             font-weight: 700;
-            font-size: 16px;
+            font-size: 17px;
+            letter-spacing: .5px;
+            text-transform: uppercase;
             padding: 15px;
-            border-radius: 100px;
+            border-radius: 16px;
+            box-shadow: 0 4px 0 var(--green-dd);
+            display: block;
+            text-align: center;
         }
 
-        .btn-resend:hover { background: var(--teal-d); }
+        .btn-verify:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 var(--green-dd);
+        }
+
+        .btn-resend {
+            width: 100%;
+            margin-top: 12px;
+            border: 2px solid #e5e5e5;
+            cursor: pointer;
+            background: #fff;
+            color: var(--muted);
+            font-family: 'Fredoka', sans-serif;
+            font-weight: 700;
+            font-size: 15px;
+            text-transform: uppercase;
+            letter-spacing: .4px;
+            padding: 13px;
+            border-radius: 16px;
+            box-shadow: 0 3px 0 #e5e5e5;
+        }
+
+        .btn-resend:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 0 #e5e5e5;
+        }
+
+        .resend-success {
+            color: var(--green-dd);
+            font-weight: 600;
+            font-size: 14px;
+            margin-top: 14px;
+        }
 
         .footer-link {
-            display: inline-block;
+            display: block;
             margin-top: 20px;
-            color: var(--teal);
-            font-weight: 600;
-            font-size: 15px;
-        }
-
-        .flash-success {
-            margin: 0 0 20px;
-            color: var(--teal);
+            color: #1cb0f6;
+            font-weight: 700;
             font-size: 14px;
         }
     </style>
 </head>
 <body>
 
-    <div class="topbar">Kiểm tra hộp thư</div>
+    <header class="topbar">
+        <a class="topbar-close" href="{{ url('/') }}">&times;</a>
+        <div class="topbar-brand">
+            <div class="topbar-logo"><span>L</span></div>
+            <strong>LexiLingo</strong>
+        </div>
+        <a class="topbar-switch" href="{{ route('login') }}">Đăng nhập</a>
+    </header>
 
     <div class="wrap">
         <div class="panel">
             <div class="icon">
-                <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="2" y="4" width="20" height="16" rx="2"></rect>
-                    <path d="M2 6l10 7 10-7"></path>
-                </svg>
+                <span class="emoji">✉️</span>
                 <span class="dot"></span>
             </div>
 
             <h1>Kiểm tra hộp thư</h1>
 
-            @if(session('success'))
-                <div class="flash-success">{{ session('success') }}</div>
-            @endif
-
             <p>Chúng tôi đã gửi liên kết xác minh đến <b>{{ $email }}</b>. Vui lòng kiểm tra email để kích hoạt tài khoản.</p>
+
+            <a class="btn-verify" href="{{ route('login') }}">Tôi đã xác minh &rarr;</a>
 
             <form action="{{ route('verification.send') }}" method="POST">
                 @csrf
                 <button type="submit" class="btn-resend">Gửi lại email xác minh</button>
             </form>
+
+            @if(session('success'))
+                <div class="resend-success">&#10003; {{ session('success') }}</div>
+            @endif
 
             <a class="footer-link" href="{{ route('login') }}">Quay lại đăng nhập</a>
         </div>
