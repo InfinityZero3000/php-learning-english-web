@@ -40,7 +40,7 @@ Route::get('/auth/google', [SocialController::class, 'google'])
 
 Route::get('/auth/google/callback', [SocialController::class, 'googleCallback'])
     ->name('google.callback');
-    // Đăng nhập Facebook
+// Đăng nhập Facebook
 Route::get('/auth/facebook', [SocialController::class, 'facebook'])
     ->name('facebook.login');
 
