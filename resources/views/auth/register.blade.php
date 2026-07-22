@@ -7,7 +7,7 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@700;800;900&family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     <style>
         :root {
@@ -111,22 +111,23 @@
         }
 
         h1 {
-            font-family: 'Fredoka', sans-serif;
-            font-weight: 700;
+            font-family: 'Nunito', sans-serif;
+            font-weight: 800;
             font-size: 30px;
             text-align: center;
             margin: 0 0 26px;
         }
 
-        .fields {
-            border: 2px solid #e5e5e5;
-            border-radius: 16px;
-            overflow: hidden;
+        .field-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
         }
 
-        .fields input {
+        .field-group input {
             width: 100%;
-            border: none;
+            border: 2px solid #e5e5e5;
+            border-radius: 14px;
             background: #f7f7f7;
             padding: 15px 16px;
             font-family: 'Be Vietnam Pro', sans-serif;
@@ -135,12 +136,9 @@
             color: var(--ink);
         }
 
-        .fields input:not(:first-child) {
-            border-top: 2px solid #e5e5e5;
-        }
-
-        .fields input:focus {
+        .field-group input:focus {
             background: #fff;
+            border-color: #b7d9c8;
         }
 
         .field-error {
@@ -243,7 +241,7 @@
             <form action="{{ route('register.store') }}" method="POST">
                 @csrf
 
-                <div class="fields">
+                <div class="field-group">
                     <input type="text" name="name" value="{{ old('name') }}" placeholder="Họ và tên">
                     <input type="email" name="email" value="{{ old('email') }}" placeholder="Email">
                     <input type="password" name="password" placeholder="Mật khẩu (tối thiểu 8 ký tự)">
