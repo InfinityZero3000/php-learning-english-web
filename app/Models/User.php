@@ -19,6 +19,10 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
+    protected $attributes = [
+        'role_id' => 2,
+    ];
+
     public function role(): BelongsTo
     {
         return $this->belongsTo(Role::class);
