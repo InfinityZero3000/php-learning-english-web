@@ -3,10 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class SkeletonRoutesTest extends TestCase
 {
+    use RefreshDatabase;
     public function test_home_page_is_available(): void
     {
         $this->get('/')
@@ -23,6 +25,8 @@ class SkeletonRoutesTest extends TestCase
 
     public function test_admin_placeholder_is_available(): void
     {
+        // Nạp dữ liệu Seeder (bao gồm bảng roles) vào DB tạm trước
+        $this->seed();
         // Tạo giả lập một user có role_id = 1 (Admin)
         $admin = User::factory()->make(['role_id' => 1]);
 

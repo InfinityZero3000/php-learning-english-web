@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ForgotPasswordController;
+use App\Http\Controllers\Admin\UserController;
 
 /*
 |--------------------------------------------------------------------------
@@ -71,4 +72,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
     Route::get('/dashboard', function () {
         return view('admin');
     })->name('dashboard');
+});
+
+// Nhóm Route Admin yêu cầu Đăng nhập + Middleware CheckAdminRole
+Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
+    Route::get('/dashboard', [UserController::class, 'index'])->name('admin.dashboard');
+    Route::patch('/users/{id}/role', [UserController::class, 'updateRole'])->name('admin.users.updateRole');
 });
