@@ -224,6 +224,110 @@
             text-transform: uppercase;
             cursor: pointer;
         }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(12, 31, 22, .45);
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            z-index: 50;
+        }
+
+        .modal-overlay.is-open {
+            display: flex;
+        }
+
+        .modal-box {
+            width: 100%;
+            max-width: 360px;
+            background: #fff;
+            border-radius: 20px;
+            padding: 28px;
+            text-align: center;
+            box-shadow: 0 24px 60px rgba(12, 31, 22, .25);
+            animation: modalPop .18s ease both;
+            font-family: 'Be Vietnam Pro', system-ui, sans-serif;
+        }
+
+        @keyframes modalPop {
+            from { opacity: 0; transform: scale(.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .modal-icon {
+            width: 52px;
+            height: 52px;
+            margin: 0 auto 14px;
+            border-radius: 50%;
+            background: #fef3f2;
+            color: #d92d20;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .modal-title {
+            font-family: 'Nunito', sans-serif;
+            font-weight: 800;
+            font-size: 20px;
+            margin: 0 0 10px;
+            color: var(--ink);
+        }
+
+        .modal-desc {
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.6;
+            margin: 0 0 24px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .modal-actions form {
+            flex: 1;
+            margin: 0;
+        }
+
+        .btn-cancel {
+            flex: 1;
+            border: 2px solid var(--line);
+            background: #fff;
+            color: var(--ink);
+            font-family: 'Be Vietnam Pro', sans-serif;
+            font-weight: 700;
+            font-size: 14px;
+            padding: 12px;
+            border-radius: 12px;
+            cursor: pointer;
+        }
+
+        .btn-cancel:hover {
+            background: var(--soft);
+        }
+
+        .btn-danger {
+            width: 100%;
+            border: none;
+            background: #d92d20;
+            color: #fff;
+            font-family: 'Be Vietnam Pro', sans-serif;
+            font-weight: 700;
+            font-size: 14px;
+            padding: 12px;
+            border-radius: 12px;
+            cursor: pointer;
+        }
+
+        .btn-danger:hover {
+            background: #b42318;
+        }
     </style>
 
     <div class="profile-card">
@@ -289,12 +393,23 @@
             </div>
         </form>
 
-        <form action="{{ route('profile.destroy') }}" method="POST"
-              onsubmit="return confirm('Bạn có chắc chắn muốn xóa tài khoản? Hành động này không thể hoàn tác.');">
-            @csrf
-            @method('DELETE')
-            <button type="submit" class="delete-link">Xóa tài khoản của tôi</button>
-        </form>
+        <button type="button" class="delete-link" id="openDeleteModal">Xóa tài khoản của tôi</button>
+    </div>
+
+    <div class="modal-overlay" id="deleteModal">
+        <div class="modal-box">
+            <div class="modal-icon">&#9888;</div>
+            <h2 class="modal-title">Xóa tài khoản?</h2>
+            <p class="modal-desc">Hành động này không thể hoàn tác. Toàn bộ dữ liệu hồ sơ của bạn sẽ bị xóa vĩnh viễn.</p>
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" id="cancelDeleteModal">Hủy</button>
+                <form action="{{ route('profile.destroy') }}" method="POST">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="btn-danger">Xóa tài khoản</button>
+                </form>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -306,6 +421,24 @@
                 btn.querySelector('.icon-eye').style.display = isHidden ? 'none' : '';
                 btn.querySelector('.icon-eye-off').style.display = isHidden ? '' : 'none';
             });
+        });
+
+        var deleteModal = document.getElementById('deleteModal');
+        document.getElementById('openDeleteModal').addEventListener('click', function () {
+            deleteModal.classList.add('is-open');
+        });
+        document.getElementById('cancelDeleteModal').addEventListener('click', function () {
+            deleteModal.classList.remove('is-open');
+        });
+        deleteModal.addEventListener('click', function (e) {
+            if (e.target === deleteModal) {
+                deleteModal.classList.remove('is-open');
+            }
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                deleteModal.classList.remove('is-open');
+            }
         });
     </script>
 @endsection
