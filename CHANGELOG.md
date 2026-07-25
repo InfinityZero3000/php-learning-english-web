@@ -1,6 +1,25 @@
 # Release Notes
 
-## [Unreleased](https://github.com/laravel/laravel/compare/v13.8.0...13.x)
+## [Unreleased](https://github.com/laravel/laravel/compare/v0.1.0...main)
+
+## [v0.1.0](https://github.com/laravel/laravel/compare/v13.8.0...v0.1.0) - 2026-07-25
+
+### What's Changed
+
+* trang dang nhap dang ky quen mat khau ho so nguoi hoc by [@nguyenngoctanthanh](https://github.com/nguyenngoctanthanh) in https://github.com/InfinityZero3000/php-learning-english-web/pull/1
+* Feature/3 edit profile by [@danhnht2005](https://github.com/danhnht2005) in https://github.com/InfinityZero3000/php-learning-english-web/pull/4
+* feat: replace native confirm() with styled delete-account modal by [@danhnht2005](https://github.com/danhnht2005) in https://github.com/InfinityZero3000/php-learning-english-web/pull/5
+* chore(deps): bump actions/checkout from 7.0.0 to 7.0.1 in the github-actions group by [@dependabot](https://github.com/dependabot)[bot] in https://github.com/InfinityZero3000/php-learning-english-web/pull/6
+* chore: harden deploy readiness and CI gates by [@InfinityZero3000](https://github.com/InfinityZero3000) in https://github.com/InfinityZero3000/php-learning-english-web/pull/7
+
+### New Contributors
+
+* [@nguyenngoctanthanh](https://github.com/nguyenngoctanthanh) made their first contribution in https://github.com/InfinityZero3000/php-learning-english-web/pull/1
+* [@danhnht2005](https://github.com/danhnht2005) made their first contribution in https://github.com/InfinityZero3000/php-learning-english-web/pull/4
+* [@dependabot](https://github.com/dependabot)[bot] made their first contribution in https://github.com/InfinityZero3000/php-learning-english-web/pull/6
+* [@InfinityZero3000](https://github.com/InfinityZero3000) made their first contribution in https://github.com/InfinityZero3000/php-learning-english-web/pull/7
+
+**Full Changelog**: https://github.com/InfinityZero3000/php-learning-english-web/commits/v0.1.0
 
 ## [v13.8.0](https://github.com/laravel/laravel/compare/v13.7.0...v13.8.0) - 2026-05-25
 
