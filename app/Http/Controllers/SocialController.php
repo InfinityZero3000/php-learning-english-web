@@ -22,19 +22,29 @@ class SocialController extends Controller
 
     public function googleCallback()
     {
-        $googleUser = Socialite::driver('google')->user();
+        try {
+            /** @var \Laravel\Socialite\Two\GoogleProvider $googleDriver */
+            $googleDriver = Socialite::driver('google');
+            $googleUser = $googleDriver->stateless()->user();
 
-        $user = User::firstOrCreate(
-            ['email' => $googleUser->getEmail()],
-            [
-                'name' => $googleUser->getName(),
-                'password' => bcrypt(Str::random(16)),
-            ]
-        );
+            $user = User::firstOrCreate(
+                ['email' => $googleUser->getEmail()],
+                [
+                    'name' => $googleUser->getName(),
+                    'password' => bcrypt(Str::random(16)),
+                ]
+            );
 
-        Auth::login($user);
+            Auth::login($user);
 
-        return redirect('/');
+            return redirect('/');
+        } catch (\Laravel\Socialite\Two\InvalidStateException $e) {
+            return redirect()->route('login')
+                ->with('error', 'Google login failed. Please try again.');
+        } catch (\Exception $e) {
+            return redirect()->route('login')
+                ->with('error', 'An error occurred during login. Please try again.');
+        }
     }
 
     /*
@@ -50,18 +60,28 @@ class SocialController extends Controller
 
     public function facebookCallback()
     {
-        $facebookUser = Socialite::driver('facebook')->user();
+        try {
+            /** @var \Laravel\Socialite\Two\FacebookProvider $facebookDriver */
+            $facebookDriver = Socialite::driver('facebook');
+            $facebookUser = $facebookDriver->stateless()->user();
 
-        $user = User::firstOrCreate(
-            ['email' => $facebookUser->getEmail()],
-            [
-                'name' => $facebookUser->getName(),
-                'password' => bcrypt(Str::random(16)),
-            ]
-        );
+            $user = User::firstOrCreate(
+                ['email' => $facebookUser->getEmail()],
+                [
+                    'name' => $facebookUser->getName(),
+                    'password' => bcrypt(Str::random(16)),
+                ]
+            );
 
-        Auth::login($user);
+            Auth::login($user);
 
-        return redirect('/');
+            return redirect('/');
+        } catch (\Laravel\Socialite\Two\InvalidStateException $e) {
+            return redirect()->route('login')
+                ->with('error', 'Facebook login failed. Please try again.');
+        } catch (\Exception $e) {
+            return redirect()->route('login')
+                ->with('error', 'An error occurred during login. Please try again.');
+        }
     }
 }
