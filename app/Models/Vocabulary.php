@@ -8,7 +8,19 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Vocabulary extends Model
 {
-    protected $fillable = ['lesson_id', 'topic_id', 'word', 'meaning', 'example', 'image_path', 'audio_path'];
+    protected $fillable = [
+        'lesson_id', 'topic_id', 'external_id', 'word', 'meaning', 'definition',
+        'translation', 'pronunciation', 'part_of_speech', 'difficulty_level',
+        'tags', 'example', 'image_path', 'audio_path', 'external_audio_url',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'translation' => 'array',
+            'tags' => 'array',
+        ];
+    }
 
     public function lesson(): BelongsTo
     {
@@ -23,5 +35,10 @@ class Vocabulary extends Model
     public function bookmarks(): HasMany
     {
         return $this->hasMany(Bookmark::class);
+    }
+
+    public function userVocabularies(): HasMany
+    {
+        return $this->hasMany(UserVocabulary::class);
     }
 }

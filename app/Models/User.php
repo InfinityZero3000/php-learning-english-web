@@ -39,6 +39,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(Bookmark::class);
     }
 
+    public function userVocabularies(): HasMany
+    {
+        return $this->hasMany(UserVocabulary::class);
+    }
+
     /**
      * Get the attributes that should be cast.
      *

@@ -28,6 +28,44 @@ Nguồn: [Plan-Project-PHP](https://docs.google.com/spreadsheets/d/1FEMThp6qiknt
 4. Chốt API sau khi model và nghiệp vụ web ổn định.
 5. Bảo mật, test và chất lượng mã chạy xuyên suốt; triển khai sau khi các kiểm tra chính vượt qua.
 
+## Kiến trúc tích hợp đã chốt
+
+Laravel là hệ thống chính và là nguồn dữ liệu nghiệp vụ duy nhất:
+
+- Laravel quản lý tài khoản, đăng nhập, email, phân quyền, khóa học, tiến độ,
+  quiz và dữ liệu người dùng.
+- Hai ứng dụng Next.js (`frontend/`, `admin-frontend/`) chỉ gọi Laravel API.
+- LexiLingo cung cấp dataset Course/Unit/Lesson/Vocabulary để đồng bộ về MySQL.
+- AI, dịch, STT và TTS của LexiLingo được Laravel gọi server-to-server; frontend
+  không giữ token hoặc service secret.
+- Frontend deploy thành hai Vercel Project; Laravel API deploy trên Fly.io.
+
+### Các phase triển khai
+
+| Phase | Phạm vi | Kết quả |
+|---|---|---|
+| 1 | Schema và API contract | Unit, external ID, metadata nội dung, response/error chuẩn |
+| 2 | Nền tảng API | Auth middleware, CSRF/CORS/rewrite, rate limit, health |
+| 3 | Auth và Mail | Register/login/logout, verify, forgot/reset, profile |
+| 4 | Dataset | Import category/course/unit/lesson/vocabulary từ LexiLingo |
+| 5 | Học tập | Catalog, bookmark, quiz, progress, lịch sử và FSRS |
+| 6 | Admin | Dashboard, CRUD nội dung, user, role/policy |
+| 7 | Frontend | Chuyển user/admin Next.js sang Laravel API contract |
+| 8 | AI Services | Proxy translate, pronunciation, STT và TTS; AI tutor chỉ triển khai sau khi có external-subject contract |
+| 9 | Chất lượng/Deploy | Feature test, frontend build, Vercel/Fly verification |
+
+### Nguyên tắc dữ liệu LexiLingo
+
+- Import bằng `external_id` và `upsert()` để chạy lại không tạo dữ liệu trùng.
+- Dataset văn bản được lưu tại MySQL; ảnh/audio ngoài vẫn phụ thuộc LexiLingo
+  cho đến khi dự án có object storage riêng.
+- Không import user, token, progress, notification hoặc dữ liệu cá nhân.
+- Request AI thời gian thực phải có timeout, lỗi an toàn và không làm lộ secret.
+
+Blade hiện tại là giao diện chuyển tiếp để Auth/Profile tiếp tục hoạt động trong
+khi hai Next.js app được chuyển đổi. Giao diện production cuối cùng là
+`frontend/` và `admin-frontend/`.
+
 ## Quy ước bàn giao
 
 - Mỗi nhiệm vụ có issue riêng, nhánh riêng và pull request được review.

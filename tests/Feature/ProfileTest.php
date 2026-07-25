@@ -63,6 +63,7 @@ class ProfileTest extends TestCase
             'name' => $user->name,
             'current_password' => 'old-password123',
             'new_password' => 'new-password123',
+            'new_password_confirmation' => 'new-password123',
         ]);
 
         $response->assertRedirect(route('profile'));
@@ -83,6 +84,21 @@ class ProfileTest extends TestCase
         $this->assertTrue(Hash::check('old-password123', $user->fresh()->password));
     }
 
+    public function test_password_change_requires_confirmation(): void
+    {
+        $user = User::factory()->create(['password' => Hash::make('old-password123')]);
+
+        $response = $this->actingAs($user)->put(route('profile.update'), [
+            'name' => $user->name,
+            'current_password' => 'old-password123',
+            'new_password' => 'new-password123',
+            'new_password_confirmation' => 'different-password',
+        ]);
+
+        $response->assertSessionHasErrors('new_password');
+        $this->assertTrue(Hash::check('old-password123', $user->fresh()->password));
+    }
+
     public function test_new_password_required_when_current_password_given(): void
     {
         $user = User::factory()->create(['password' => Hash::make('old-password123')]);
@@ -98,15 +114,32 @@ class ProfileTest extends TestCase
 
     public function test_user_can_delete_own_account(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['password' => Hash::make('password123')]);
 
-        $response = $this->actingAs($user)->delete(route('profile.destroy'));
+        $response = $this->actingAs($user)->delete(route('profile.destroy'), [
+            'password' => 'password123',
+        ]);
 
         $response->assertRedirect(route('login'));
         $response->assertSessionHas('success');
 
         $this->assertGuest();
         $this->assertModelMissing($user);
+    }
+
+    public function test_account_deletion_requires_current_password(): void
+    {
+        $user = User::factory()->create(['password' => Hash::make('password123')]);
+
+        $this->actingAs($user)
+            ->delete(route('profile.destroy'))
+            ->assertSessionHasErrors('password');
+        $this->assertModelExists($user);
+
+        $this->actingAs($user)
+            ->delete(route('profile.destroy'), ['password' => 'wrong-password'])
+            ->assertSessionHasErrors('password');
+        $this->assertModelExists($user);
     }
 
     public function test_guest_cannot_delete_account(): void

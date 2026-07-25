@@ -1,0 +1,189 @@
+@import url("https://fonts.googleapis.com/css2?family=Lexend:wght@500;700&family=Nunito+Sans:wght@400;500;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: "Lexend", sans-serif;
+  --font-body: "Nunito Sans", sans-serif;
+  --background: 30 25% 98%;
+  --foreground: 180 2% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 180 2% 11%;
+  --primary: 198 100% 28%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 47 100% 50%;
+  --secondary-foreground: 46 100% 22%;
+  --muted: 20 7% 94%;
+  --muted-foreground: 207 13% 28%;
+  --accent: 204 100% 89%;
+  --accent-foreground: 199 100% 18%;
+  --destructive: 0 75% 42%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 205 18% 78%;
+  --input: 205 18% 78%;
+  --ring: 198 100% 28%;
+  --radius: 0.75rem;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(28, 176, 246, 0.12), transparent 28rem),
+    hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--font-body);
+  font-weight: 500;
+}
+
+.app-background-layer {
+  --app-background-image: radial-gradient(circle at 12% 0%, rgba(28, 176, 246, 0.12), transparent 28rem);
+  --app-background-overlay: transparent;
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
+}
+
+.app-background-layer::before,
+.app-background-layer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.app-background-layer::before {
+  z-index: 0;
+  background:
+    var(--app-background-image),
+    hsl(var(--background));
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.app-background-layer::after {
+  z-index: 1;
+  background: var(--app-background-overlay);
+}
+
+.app-shell {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+}
+
+.app-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(248, 252, 255, 0.52);
+  backdrop-filter: blur(14px);
+}
+
+.app-loading-panel {
+  display: grid;
+  place-items: center;
+}
+
+@media (min-width: 1024px) {
+  .app-background-layer {
+    left: 16rem;
+    top: 5rem;
+  }
+
+  .app-loading-overlay {
+    inset: 5rem 0 0 16rem;
+  }
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.learning-card {
+  @apply rounded-xl border-2 border-border bg-card shadow-sm transition hover:border-primary/60 hover:shadow-lifted;
+}
+
+.btn-press {
+  box-shadow: 0 4px 0 rgba(3, 105, 161, 0.45);
+}
+
+.btn-press:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 rgba(3, 105, 161, 0.45);
+}
+
+.btn-press-error {
+  box-shadow: 0 4px 0 #93000a;
+}
+
+.btn-press-error:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #93000a;
+}
+
+.btn-press-outline {
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.12);
+}
+
+.btn-press-outline:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.1);
+}
+
+.btn-press-red {
+  box-shadow: 0 4px 0 rgba(185, 28, 28, 0.5);
+}
+
+.btn-press-red:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 rgba(185, 28, 28, 0.5);
+}
+
+.btn-press-orange {
+  box-shadow: 0 4px 0 rgba(154, 52, 18, 0.5);
+}
+
+.btn-press-orange:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 rgba(154, 52, 18, 0.5);
+}
+
+.btn-press-green {
+  box-shadow: 0 4px 0 rgba(4, 120, 87, 0.5);
+}
+
+.btn-press-green:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 rgba(4, 120, 87, 0.5);
+}
+
+.btn-press-sky {
+  box-shadow: 0 4px 0 rgba(29, 78, 216, 0.45);
+}
+
+.btn-press-sky:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 rgba(29, 78, 216, 0.45);
+}
+
+@keyframes drainBar {
+  from { width: 100%; }
+  to { width: 0%; }
+}

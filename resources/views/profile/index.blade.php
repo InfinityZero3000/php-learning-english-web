@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Hồ sơ · LexiLingo')
+@section('title', 'Hồ sơ · English Learning')
 
 @section('content')
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -385,6 +385,15 @@
                 <div class="field-error">{{ $message }}</div>
             @enderror
 
+            <label class="form-label">Xác nhận mật khẩu mới</label>
+            <div class="password-wrap is-last">
+                <input class="form-input" type="password" name="new_password_confirmation" id="new_password_confirmation">
+                <button type="button" class="toggle-eye" data-target="new_password_confirmation" aria-label="Hiện/ẩn mật khẩu">
+                    <svg class="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                    <svg class="icon-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a19.77 19.77 0 0 1 4.06-5.06M9.9 4.24A10.4 10.4 0 0 1 12 4c7 0 11 7 11 7a19.86 19.86 0 0 1-2.13 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                </button>
+            </div>
+
             <div class="form-actions">
                 <button type="submit" class="btn-save">Lưu thay đổi</button>
                 @if(session('success'))
@@ -396,7 +405,7 @@
         <button type="button" class="delete-link" id="openDeleteModal">Xóa tài khoản của tôi</button>
     </div>
 
-    <div class="modal-overlay" id="deleteModal">
+    <div class="modal-overlay @error('password') is-open @enderror" id="deleteModal">
         <div class="modal-box">
             <div class="modal-icon">&#9888;</div>
             <h2 class="modal-title">Xóa tài khoản?</h2>
@@ -406,6 +415,11 @@
                 <form action="{{ route('profile.destroy') }}" method="POST">
                     @csrf
                     @method('DELETE')
+                    <label class="form-label" for="delete_password">Mật khẩu hiện tại</label>
+                    <input class="form-input" type="password" name="password" id="delete_password" required>
+                    @error('password')
+                        <div class="field-error">{{ $message }}</div>
+                    @enderror
                     <button type="submit" class="btn-danger">Xóa tài khoản</button>
                 </form>
             </div>

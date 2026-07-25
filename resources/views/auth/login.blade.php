@@ -1,6 +1,6 @@
 @extends('layouts.auth')
 
-@section('title', 'Đăng nhập · LexiLingo')
+@section('title', 'Đăng nhập · English Learning')
 
 
 @section('topbar-switch')
@@ -451,7 +451,7 @@
         <b>Chính sách bảo mật</b>
 
 
-        của LexiLingo.
+        của English Learning.
 
 
     </p>

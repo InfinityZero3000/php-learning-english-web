@@ -59,4 +59,25 @@ class LoginTest extends TestCase
         $response->assertSessionHasErrors('email');
         $this->assertGuest();
     }
+
+    public function test_login_is_rate_limited(): void
+    {
+        User::factory()->create([
+            'email' => 'a@example.com',
+            'password' => bcrypt('password123'),
+        ]);
+
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            $this->post(route('login.store'), [
+                'email' => 'a@example.com',
+                'password' => 'wrong-password',
+            ])->assertRedirect();
+            $this->flushSession();
+        }
+
+        $this->post(route('login.store'), [
+            'email' => 'a@example.com',
+            'password' => 'wrong-password',
+        ])->assertTooManyRequests();
+    }
 }

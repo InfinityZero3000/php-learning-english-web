@@ -1,0 +1,291 @@
+openapi: 3.1.0
+info:
+  title: Learning English API
+  version: 1.0.0
+servers:
+  - url: /
+paths:
+  /api/v1/health:
+    get:
+      operationId: health
+      security: []
+      responses:
+        "200":
+          description: API is available
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, version]
+                properties:
+                  status: { const: ok }
+                  version: { const: v1 }
+  /api/v1/csrf-cookie:
+    get:
+      operationId: csrfCookie
+      security: []
+      responses:
+        "204":
+          description: CSRF cookie initialized
+          headers:
+            Set-Cookie:
+              schema: { type: string }
+  /api/v1/auth/register:
+    post:
+      operationId: register
+      security: [{ csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequest" }
+      responses:
+        "201": { $ref: "#/components/responses/UserResponse" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+  /api/v1/auth/login:
+    post:
+      operationId: login
+      security: [{ csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/UserResponse" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/MessageResponse" }
+  /api/v1/auth/logout:
+    post:
+      operationId: logout
+      security: [{ session: [], csrf: [] }]
+      responses:
+        "204": { description: Logged out }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+  /api/v1/auth/me:
+    get:
+      operationId: currentUser
+      security: [{ session: [] }]
+      responses:
+        "200": { $ref: "#/components/responses/UserResponse" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+  /api/v1/auth/email/resend:
+    post:
+      operationId: resendVerification
+      security: [{ csrf: [] }]
+      responses:
+        "202": { $ref: "#/components/responses/MessageResponse" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/MessageResponse" }
+  /api/v1/auth/email/verify/{id}/{hash}:
+    get:
+      operationId: verifyEmail
+      security: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+        - in: path
+          name: hash
+          required: true
+          schema: { type: string, minLength: 1 }
+        - in: query
+          name: expires
+          required: true
+          schema: { type: integer }
+        - in: query
+          name: signature
+          required: true
+          schema: { type: string }
+      responses:
+        "302":
+          description: Redirect to learner frontend
+          headers:
+            Location:
+              required: true
+              schema: { type: string, format: uri }
+        "403": { $ref: "#/components/responses/MessageResponse" }
+  /api/v1/auth/password/forgot:
+    post:
+      operationId: forgotPassword
+      security: [{ csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        "202": { $ref: "#/components/responses/MessageResponse" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/MessageResponse" }
+  /api/v1/auth/password/reset:
+    post:
+      operationId: resetPassword
+      security: [{ csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ResetPasswordRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/MessageResponse" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+  /api/v1/profile:
+    put:
+      operationId: updateProfile
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 255 }
+                email: { type: string, format: email }
+      responses:
+        "200": { $ref: "#/components/responses/UserResponse" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+    delete:
+      operationId: deleteProfile
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: { type: string }
+      responses:
+        "204": { description: Account deleted }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+  /api/v1/profile/password:
+    put:
+      operationId: updatePassword
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, password, password_confirmation]
+              properties:
+                current_password: { type: string }
+                password: { type: string, minLength: 8 }
+                password_confirmation: { type: string }
+      responses:
+        "204": { description: Password updated }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+components:
+  securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: learning_english_session
+      description: Laravel web session cookie.
+    csrf:
+      type: apiKey
+      in: header
+      name: X-XSRF-TOKEN
+      description: URL-decoded XSRF-TOKEN cookie value required for mutations.
+  schemas:
+    User:
+      type: object
+      required: [id, name, email, email_verified_at, role]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string, format: email }
+        email_verified_at: { type: [string, "null"], format: date-time }
+        role: { type: [string, "null"] }
+    UserEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: "#/components/schemas/User" }
+        meta: { type: object }
+    Message:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
+    ValidationError:
+      type: object
+      required: [message, errors]
+      properties:
+        message: { type: string }
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string }
+    RegisterRequest:
+      type: object
+      required: [name, email, password, password_confirmation]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 255 }
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+        password_confirmation: { type: string }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+        remember: { type: boolean, default: false }
+    ResetPasswordRequest:
+      type: object
+      required: [token, email, password, password_confirmation]
+      properties:
+        token: { type: string, minLength: 1 }
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+        password_confirmation: { type: string }
+  responses:
+    UserResponse:
+      description: User payload
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/UserEnvelope" }
+    MessageResponse:
+      description: Operation result
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Message" }
+    ValidationError:
+      description: Invalid input
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ValidationError" }
+    Unauthenticated:
+      description: Authentication required
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Message" }
+    CsrfError:
+      description: CSRF token mismatch
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Message" }

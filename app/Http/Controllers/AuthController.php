@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
@@ -25,11 +26,19 @@ class AuthController extends Controller
      */
     public function register(RegisterRequest $request)
     {
+        $roleId = Role::query()->where('slug', 'learner')->value('id');
+
+        if (! $roleId) {
+            throw ValidationException::withMessages([
+                'role' => 'Hệ thống chưa được cấu hình vai trò người học.',
+            ]);
+        }
+
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'role_id' => Role::query()->where('slug', 'learner')->value('id'),
+            'role_id' => $roleId,
         ]);
 
         $user->sendEmailVerificationNotification();

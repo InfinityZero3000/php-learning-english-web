@@ -44,6 +44,13 @@ class ProfileController extends Controller
      */
     public function destroy(Request $request)
     {
+        $request->validate([
+            'password' => ['required', 'current_password'],
+        ], [
+            'password.required' => 'Vui lòng nhập mật khẩu hiện tại.',
+            'password.current_password' => 'Mật khẩu hiện tại không đúng.',
+        ]);
+
         $user = Auth::user();
 
         Auth::logout();

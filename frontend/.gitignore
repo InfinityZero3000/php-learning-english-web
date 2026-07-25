@@ -1,0 +1,28 @@
+# dependencies
+/node_modules/
+/.pnp
+.pnp.*
+
+# next.js / build
+/.next/
+/out/
+/build/
+
+# tests
+/coverage/
+
+# local package stores and caches
+/.pnpm-store/
+*.tsbuildinfo
+next-env.d.ts
+
+# environment files
+.env*
+!.env.example
+
+# deployment and logs
+/.vercel/
+*.log
+
+# OS/editor
+.DS_Store

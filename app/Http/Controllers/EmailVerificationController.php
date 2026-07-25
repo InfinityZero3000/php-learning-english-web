@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\Request;
 
 class EmailVerificationController extends Controller
@@ -56,8 +57,8 @@ class EmailVerificationController extends Controller
             abort(403);
         }
 
-        if (! $user->hasVerifiedEmail()) {
-            $user->markEmailAsVerified();
+        if (! $user->hasVerifiedEmail() && $user->markEmailAsVerified()) {
+            event(new Verified($user));
         }
 
         return redirect()->route('login')

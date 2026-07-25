@@ -22,7 +22,7 @@ class UpdateProfileRequest extends FormRequest
         return [
             'name' => 'required|string|max:100',
             'current_password' => 'nullable|required_with:new_password|current_password',
-            'new_password' => 'nullable|required_with:current_password|min:8',
+            'new_password' => 'nullable|required_with:current_password|min:8|confirmed',
         ];
     }
 
@@ -37,6 +37,7 @@ class UpdateProfileRequest extends FormRequest
             'current_password.current_password' => 'Mật khẩu hiện tại không đúng.',
             'new_password.required_with' => 'Vui lòng nhập mật khẩu mới.',
             'new_password.min' => 'Mật khẩu mới phải có ít nhất 8 ký tự.',
+            'new_password.confirmed' => 'Mật khẩu mới xác nhận không khớp.',
         ];
     }
 }

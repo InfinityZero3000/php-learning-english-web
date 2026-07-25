@@ -1,6 +1,6 @@
 @extends('layouts.auth')
 
-@section('title', 'Đăng ký · LexiLingo')
+@section('title', 'Đăng ký · English Learning')
 
 @section('topbar-switch')
     <a class="topbar-switch" href="{{ route('login') }}">Đăng nhập</a>

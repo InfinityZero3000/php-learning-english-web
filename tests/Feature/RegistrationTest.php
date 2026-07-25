@@ -4,8 +4,10 @@ namespace Tests\Feature;
 
 use App\Models\Role;
 use App\Models\User;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
@@ -67,6 +69,22 @@ class RegistrationTest extends TestCase
         Notification::assertSentTo($user, VerifyEmail::class);
     }
 
+    public function test_verification_email_resend_is_rate_limited(): void
+    {
+        Notification::fake();
+        User::factory()->unverified()->create(['email' => 'a@example.com']);
+
+        for ($attempt = 0; $attempt < 3; $attempt++) {
+            $this->withSession(['verify_email' => 'a@example.com'])
+                ->post(route('verification.send'))
+                ->assertRedirect(route('verification.notice'));
+        }
+
+        $this->withSession(['verify_email' => 'a@example.com'])
+            ->post(route('verification.send'))
+            ->assertTooManyRequests();
+    }
+
     public function test_registration_requires_valid_data(): void
     {
         $response = $this->post(route('register.store'), [
@@ -94,8 +112,25 @@ class RegistrationTest extends TestCase
         $response->assertSessionHasErrors('email');
     }
 
+    public function test_registration_fails_when_learner_role_is_missing(): void
+    {
+        Notification::fake();
+
+        $response = $this->post(route('register.store'), [
+            'name' => 'Nguyen Van A',
+            'email' => 'a@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ]);
+
+        $response->assertSessionHasErrors('role');
+        $this->assertDatabaseMissing('users', ['email' => 'a@example.com']);
+        Notification::assertNothingSent();
+    }
+
     public function test_verification_link_marks_email_as_verified_without_login(): void
     {
+        Event::fake([Verified::class]);
         $user = User::factory()->unverified()->create();
 
         $url = URL::temporarySignedRoute(
@@ -110,6 +145,22 @@ class RegistrationTest extends TestCase
         $response->assertRedirect(route('login'));
         $this->assertNotNull($user->fresh()->email_verified_at);
         $this->assertGuest();
+        Event::assertDispatched(Verified::class, fn (Verified $event) => $event->user->is($user));
+    }
+
+    public function test_verification_link_does_not_emit_duplicate_event(): void
+    {
+        Event::fake([Verified::class]);
+        $user = User::factory()->create();
+        $url = URL::temporarySignedRoute(
+            'verification.verify',
+            now()->addMinutes(60),
+            ['id' => $user->id, 'hash' => sha1($user->email)]
+        );
+
+        $this->get($url)->assertRedirect(route('login'));
+
+        Event::assertNotDispatched(Verified::class);
     }
 
     public function test_verification_link_rejects_wrong_hash(): void

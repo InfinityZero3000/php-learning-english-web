@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+@theme inline {
+  /* Brand Primary */
+  --color-primary: #006590;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #1cb0f6;
+  --color-on-primary-container: #00405d;
+  --color-primary-fixed: #c8e6ff;
+  --color-primary-fixed-dim: #88ceff;
+  --color-on-primary-fixed: #001e2e;
+  --color-on-primary-fixed-variant: #004c6e;
+  --color-inverse-primary: #88ceff;
+
+  /* Secondary */
+  --color-secondary: #755b00;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #fec700;
+  --color-on-secondary-container: #6e5400;
+  --color-secondary-fixed: #ffdf92;
+  --color-secondary-fixed-dim: #f4bf00;
+  --color-on-secondary-fixed: #241a00;
+  --color-on-secondary-fixed-variant: #594400;
+
+  /* Tertiary */
+  --color-tertiary: #843ab4;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #d087ff;
+  --color-on-tertiary-container: #5d068e;
+  --color-tertiary-fixed: #f4d9ff;
+  --color-tertiary-fixed-dim: #e4b5ff;
+  --color-on-tertiary-fixed: #2f004b;
+  --color-on-tertiary-fixed-variant: #6a1c9a;
+
+  /* Error */
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+
+  /* Surface */
+  --color-background: #fbf9f9;
+  --color-on-background: #1b1c1c;
+  --color-surface: #fbf9f9;
+  --color-on-surface: #1b1c1c;
+  --color-surface-variant: #e3e2e2;
+  --color-on-surface-variant: #3e4850;
+  --color-surface-bright: #fbf9f9;
+  --color-surface-dim: #dbdad9;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f5f3f3;
+  --color-surface-container: #efeded;
+  --color-surface-container-high: #e9e8e7;
+  --color-surface-container-highest: #e3e2e2;
+  --color-inverse-surface: #303031;
+  --color-inverse-on-surface: #f2f0f0;
+  --color-outline: #6e7881;
+  --color-outline-variant: #bdc8d2;
+  --color-surface-tint: #006590;
+
+  /* Font */
+  --font-sans: 'Plus Jakarta Sans', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: #fbf9f9;
+  color: #1b1c1c;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  vertical-align: middle;
+  user-select: none;
+  font-family: 'Material Symbols Outlined';
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+}
+
+.material-symbols-filled {
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  vertical-align: middle;
+  user-select: none;
+  font-family: 'Material Symbols Outlined';
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+}
+
+.custom-scrollbar::-webkit-scrollbar { width: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #bdc8d2; border-radius: 10px; }
+
+.btn-tactile {
+  transition: transform 0.1s ease, border-bottom-width 0.1s ease;
+}
+.btn-tactile:hover { transform: translateY(-2px); }
+.btn-tactile:active { transform: translateY(2px); border-bottom-width: 0 !important; }

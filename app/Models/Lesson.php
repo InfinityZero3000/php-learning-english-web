@@ -8,11 +8,20 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Lesson extends Model
 {
-    protected $fillable = ['course_id', 'title', 'slug', 'content', 'sort_order', 'status'];
+    protected $fillable = [
+        'course_id', 'unit_id', 'external_id', 'title', 'slug', 'content',
+        'sort_order', 'status', 'lesson_type', 'estimated_minutes',
+        'xp_reward', 'pass_threshold',
+    ];
 
     public function course(): BelongsTo
     {
         return $this->belongsTo(Course::class);
+    }
+
+    public function unit(): BelongsTo
+    {
+        return $this->belongsTo(Unit::class);
     }
 
     public function vocabularies(): HasMany

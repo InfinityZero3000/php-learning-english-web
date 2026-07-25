@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
 
 class ForgotPasswordController extends Controller
 {
@@ -32,7 +34,11 @@ class ForgotPasswordController extends Controller
             $request->only('email')
         );
 
-        return $status === Password::RESET_LINK_SENT
+        return in_array($status, [
+            Password::RESET_LINK_SENT,
+            Password::RESET_THROTTLED,
+            Password::INVALID_USER,
+        ], true)
             ? redirect()->route('password.request')->with('sentEmail', $request->email)
             : back()->withErrors(['email' => __($status)])->withInput();
     }
@@ -70,7 +76,11 @@ class ForgotPasswordController extends Controller
             function ($user, $password) {
                 $user->forceFill([
                     'password' => Hash::make($password),
-                ])->save();
+                ])->setRememberToken(Str::random(60));
+
+                $user->save();
+
+                event(new PasswordReset($user));
             }
         );
 
