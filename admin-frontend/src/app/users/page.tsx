@@ -52,6 +52,8 @@ function Avatar({ name, avatarUrl }: { name: string; avatarUrl: string }) {
   const initials = name ? name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : '?';
   if (avatarUrl && !err) {
     return (
+      // User-provided avatar URLs stay browser-loaded; proxying arbitrary hosts through next/image is unsafe.
+      // eslint-disable-next-line @next/next/no-img-element
       <img src={avatarUrl} alt={name} referrerPolicy="no-referrer" onError={() => setErr(true)}
         className="w-12 h-12 rounded-full object-cover"
         style={{ border: '2px solid #bdc8d2' }} />
@@ -96,7 +98,8 @@ export default function UsersPage() {
     }
   }, [email, status, role, page]);
 
-  useEffect(() => { load(); }, [load]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void load(); }, [load]);
 
   // Close menu on outside click
   useEffect(() => {

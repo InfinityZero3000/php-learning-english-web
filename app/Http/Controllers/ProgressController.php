@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Progress;
 use App\Models\Attempt;
-use App\Models\Lesson;
 use App\Models\Course;
+use App\Models\Lesson;
+use App\Models\Progress;
 use Illuminate\Http\Request;
 
 class ProgressController extends Controller
@@ -30,8 +30,8 @@ class ProgressController extends Controller
             ->orderByDesc('completed_at')
             ->get();
 
-        $totalAttempts    = $attempts->count();
-        $passedAttempts   = $attempts->where('score', '>=', function ($q) {
+        $totalAttempts = $attempts->count();
+        $passedAttempts = $attempts->where('score', '>=', function ($q) {
             // dùng filter thay vì closure trên collection
         })->count();
 
@@ -43,15 +43,16 @@ class ProgressController extends Controller
         $avgScore = $totalAttempts > 0 ? round($attempts->avg('score'), 1) : 0;
 
         // Tiến độ từng khóa học
-        $courses = Course::with(['lessons'])->get()->map(function ($course) use ($user, $completedLessons) {
-            $lessonIds   = $course->lessons->pluck('id');
-            $doneCount   = $completedLessons->whereIn('lesson_id', $lessonIds)->count();
-            $totalCount  = $lessonIds->count();
-            $course->done  = $doneCount;
+        $courses = Course::with(['lessons'])->get()->map(function ($course) use ($completedLessons) {
+            $lessonIds = $course->lessons->pluck('id');
+            $doneCount = $completedLessons->whereIn('lesson_id', $lessonIds)->count();
+            $totalCount = $lessonIds->count();
+            $course->done = $doneCount;
             $course->total = $totalCount;
-            $course->pct   = $totalCount > 0 ? round($doneCount / $totalCount * 100) : 0;
+            $course->pct = $totalCount > 0 ? round($doneCount / $totalCount * 100) : 0;
+
             return $course;
-        })->filter(fn($c) => $c->total > 0);
+        })->filter(fn ($c) => $c->total > 0);
 
         return view('progress.index', compact(
             'completedLessons', 'totalLessons', 'attempts',
@@ -67,6 +68,6 @@ class ProgressController extends Controller
             ['completed_at' => now()]
         );
 
-        return back()->with('success', 'Đã đánh dấu hoàn thành bài học "' . $lesson->title . '"!');
+        return back()->with('success', 'Đã đánh dấu hoàn thành bài học "'.$lesson->title.'"!');
     }
 }

@@ -143,7 +143,7 @@ export const notifications = {
   unreadCount: async () => {
     const res = await request('/api/notifications/unread-count');
     if (typeof res === 'number') return res;
-    if (res && typeof res === 'object' && (res as any).unread != null) return (res as any).unread as number;
+    if (res && typeof res === 'object' && 'unread' in res && typeof res.unread === 'number') return res.unread;
     return 0;
   },
   markRead: (id: number) =>

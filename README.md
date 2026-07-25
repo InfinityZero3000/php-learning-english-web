@@ -48,7 +48,9 @@ Các biến development quan trọng:
 | `DB_ROOT_PASSWORD` | `root` | Mật khẩu root MySQL local |
 | `REDIS_HOST` | `redis` | Tên service Redis trong Docker |
 
-Các giá trị này chỉ dành cho development. Production/Fly.io phải dùng secrets riêng theo [Development Workflow](docs/DEVELOPMENT_WORKFLOW.md).
+Các giá trị này chỉ dành cho development. Production/Fly.io phải dùng secrets
+riêng theo [Production Environment Variables](docs/PRODUCTION_ENV.md) và
+[Development Workflow](docs/DEVELOPMENT_WORKFLOW.md).
 
 ### 3. Build và cài dependency
 
@@ -74,7 +76,22 @@ Kiểm tra trạng thái container:
 docker compose ps
 ```
 
-`mysql` và `redis` phải ở trạng thái healthy. Sau đó mở <http://localhost:8080>.
+`mysql` và `redis` phải ở trạng thái healthy. Sau đó mở
+<http://localhost:8080>. Adminer để xem dữ liệu MySQL chạy tại
+<http://localhost:8081>.
+
+Đăng nhập Adminer bằng:
+
+| Trường | Giá trị local |
+|---|---|
+| System | `MySQL` |
+| Server | `mysql` |
+| Username | Giá trị `DB_USERNAME` |
+| Password | Giá trị `DB_PASSWORD` |
+| Database | Giá trị `DB_DATABASE` |
+
+Adminer chỉ có trong `compose.yaml` cho local/dev, không được deploy lên Fly
+production.
 
 ### 5. Làm việc hằng ngày
 
@@ -95,8 +112,8 @@ Không dùng `docker compose down -v` trừ khi muốn xóa toàn bộ dữ li�
 Các điểm kiểm tra:
 
 - `GET /`: trang skeleton.
-- `GET /health`: `{"status":"ok"}`.
-- `GET /admin`: trang quản trị placeholder, chưa có xác thực.
+- `GET /health`: readiness check cho ứng dụng, MySQL và Redis đang sử dụng.
+- `GET /admin`: trang quản trị Blade cũ; admin Next.js dùng xác thực session.
 - `GET /api/status`: `{"status":"ok","version":"v1"}`.
 
 ## Lệnh kiểm tra
@@ -136,6 +153,8 @@ Controller, Form Request, Policy, Resource và Service chỉ được tạo khi 
 
 ## Phạm vi skeleton
 
-Chưa triển khai Auth, CRUD, phân quyền, chấm quiz, upload hoặc API nghiệp vụ. Fly.io CD hiện chỉ phục vụ mức demo đồ án; chưa có staging, worker hay object storage. Xem [đặc tả skeleton](docs/superpowers/specs/2026-07-17-laravel-mvc-skeleton-design.md) trước khi phát triển tiếp.
+Đã có Auth, profile và API vocabulary nền. CRUD học tập, phân quyền backend
+cho admin, chấm quiz và upload vẫn chưa hoàn chỉnh. Fly.io CD chưa có staging,
+worker hay object storage.
 
 Quy trình cộng tác và tự động deploy được mô tả tại [Development Workflow](docs/DEVELOPMENT_WORKFLOW.md).

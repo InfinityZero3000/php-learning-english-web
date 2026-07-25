@@ -2,9 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Quiz;
 use App\Models\Attempt;
-use App\Models\Answer;
+use App\Models\Quiz;
 use Illuminate\Http\Request;
 
 class QuizAttemptController extends Controller
@@ -13,13 +12,14 @@ class QuizAttemptController extends Controller
     {
         // Load câu hỏi kèm đáp án
         $quiz->load(['questions.answers']);
+
         return view('quizzes.attempt', compact('quiz'));
     }
 
     public function submit(Request $request, Quiz $quiz)
     {
         $quiz->load('questions.answers');
-        
+
         $answers = $request->input('answers', []);
         $totalQuestions = $quiz->questions->count();
         if ($totalQuestions === 0) {
@@ -41,10 +41,10 @@ class QuizAttemptController extends Controller
         $score = round(($correctCount / $totalQuestions) * 100);
 
         $attempt = Attempt::create([
-            'user_id'      => $request->user()->id,
-            'quiz_id'      => $quiz->id,
-            'score'        => $score,
-            'started_at'   => now(), // Cần mechanism theo dõi lúc bắt đầu thực tế nếu muốn chính xác
+            'user_id' => $request->user()->id,
+            'quiz_id' => $quiz->id,
+            'score' => $score,
+            'started_at' => now(), // Cần mechanism theo dõi lúc bắt đầu thực tế nếu muốn chính xác
             'completed_at' => now(),
         ]);
 
@@ -55,10 +55,9 @@ class QuizAttemptController extends Controller
     {
         $attemptId = $request->query('attempt_id');
         $attempt = Attempt::where('id', $attemptId)->where('user_id', $request->user()->id)->firstOrFail();
-        
+
         $quiz->load('questions.answers');
 
         return view('quizzes.result', compact('quiz', 'attempt'));
     }
 }
-

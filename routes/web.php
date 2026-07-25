@@ -1,13 +1,23 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BookmarkController;
+use App\Http\Controllers\CourseController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\ForgotPasswordController;
 use App\Http\Controllers\LessonController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ProgressController;
+use App\Http\Controllers\QuizAttemptController;
 use App\Http\Controllers\QuizController;
 use App\Http\Controllers\SocialController;
+use App\Http\Controllers\VocabularyController;
+use App\Http\Controllers\WordsController;
+use App\Support\HealthCheck;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 /*
 |--------------------------------------------------------------------------
@@ -19,7 +29,12 @@ Route::get('/', function () {
     return view('home');
 });
 
-Route::get('/health', fn () => response()->json(['status' => 'ok']));
+Route::get('/health', fn (HealthCheck $health) => $health->response())
+    ->withoutMiddleware([
+        StartSession::class,
+        ShareErrorsFromSession::class,
+        PreventRequestForgery::class,
+    ]);
 
 Route::view('/admin', 'admin');
 
@@ -106,16 +121,16 @@ Route::middleware('auth')->group(function () {
 // ==========================================
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
     // CRUD Khóa học
-    Route::resource('courses', App\Http\Controllers\CourseController::class);
-    
+    Route::resource('courses', CourseController::class);
+
     // CRUD Bài học
-    Route::resource('lessons', App\Http\Controllers\LessonController::class);
-    
+    Route::resource('lessons', LessonController::class);
+
     // CRUD Trắc nghiệm (gồm câu hỏi & đáp án)
-    Route::resource('quizzes', App\Http\Controllers\QuizController::class);
+    Route::resource('quizzes', QuizController::class);
 
     // CRUD Từ vựng
-    Route::resource('vocabularies', App\Http\Controllers\VocabularyController::class);
+    Route::resource('vocabularies', VocabularyController::class);
 });
 
 // ==========================================
@@ -123,21 +138,20 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
 // ==========================================
 Route::middleware(['auth'])->group(function () {
     // Làm bài quiz
-    Route::get('/quizzes/{quiz}/attempt', [App\Http\Controllers\QuizAttemptController::class, 'show'])->name('quizzes.attempt');
-    Route::post('/quizzes/{quiz}/attempt', [App\Http\Controllers\QuizAttemptController::class, 'submit'])->name('quizzes.submit');
-    Route::get('/quizzes/{quiz}/result', [App\Http\Controllers\QuizAttemptController::class, 'result'])->name('quizzes.result');
+    Route::get('/quizzes/{quiz}/attempt', [QuizAttemptController::class, 'show'])->name('quizzes.attempt');
+    Route::post('/quizzes/{quiz}/attempt', [QuizAttemptController::class, 'submit'])->name('quizzes.submit');
+    Route::get('/quizzes/{quiz}/result', [QuizAttemptController::class, 'result'])->name('quizzes.result');
 
     // Từ vựng (học viên xem)
-    Route::get('/words', [App\Http\Controllers\WordsController::class, 'index'])->name('words.index');
-    Route::get('/words/{vocabulary}', [App\Http\Controllers\WordsController::class, 'show'])->name('words.show');
+    Route::get('/words', [WordsController::class, 'index'])->name('words.index');
+    Route::get('/words/{vocabulary}', [WordsController::class, 'show'])->name('words.show');
 
     // Tiến độ học
-    Route::get('/progress', [App\Http\Controllers\ProgressController::class, 'index'])->name('progress.index');
-    Route::post('/lessons/{lesson}/complete', [App\Http\Controllers\ProgressController::class, 'markComplete'])->name('lessons.complete');
+    Route::get('/progress', [ProgressController::class, 'index'])->name('progress.index');
+    Route::post('/lessons/{lesson}/complete', [ProgressController::class, 'markComplete'])->name('lessons.complete');
 
     // Bookmark từ vựng
-    Route::get('/bookmarks', [App\Http\Controllers\BookmarkController::class, 'index'])->name('bookmarks.index');
-    Route::post('/bookmarks/{vocabulary}/toggle', [App\Http\Controllers\BookmarkController::class, 'toggle'])->name('bookmarks.toggle');
-    Route::delete('/bookmarks/{bookmark}', [App\Http\Controllers\BookmarkController::class, 'destroy'])->name('bookmarks.destroy');
+    Route::get('/bookmarks', [BookmarkController::class, 'index'])->name('bookmarks.index');
+    Route::post('/bookmarks/{vocabulary}/toggle', [BookmarkController::class, 'toggle'])->name('bookmarks.toggle');
+    Route::delete('/bookmarks/{bookmark}', [BookmarkController::class, 'destroy'])->name('bookmarks.destroy');
 });
-

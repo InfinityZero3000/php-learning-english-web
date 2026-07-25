@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
 import AdminLayout from '@/components/AdminLayout';
 import { adminUsers } from '@/lib/api';
 import Link from 'next/link';
@@ -94,7 +94,6 @@ function formatDate(iso: string) {
 
 export default function UserDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const id = Number(params.id);
 
   const [detail, setDetail] = useState<UserDetail | null>(null);
@@ -128,7 +127,9 @@ export default function UserDetailPage() {
     }
   };
 
-  useEffect(() => { if (id) load(); }, [id]);
+  // The loader is intentionally rerun when the route id changes.
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+  useEffect(() => { if (id) void load(); }, [id]);
 
   const handleLockToggle = async () => {
     if (!detail) return;
@@ -247,6 +248,8 @@ export default function UserDetailPage() {
           style={{ backgroundColor: '#ffffff', border: '2px solid #bdc8d2', borderBottom: '4px solid #bdc8d2' }}>
           {/* Avatar */}
           {user.avatarUrl && !avatarError ? (
+            // User-provided avatar URLs stay browser-loaded; proxying arbitrary hosts through next/image is unsafe.
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={user.avatarUrl}
               alt={user.name}

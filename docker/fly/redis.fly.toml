@@ -1,0 +1,14 @@
+app = "linguist-redis"
+primary_region = "sin"
+
+[build]
+  dockerfile = "redis.Dockerfile"
+
+[mounts]
+  source = "redis_data"
+  destination = "/data"
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1

@@ -55,7 +55,6 @@ export default function UserProgressPage() {
 
   const mastered = stats?.mastered ?? items.filter(i => i.mastery === 'MASTERED').length;
   const learning = stats?.learning ?? items.filter(i => i.mastery === 'LEARNING').length;
-  const reviewing = stats?.reviewing ?? items.filter(i => i.mastery === 'REVIEWING').length;
   const acc = stats?.accuracy ?? 0;
 
   const filtered = items.filter(item => {

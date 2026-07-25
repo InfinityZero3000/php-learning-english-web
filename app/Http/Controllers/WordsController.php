@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Vocabulary;
 use App\Models\Bookmark;
 use App\Models\Topic;
+use App\Models\Vocabulary;
 use Illuminate\Http\Request;
 
 class WordsController extends Controller
@@ -15,8 +15,8 @@ class WordsController extends Controller
 
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
-                $q->where('word', 'like', '%' . $request->search . '%')
-                  ->orWhere('meaning', 'like', '%' . $request->search . '%');
+                $q->where('word', 'like', '%'.$request->search.'%')
+                    ->orWhere('meaning', 'like', '%'.$request->search.'%');
             });
         }
 

@@ -15,7 +15,7 @@ class CourseController extends Controller
         $query = Course::with(['level', 'topics']);
 
         if ($request->filled('search')) {
-            $query->where('title', 'like', '%' . $request->search . '%');
+            $query->where('title', 'like', '%'.$request->search.'%');
         }
 
         if ($request->filled('level_id')) {
@@ -32,25 +32,26 @@ class CourseController extends Controller
     {
         $levels = Level::orderBy('sort_order')->get();
         $topics = Topic::orderBy('name')->get();
+
         return view('courses.create', compact('levels', 'topics'));
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'title'       => 'required|string|max:255',
-            'level_id'    => 'nullable|exists:levels,id',
+            'title' => 'required|string|max:255',
+            'level_id' => 'nullable|exists:levels,id',
             'description' => 'nullable|string',
-            'status'      => 'required|in:draft,published',
-            'topics'      => 'nullable|array',
-            'topics.*'    => 'exists:topics,id',
+            'status' => 'required|in:draft,published',
+            'topics' => 'nullable|array',
+            'topics.*' => 'exists:topics,id',
         ]);
 
         $validated['slug'] = $this->generateUniqueSlug($validated['title']);
 
         $course = Course::create($validated);
 
-        if (!empty($validated['topics'])) {
+        if (! empty($validated['topics'])) {
             $course->topics()->sync($validated['topics']);
         }
 
@@ -59,9 +60,10 @@ class CourseController extends Controller
 
     public function show(Course $course)
     {
-        $course->load(['level', 'topics', 'lessons' => function($q) {
+        $course->load(['level', 'topics', 'lessons' => function ($q) {
             $q->orderBy('sort_order');
         }]);
+
         return view('courses.show', compact('course'));
     }
 
@@ -69,18 +71,19 @@ class CourseController extends Controller
     {
         $levels = Level::orderBy('sort_order')->get();
         $topics = Topic::orderBy('name')->get();
+
         return view('courses.edit', compact('course', 'levels', 'topics'));
     }
 
     public function update(Request $request, Course $course)
     {
         $validated = $request->validate([
-            'title'       => 'required|string|max:255',
-            'level_id'    => 'nullable|exists:levels,id',
+            'title' => 'required|string|max:255',
+            'level_id' => 'nullable|exists:levels,id',
             'description' => 'nullable|string',
-            'status'      => 'required|in:draft,published',
-            'topics'      => 'nullable|array',
-            'topics.*'    => 'exists:topics,id',
+            'status' => 'required|in:draft,published',
+            'topics' => 'nullable|array',
+            'topics.*' => 'exists:topics,id',
         ]);
 
         if ($course->title !== $validated['title']) {
@@ -101,6 +104,7 @@ class CourseController extends Controller
     public function destroy(Course $course)
     {
         $course->delete();
+
         return redirect()->route('admin.courses.index')->with('success', 'Khóa học đã được xóa!');
     }
 
@@ -108,7 +112,7 @@ class CourseController extends Controller
     {
         $base = Str::slug($title);
         $slug = $base;
-        $i    = 2;
+        $i = 2;
 
         while (true) {
             $exists = Course::where('slug', $slug)
@@ -119,7 +123,7 @@ class CourseController extends Controller
                 break;
             }
 
-            $slug = $base . '-' . $i++;
+            $slug = $base.'-'.$i++;
         }
 
         return $slug;

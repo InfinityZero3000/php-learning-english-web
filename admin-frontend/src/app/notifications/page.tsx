@@ -53,14 +53,15 @@ export default function NotificationsPage() {
     if (u.status === 'fulfilled') {
       const val = u.value as unknown;
       if (typeof val === 'number') setUnreadCount(val);
-      else if (val && typeof val === 'object' && (val as any).unread != null) setUnreadCount((val as any).unread as number);
+      else if (val && typeof val === 'object' && 'unread' in val && typeof val.unread === 'number') setUnreadCount(val.unread);
       else setUnreadCount(0);
     }
     if (s.status === 'fulfilled') setSettings(s.value as NotifSettings);
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void load(); }, [load]);
 
   const markRead = async (id: number) => {
     try {

@@ -40,7 +40,8 @@ export default function ImportPage() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void load(); }, [load]);
 
   const loadJobDetail = async (job: ImportJob) => {
     try {
