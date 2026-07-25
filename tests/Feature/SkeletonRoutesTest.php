@@ -23,12 +23,9 @@ class SkeletonRoutesTest extends TestCase
             ->assertExactJson(['status' => 'ok']);
     }
 
-    public function test_admin_placeholder_is_available(): void
+    public function test_admin_requires_an_authenticated_admin(): void
     {
-        $this->get('/admin')
-            ->assertOk()
-            ->assertSee('Khu vực quản trị')
-            ->assertSee('chưa được triển khai');
+        $this->get('/admin')->assertRedirect('/login');
     }
 
     public function test_api_status_endpoint_is_available(): void
