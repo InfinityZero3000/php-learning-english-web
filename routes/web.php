@@ -37,8 +37,6 @@ Route::get('/health', fn (HealthCheck $health) => $health->response())
         PreventRequestForgery::class,
     ]);
 
-Route::view('/admin', 'admin');
-
 /*
 |--------------------------------------------------------------------------
 | Authentication
@@ -121,6 +119,7 @@ Route::middleware('auth')->group(function () {
 // Admin Routes (Yêu cầu quyền admin)
 // ==========================================
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/', fn () => to_route('admin.dashboard'))->name('home');
     Route::get('/dashboard', [UserController::class, 'index'])->name('dashboard');
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::patch('/users/{user}/role', [UserController::class, 'updateRole'])->name('users.updateRole');

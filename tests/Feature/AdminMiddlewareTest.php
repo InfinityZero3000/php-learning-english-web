@@ -31,4 +31,31 @@ class AdminMiddlewareTest extends TestCase
     {
         $this->get('/admin/users')->assertRedirect('/login');
     }
+
+    public function test_admin_can_update_a_users_role(): void
+    {
+        $this->seed();
+        $adminRole = Role::where('slug', 'admin')->value('id');
+        $learnerRole = Role::where('slug', 'learner')->value('id');
+        $admin = User::factory()->create(['role_id' => $adminRole]);
+        $user = User::factory()->create(['role_id' => $learnerRole]);
+
+        $this->actingAs($admin)
+            ->patch("/admin/users/{$user->id}/role", ['role_id' => $adminRole])
+            ->assertRedirect(route('admin.users.index'));
+
+        $this->assertDatabaseHas('users', ['id' => $user->id, 'role_id' => $adminRole]);
+    }
+
+    public function test_admin_cannot_demote_themselves(): void
+    {
+        $this->seed();
+        $adminRole = Role::where('slug', 'admin')->value('id');
+        $learnerRole = Role::where('slug', 'learner')->value('id');
+        $admin = User::factory()->create(['role_id' => $adminRole]);
+
+        $this->actingAs($admin)
+            ->patch("/admin/users/{$admin->id}/role", ['role_id' => $learnerRole])
+            ->assertSessionHasErrors('role_id');
+    }
 }

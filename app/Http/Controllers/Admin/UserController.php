@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class UserController extends Controller
@@ -29,6 +30,14 @@ class UserController extends Controller
         $validated = $request->validate([
             'role_id' => ['required', 'integer', 'exists:roles,id'],
         ]);
+
+        $adminRoleId = Role::query()->where('slug', 'admin')->value('id');
+        if ((int) $validated['role_id'] !== (int) $adminRoleId
+            && ($user->is($request->user()) || User::query()->where('role_id', $adminRoleId)->count() <= 1)) {
+            throw ValidationException::withMessages([
+                'role_id' => 'Không thể hạ quyền quản trị viên cuối cùng hoặc tự hạ quyền tài khoản này.',
+            ]);
+        }
 
         $user->update(['role_id' => $validated['role_id']]);
 
