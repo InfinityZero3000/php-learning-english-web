@@ -8,7 +8,6 @@ use App\Models\Lesson;
 use App\Models\Question;
 use App\Models\Quiz;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Str;
 
 class LessonQuizSeeder extends Seeder
 {
@@ -19,31 +18,32 @@ class LessonQuizSeeder extends Seeder
 
         if (! $course) {
             $this->command->warn('Không tìm thấy Course. Hãy chạy CatalogSeeder trước.');
+
             return;
         }
 
         // ─── LESSON 1 ───────────────────────────────────────────────
         $lesson1 = Lesson::create([
-            'course_id'  => $course->id,
-            'title'      => 'Động vật hoang dã (Wild Animals)',
-            'slug'       => 'dong-vat-hoang-da',
-            'content'    => "Trong bài này chúng ta sẽ học từ vựng về các loài động vật hoang dã.\n\n"
-                . "Một số từ vựng cơ bản:\n"
-                . "- cat /kæt/ — con mèo\n"
-                . "- dog /dɒɡ/ — con chó\n"
-                . "- elephant /ˈɛlɪfənt/ — con voi\n"
-                . "- butterfly /ˈbʌtəflaɪ/ — con bướm\n"
-                . "- cheetah /ˈtʃiːtə/ — con báo cheetah",
+            'course_id' => $course->id,
+            'title' => 'Động vật hoang dã (Wild Animals)',
+            'slug' => 'dong-vat-hoang-da',
+            'content' => "Trong bài này chúng ta sẽ học từ vựng về các loài động vật hoang dã.\n\n"
+                ."Một số từ vựng cơ bản:\n"
+                ."- cat /kæt/ — con mèo\n"
+                ."- dog /dɒɡ/ — con chó\n"
+                ."- elephant /ˈɛlɪfənt/ — con voi\n"
+                ."- butterfly /ˈbʌtəflaɪ/ — con bướm\n"
+                .'- cheetah /ˈtʃiːtə/ — con báo cheetah',
             'sort_order' => 1,
-            'status'     => 'published',
+            'status' => 'published',
         ]);
 
         // Quiz cho Lesson 1
         $quiz1 = Quiz::create([
-            'lesson_id'     => $lesson1->id,
-            'title'         => 'Quiz — Động vật hoang dã',
+            'lesson_id' => $lesson1->id,
+            'title' => 'Quiz — Động vật hoang dã',
             'passing_score' => 60,
-            'status'        => 'published',
+            'status' => 'published',
         ]);
 
         $this->createQuestion($quiz1->id, 1,
@@ -69,26 +69,26 @@ class LessonQuizSeeder extends Seeder
 
         // ─── LESSON 2 ───────────────────────────────────────────────
         $lesson2 = Lesson::create([
-            'course_id'  => $course->id,
-            'title'      => 'Trái cây và thực phẩm (Fruits & Food)',
-            'slug'       => 'trai-cay-va-thuc-pham',
-            'content'    => "Học từ vựng về trái cây và thực phẩm phổ biến trong tiếng Anh.\n\n"
-                . "Từ vựng:\n"
-                . "- apple /ˈæpəl/ — quả táo\n"
-                . "- bread /brɛd/ — bánh mì\n"
-                . "- orange /ˈɒrɪndʒ/ — quả cam\n"
-                . "- rice /raɪs/ — cơm/gạo\n"
-                . "- noodle /ˈnuːdəl/ — mì/bún",
+            'course_id' => $course->id,
+            'title' => 'Trái cây và thực phẩm (Fruits & Food)',
+            'slug' => 'trai-cay-va-thuc-pham',
+            'content' => "Học từ vựng về trái cây và thực phẩm phổ biến trong tiếng Anh.\n\n"
+                ."Từ vựng:\n"
+                ."- apple /ˈæpəl/ — quả táo\n"
+                ."- bread /brɛd/ — bánh mì\n"
+                ."- orange /ˈɒrɪndʒ/ — quả cam\n"
+                ."- rice /raɪs/ — cơm/gạo\n"
+                .'- noodle /ˈnuːdəl/ — mì/bún',
             'sort_order' => 2,
-            'status'     => 'published',
+            'status' => 'published',
         ]);
 
         // Quiz cho Lesson 2
         $quiz2 = Quiz::create([
-            'lesson_id'     => $lesson2->id,
-            'title'         => 'Quiz — Trái cây và thực phẩm',
+            'lesson_id' => $lesson2->id,
+            'title' => 'Quiz — Trái cây và thực phẩm',
             'passing_score' => 60,
-            'status'        => 'published',
+            'status' => 'published',
         ]);
 
         $this->createQuestion($quiz2->id, 1,
@@ -114,12 +114,12 @@ class LessonQuizSeeder extends Seeder
 
         // ─── LESSON 3 (bản nháp) ────────────────────────────────────
         Lesson::create([
-            'course_id'  => $course->id,
-            'title'      => 'Màu sắc (Colors)',
-            'slug'       => 'mau-sac',
-            'content'    => 'Bài học về các từ màu sắc cơ bản trong tiếng Anh (đang soạn thảo).',
+            'course_id' => $course->id,
+            'title' => 'Màu sắc (Colors)',
+            'slug' => 'mau-sac',
+            'content' => 'Bài học về các từ màu sắc cơ bản trong tiếng Anh (đang soạn thảo).',
             'sort_order' => 3,
-            'status'     => 'draft',
+            'status' => 'draft',
         ]);
 
         $this->command->info('✅ LessonQuizSeeder: Đã tạo 3 bài học và 2 quiz với câu hỏi mẫu.');
@@ -137,17 +137,17 @@ class LessonQuizSeeder extends Seeder
         string $explanation = ''
     ): void {
         $question = Question::create([
-            'quiz_id'     => $quizId,
-            'content'     => $content,
+            'quiz_id' => $quizId,
+            'content' => $content,
             'explanation' => $explanation,
-            'sort_order'  => $order,
+            'sort_order' => $order,
         ]);
 
         foreach ($options as $i => $option) {
             Answer::create([
                 'question_id' => $question->id,
-                'content'     => $option,
-                'is_correct'  => ($i === $correctIndex),
+                'content' => $option,
+                'is_correct' => ($i === $correctIndex),
             ]);
         }
     }

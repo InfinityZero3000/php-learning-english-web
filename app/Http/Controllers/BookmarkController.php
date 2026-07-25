@@ -31,14 +31,14 @@ class BookmarkController extends Controller
         if ($existing) {
             $existing->delete();
             $status = 'removed';
-            $message = '"' . $vocabulary->word . '" đã được xóa khỏi bookmark.';
+            $message = '"'.$vocabulary->word.'" đã được xóa khỏi bookmark.';
         } else {
             Bookmark::create([
-                'user_id'       => $userId,
+                'user_id' => $userId,
                 'vocabulary_id' => $vocabulary->id,
             ]);
             $status = 'added';
-            $message = '"' . $vocabulary->word . '" đã được thêm vào bookmark!';
+            $message = '"'.$vocabulary->word.'" đã được thêm vào bookmark!';
         }
 
         // Nếu là AJAX (fetch từ JavaScript)
@@ -54,6 +54,7 @@ class BookmarkController extends Controller
     {
         abort_if($bookmark->user_id !== auth()->id(), 403);
         $bookmark->delete();
+
         return back()->with('success', 'Đã xóa bookmark.');
     }
 }

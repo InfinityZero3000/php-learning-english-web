@@ -2,15 +2,18 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class SkeletonRoutesTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_home_page_is_available(): void
     {
         $this->get('/')
             ->assertOk()
-            ->assertSee('Website học tiếng Anh');
+            ->assertSee('LexiLingo');
     }
 
     public function test_health_endpoint_is_available(): void

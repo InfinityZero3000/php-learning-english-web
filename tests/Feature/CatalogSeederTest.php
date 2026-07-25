@@ -26,15 +26,24 @@ class CatalogSeederTest extends TestCase
             ['name' => 'Beginner', 'slug' => 'beginner', 'sort_order' => 1],
             ['name' => 'Intermediate', 'slug' => 'intermediate', 'sort_order' => 2],
             ['name' => 'Advanced', 'slug' => 'advanced', 'sort_order' => 3],
-            ['name' => 'A1', 'slug' => 'a1', 'sort_order' => 1],
-            ['name' => 'A2', 'slug' => 'a2', 'sort_order' => 2],
-            ['name' => 'B1', 'slug' => 'b1', 'sort_order' => 3],
-            ['name' => 'B2', 'slug' => 'b2', 'sort_order' => 4],
-            ['name' => 'C1', 'slug' => 'c1', 'sort_order' => 5],
-            ['name' => 'C2', 'slug' => 'c2', 'sort_order' => 6],
+            ['name' => 'A1', 'slug' => 'a1', 'sort_order' => 4],
+            ['name' => 'A2', 'slug' => 'a2', 'sort_order' => 5],
+            ['name' => 'B1', 'slug' => 'b1', 'sort_order' => 6],
+            ['name' => 'B2', 'slug' => 'b2', 'sort_order' => 7],
+            ['name' => 'C1', 'slug' => 'c1', 'sort_order' => 8],
+            ['name' => 'C2', 'slug' => 'c2', 'sort_order' => 9],
         ], Level::query()->get(['name', 'slug', 'sort_order'])->toArray());
 
-        $this->assertSame([['name' => 'General', 'slug' => 'general']], Topic::all(['name', 'slug'])->toArray());
-        $this->assertSame(0, User::count());
+        $this->assertSame([
+            ['name' => 'General', 'slug' => 'general'],
+            ['name' => 'Animals', 'slug' => 'animals'],
+            ['name' => 'Food', 'slug' => 'food'],
+            ['name' => 'Travel', 'slug' => 'travel'],
+            ['name' => 'Business', 'slug' => 'business'],
+        ], Topic::all(['name', 'slug'])->toArray());
+        $this->assertSame([
+            'admin@example.com',
+            'user@example.com',
+        ], User::query()->orderBy('email')->pluck('email')->all());
     }
 }

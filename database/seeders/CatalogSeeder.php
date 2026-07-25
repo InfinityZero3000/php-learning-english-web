@@ -6,7 +6,9 @@ use App\Models\Course;
 use App\Models\Level;
 use App\Models\Role;
 use App\Models\Topic;
+use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class CatalogSeeder extends Seeder
 {
@@ -18,23 +20,23 @@ class CatalogSeeder extends Seeder
         ], ['slug'], ['name']);
 
         $adminRole = Role::where('slug', 'admin')->first();
-        if ($adminRole && ! \App\Models\User::where('email', 'admin@example.com')->exists()) {
-            \App\Models\User::create([
+        if ($adminRole && ! User::where('email', 'admin@example.com')->exists()) {
+            User::create([
                 'role_id' => $adminRole->id,
                 'name' => 'Admin User',
                 'email' => 'admin@example.com',
-                'password' => \Illuminate\Support\Facades\Hash::make('admin123'),
+                'password' => Hash::make('admin123'),
                 'email_verified_at' => now(),
             ]);
         }
 
         $learnerRole = Role::where('slug', 'learner')->first();
-        if ($learnerRole && ! \App\Models\User::where('email', 'user@example.com')->exists()) {
-            \App\Models\User::create([
+        if ($learnerRole && ! User::where('email', 'user@example.com')->exists()) {
+            User::create([
                 'role_id' => $learnerRole->id,
                 'name' => 'Standard Learner',
                 'email' => 'user@example.com',
-                'password' => \Illuminate\Support\Facades\Hash::make('user123'),
+                'password' => Hash::make('user123'),
                 'email_verified_at' => now(),
             ]);
         }
@@ -63,25 +65,24 @@ class CatalogSeeder extends Seeder
 
         if (! Course::where('slug', 'tieng-anh-co-ban')->exists()) {
             Course::create([
-                'level_id'    => $beginner?->id,
-                'title'       => 'Tiếng Anh Cơ Bản',
-                'slug'        => 'tieng-anh-co-ban',
+                'level_id' => $beginner?->id,
+                'title' => 'Tiếng Anh Cơ Bản',
+                'slug' => 'tieng-anh-co-ban',
                 'description' => 'Khóa học tiếng Anh dành cho người mới bắt đầu. Học từ vựng, ngữ pháp và hội thoại căn bản.',
-                'status'      => 'published',
+                'status' => 'published',
             ]);
         }
 
         if (! Course::where('slug', 'tieng-anh-giao-tiep')->exists()) {
             Course::create([
-                'level_id'    => Level::where('slug', 'intermediate')->value('id'),
-                'title'       => 'Tiếng Anh Giao Tiếp',
-                'slug'        => 'tieng-anh-giao-tiep',
+                'level_id' => Level::where('slug', 'intermediate')->value('id'),
+                'title' => 'Tiếng Anh Giao Tiếp',
+                'slug' => 'tieng-anh-giao-tiep',
                 'description' => 'Khóa học tập trung vào kỹ năng giao tiếp hằng ngày và môi trường làm việc.',
-                'status'      => 'published',
+                'status' => 'published',
             ]);
         }
 
         $this->command->info('✅ CatalogSeeder: Roles, Levels, Topics và Courses đã được seed.');
     }
 }
-

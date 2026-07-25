@@ -19,7 +19,7 @@ class QuizController extends Controller
             ->withCount('questions');
 
         if ($request->filled('search')) {
-            $query->where('title', 'like', '%' . $request->search . '%');
+            $query->where('title', 'like', '%'.$request->search.'%');
         }
 
         if ($request->filled('status')) {
@@ -31,7 +31,7 @@ class QuizController extends Controller
         }
 
         $quizzes = $query->latest()->paginate(10)->withQueryString();
-        $lessons  = Lesson::with('course')->orderBy('title')->get();
+        $lessons = Lesson::with('course')->orderBy('title')->get();
 
         return view('quizzes.index', compact('quizzes', 'lessons'));
     }
@@ -41,8 +41,9 @@ class QuizController extends Controller
      */
     public function create(Request $request)
     {
-        $lessons     = Lesson::with('course')->orderBy('title')->get();
-        $lessonId    = $request->lesson_id;  // prefill nếu đến từ lesson
+        $lessons = Lesson::with('course')->orderBy('title')->get();
+        $lessonId = $request->lesson_id;  // prefill nếu đến từ lesson
+
         return view('quizzes.create', compact('lessons', 'lessonId'));
     }
 
@@ -52,19 +53,19 @@ class QuizController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'lesson_id'     => 'required|exists:lessons,id',
-            'title'         => 'required|string|max:255',
+            'lesson_id' => 'required|exists:lessons,id',
+            'title' => 'required|string|max:255',
             'passing_score' => 'required|integer|min:0|max:100',
-            'status'        => 'required|in:draft,published',
-            'questions'     => 'required|array|min:1',
-            'questions.*.content'   => 'required|string',
-            'questions.*.answers'   => 'required|array|min:2',
-            'questions.*.answers.*.content'    => 'required|string',
+            'status' => 'required|in:draft,published',
+            'questions' => 'required|array|min:1',
+            'questions.*.content' => 'required|string',
+            'questions.*.answers' => 'required|array|min:2',
+            'questions.*.answers.*.content' => 'required|string',
             'questions.*.answers.*.is_correct' => 'nullable|boolean',
         ], [
-            'lesson_id.required'           => 'Vui lòng chọn bài học.',
-            'title.required'               => 'Tiêu đề quiz không được để trống.',
-            'questions.required'           => 'Quiz phải có ít nhất 1 câu hỏi.',
+            'lesson_id.required' => 'Vui lòng chọn bài học.',
+            'title.required' => 'Tiêu đề quiz không được để trống.',
+            'questions.required' => 'Quiz phải có ít nhất 1 câu hỏi.',
             'questions.*.content.required' => 'Nội dung câu hỏi không được để trống.',
             'questions.*.answers.*.content.required' => 'Nội dung đáp án không được để trống.',
         ]);
@@ -75,38 +76,38 @@ class QuizController extends Controller
             if (! $hasCorrect) {
                 return back()
                     ->withInput()
-                    ->withErrors(["questions.{$i}.answers" => "Câu hỏi " . ($i + 1) . " phải có ít nhất 1 đáp án đúng."]);
+                    ->withErrors(["questions.{$i}.answers" => 'Câu hỏi '.($i + 1).' phải có ít nhất 1 đáp án đúng.']);
             }
         }
 
         // Tạo quiz
         $quiz = Quiz::create([
-            'lesson_id'     => $request->lesson_id,
-            'title'         => $request->title,
+            'lesson_id' => $request->lesson_id,
+            'title' => $request->title,
             'passing_score' => $request->passing_score,
-            'status'        => $request->status,
+            'status' => $request->status,
         ]);
 
         // Tạo câu hỏi + đáp án
         foreach ($request->questions as $order => $qData) {
             $question = Question::create([
-                'quiz_id'     => $quiz->id,
-                'content'     => $qData['content'],
+                'quiz_id' => $quiz->id,
+                'content' => $qData['content'],
                 'explanation' => $qData['explanation'] ?? null,
-                'sort_order'  => $order,
+                'sort_order' => $order,
             ]);
 
             foreach ($qData['answers'] as $aData) {
                 Answer::create([
                     'question_id' => $question->id,
-                    'content'     => $aData['content'],
-                    'is_correct'  => ! empty($aData['is_correct']),
+                    'content' => $aData['content'],
+                    'is_correct' => ! empty($aData['is_correct']),
                 ]);
             }
         }
 
         return redirect()->route('admin.quizzes.show', $quiz)
-            ->with('success', 'Quiz "' . $quiz->title . '" đã được tạo thành công!');
+            ->with('success', 'Quiz "'.$quiz->title.'" đã được tạo thành công!');
     }
 
     /**
@@ -115,6 +116,7 @@ class QuizController extends Controller
     public function show(Quiz $quiz)
     {
         $quiz->load(['lesson.course', 'questions.answers', 'attempts']);
+
         return view('quizzes.show', compact('quiz'));
     }
 
@@ -125,6 +127,7 @@ class QuizController extends Controller
     {
         $quiz->load(['questions.answers']);
         $lessons = Lesson::with('course')->orderBy('title')->get();
+
         return view('quizzes.edit', compact('quiz', 'lessons'));
     }
 
@@ -134,14 +137,14 @@ class QuizController extends Controller
     public function update(Request $request, Quiz $quiz)
     {
         $request->validate([
-            'lesson_id'     => 'required|exists:lessons,id',
-            'title'         => 'required|string|max:255',
+            'lesson_id' => 'required|exists:lessons,id',
+            'title' => 'required|string|max:255',
             'passing_score' => 'required|integer|min:0|max:100',
-            'status'        => 'required|in:draft,published',
-            'questions'     => 'required|array|min:1',
-            'questions.*.content'   => 'required|string',
-            'questions.*.answers'   => 'required|array|min:2',
-            'questions.*.answers.*.content'    => 'required|string',
+            'status' => 'required|in:draft,published',
+            'questions' => 'required|array|min:1',
+            'questions.*.content' => 'required|string',
+            'questions.*.answers' => 'required|array|min:2',
+            'questions.*.answers.*.content' => 'required|string',
             'questions.*.answers.*.is_correct' => 'nullable|boolean',
         ]);
 
@@ -151,16 +154,16 @@ class QuizController extends Controller
             if (! $hasCorrect) {
                 return back()
                     ->withInput()
-                    ->withErrors(["questions.{$i}.answers" => "Câu hỏi " . ($i + 1) . " phải có ít nhất 1 đáp án đúng."]);
+                    ->withErrors(["questions.{$i}.answers" => 'Câu hỏi '.($i + 1).' phải có ít nhất 1 đáp án đúng.']);
             }
         }
 
         // Cập nhật quiz
         $quiz->update([
-            'lesson_id'     => $request->lesson_id,
-            'title'         => $request->title,
+            'lesson_id' => $request->lesson_id,
+            'title' => $request->title,
             'passing_score' => $request->passing_score,
-            'status'        => $request->status,
+            'status' => $request->status,
         ]);
 
         // Xóa câu hỏi + đáp án cũ → tạo lại
@@ -171,17 +174,17 @@ class QuizController extends Controller
 
         foreach ($request->questions as $order => $qData) {
             $question = Question::create([
-                'quiz_id'     => $quiz->id,
-                'content'     => $qData['content'],
+                'quiz_id' => $quiz->id,
+                'content' => $qData['content'],
                 'explanation' => $qData['explanation'] ?? null,
-                'sort_order'  => $order,
+                'sort_order' => $order,
             ]);
 
             foreach ($qData['answers'] as $aData) {
                 Answer::create([
                     'question_id' => $question->id,
-                    'content'     => $aData['content'],
-                    'is_correct'  => ! empty($aData['is_correct']),
+                    'content' => $aData['content'],
+                    'is_correct' => ! empty($aData['is_correct']),
                 ]);
             }
         }
@@ -199,7 +202,6 @@ class QuizController extends Controller
         $quiz->delete();
 
         return redirect()->route('admin.quizzes.index')
-            ->with('success', 'Đã xóa quiz "' . $title . '".');
+            ->with('success', 'Đã xóa quiz "'.$title.'".');
     }
 }
-

@@ -25,7 +25,7 @@ class LessonController extends Controller
 
         // Tìm kiếm theo tiêu đề
         if ($request->filled('search')) {
-            $query->where('title', 'like', '%' . $request->search . '%');
+            $query->where('title', 'like', '%'.$request->search.'%');
         }
 
         // Lọc theo trạng thái
@@ -34,7 +34,7 @@ class LessonController extends Controller
         }
 
         $lessons = $query->paginate(12)->withQueryString();
-        $courses  = Course::orderBy('title')->get();
+        $courses = Course::orderBy('title')->get();
 
         return view('lessons.index', compact('lessons', 'courses'));
     }
@@ -45,6 +45,7 @@ class LessonController extends Controller
     public function create()
     {
         $courses = Course::orderBy('title')->get();
+
         return view('lessons.create', compact('courses'));
     }
 
@@ -54,16 +55,16 @@ class LessonController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'course_id'  => 'required|exists:courses,id',
-            'title'      => 'required|string|max:255',
-            'content'    => 'nullable|string',
+            'course_id' => 'required|exists:courses,id',
+            'title' => 'required|string|max:255',
+            'content' => 'nullable|string',
             'sort_order' => 'nullable|integer|min:0',
-            'status'     => 'required|in:draft,published',
+            'status' => 'required|in:draft,published',
         ], [
             'course_id.required' => 'Vui lòng chọn khóa học.',
-            'course_id.exists'   => 'Khóa học không tồn tại.',
-            'title.required'     => 'Tiêu đề bài học không được để trống.',
-            'title.max'          => 'Tiêu đề không vượt quá 255 ký tự.',
+            'course_id.exists' => 'Khóa học không tồn tại.',
+            'title.required' => 'Tiêu đề bài học không được để trống.',
+            'title.max' => 'Tiêu đề không vượt quá 255 ký tự.',
         ]);
 
         $validated['slug'] = $this->generateUniqueSlug($validated['title'], $validated['course_id']);
@@ -72,7 +73,7 @@ class LessonController extends Controller
         Lesson::create($validated);
 
         return redirect()->route('admin.lessons.index')
-            ->with('success', 'Bài học "' . $validated['title'] . '" đã được tạo thành công!');
+            ->with('success', 'Bài học "'.$validated['title'].'" đã được tạo thành công!');
     }
 
     /**
@@ -81,6 +82,7 @@ class LessonController extends Controller
     public function show(Lesson $lesson)
     {
         $lesson->load(['course', 'quizzes.questions', 'vocabularies']);
+
         return view('lessons.show', compact('lesson'));
     }
 
@@ -90,6 +92,7 @@ class LessonController extends Controller
     public function edit(Lesson $lesson)
     {
         $courses = Course::orderBy('title')->get();
+
         return view('lessons.edit', compact('lesson', 'courses'));
     }
 
@@ -99,14 +102,14 @@ class LessonController extends Controller
     public function update(Request $request, Lesson $lesson)
     {
         $validated = $request->validate([
-            'course_id'  => 'required|exists:courses,id',
-            'title'      => 'required|string|max:255',
-            'content'    => 'nullable|string',
+            'course_id' => 'required|exists:courses,id',
+            'title' => 'required|string|max:255',
+            'content' => 'nullable|string',
             'sort_order' => 'nullable|integer|min:0',
-            'status'     => 'required|in:draft,published',
+            'status' => 'required|in:draft,published',
         ], [
             'course_id.required' => 'Vui lòng chọn khóa học.',
-            'title.required'     => 'Tiêu đề bài học không được để trống.',
+            'title.required' => 'Tiêu đề bài học không được để trống.',
         ]);
 
         // Tạo slug mới nếu tiêu đề thay đổi
@@ -131,7 +134,7 @@ class LessonController extends Controller
         $lesson->delete();
 
         return redirect()->route('admin.lessons.index')
-            ->with('success', 'Đã xóa bài học "' . $title . '".');
+            ->with('success', 'Đã xóa bài học "'.$title.'".');
     }
 
     // =====================================================
@@ -142,7 +145,7 @@ class LessonController extends Controller
     {
         $base = Str::slug($title);
         $slug = $base;
-        $i    = 2;
+        $i = 2;
 
         while (true) {
             $exists = Lesson::where('course_id', $courseId)
@@ -154,10 +157,9 @@ class LessonController extends Controller
                 break;
             }
 
-            $slug = $base . '-' . $i++;
+            $slug = $base.'-'.$i++;
         }
 
         return $slug;
     }
 }
-
