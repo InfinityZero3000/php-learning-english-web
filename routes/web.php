@@ -3,7 +3,9 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\ForgotPasswordController;
+use App\Http\Controllers\LessonController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\QuizController;
 use App\Http\Controllers\SocialController;
 use Illuminate\Support\Facades\Route;
 
@@ -98,3 +100,44 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])
         ->name('profile.destroy');
 });
+
+// ==========================================
+// Admin Routes (Yêu cầu quyền admin)
+// ==========================================
+Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
+    // CRUD Khóa học
+    Route::resource('courses', App\Http\Controllers\CourseController::class);
+    
+    // CRUD Bài học
+    Route::resource('lessons', App\Http\Controllers\LessonController::class);
+    
+    // CRUD Trắc nghiệm (gồm câu hỏi & đáp án)
+    Route::resource('quizzes', App\Http\Controllers\QuizController::class);
+
+    // CRUD Từ vựng
+    Route::resource('vocabularies', App\Http\Controllers\VocabularyController::class);
+});
+
+// ==========================================
+// Learner Routes (Yêu cầu đăng nhập thông thường)
+// ==========================================
+Route::middleware(['auth'])->group(function () {
+    // Làm bài quiz
+    Route::get('/quizzes/{quiz}/attempt', [App\Http\Controllers\QuizAttemptController::class, 'show'])->name('quizzes.attempt');
+    Route::post('/quizzes/{quiz}/attempt', [App\Http\Controllers\QuizAttemptController::class, 'submit'])->name('quizzes.submit');
+    Route::get('/quizzes/{quiz}/result', [App\Http\Controllers\QuizAttemptController::class, 'result'])->name('quizzes.result');
+
+    // Từ vựng (học viên xem)
+    Route::get('/words', [App\Http\Controllers\WordsController::class, 'index'])->name('words.index');
+    Route::get('/words/{vocabulary}', [App\Http\Controllers\WordsController::class, 'show'])->name('words.show');
+
+    // Tiến độ học
+    Route::get('/progress', [App\Http\Controllers\ProgressController::class, 'index'])->name('progress.index');
+    Route::post('/lessons/{lesson}/complete', [App\Http\Controllers\ProgressController::class, 'markComplete'])->name('lessons.complete');
+
+    // Bookmark từ vựng
+    Route::get('/bookmarks', [App\Http\Controllers\BookmarkController::class, 'index'])->name('bookmarks.index');
+    Route::post('/bookmarks/{vocabulary}/toggle', [App\Http\Controllers\BookmarkController::class, 'toggle'])->name('bookmarks.toggle');
+    Route::delete('/bookmarks/{bookmark}', [App\Http\Controllers\BookmarkController::class, 'destroy'])->name('bookmarks.destroy');
+});
+
