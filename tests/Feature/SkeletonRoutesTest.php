@@ -28,7 +28,7 @@ class SkeletonRoutesTest extends TestCase
         $this->get('/admin')
             ->assertOk()
             ->assertSee('Khu vực quản trị')
-            ->assertSee('chưa được triển khai');
+            ->assertSee('tài khoản quản trị viên');
     }
 
     public function test_api_status_endpoint_is_available(): void

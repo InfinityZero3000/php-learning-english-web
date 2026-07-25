@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\CourseController;
@@ -120,6 +121,10 @@ Route::middleware('auth')->group(function () {
 // Admin Routes (Yêu cầu quyền admin)
 // ==========================================
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/dashboard', [UserController::class, 'index'])->name('dashboard');
+    Route::get('/users', [UserController::class, 'index'])->name('users.index');
+    Route::patch('/users/{user}/role', [UserController::class, 'updateRole'])->name('users.updateRole');
+
     // CRUD Khóa học
     Route::resource('courses', CourseController::class);
 
