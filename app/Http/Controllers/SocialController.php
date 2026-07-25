@@ -34,7 +34,7 @@ class SocialController extends Controller
 
         Auth::login($user);
 
-        return redirect('/profile');
+        return redirect('/');
     }
 
     /*
@@ -62,6 +62,6 @@ class SocialController extends Controller
 
         Auth::login($user);
 
-        return redirect('/profile');
+        return redirect('/');
     }
 }

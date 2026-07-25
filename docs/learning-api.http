@@ -1,0 +1,28 @@
+@base_url = http://localhost:8000/api
+@token = replace-with-sanctum-token
+
+### Lesson list
+GET {{base_url}}/lessons
+Authorization: Bearer {{token}}
+
+### Start quiz
+POST {{base_url}}/quizzes/1/start
+Authorization: Bearer {{token}}
+
+### Update lesson progress
+PATCH {{base_url}}/lessons/1/progress
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"status":"completed","duration_seconds":600}
+
+### Toggle bookmark
+POST {{base_url}}/vocabulary/1/bookmark
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"note":"Review tomorrow"}
+
+### Dashboard
+GET {{base_url}}/dashboard
+Authorization: Bearer {{token}}
