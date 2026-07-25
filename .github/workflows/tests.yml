@@ -136,7 +136,13 @@ jobs:
 
   deploy:
     name: Deploy to Fly.io
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Deployment is opt-in: set ENABLE_FLY_DEPLOY=true only after configuring
+    # the production environment with FLY_APP and FLY_API_TOKEN.
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      vars.ENABLE_FLY_DEPLOY == 'true' &&
+      vars.FLY_APP != ''
     needs: [backend, learner, admin]
     runs-on: ubuntu-latest
     environment: production
