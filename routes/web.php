@@ -1,18 +1,26 @@
 <?php
 
+use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BookmarkController;
+use App\Http\Controllers\CourseAdminController;
+use App\Http\Controllers\CourseController;
 use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\ForgotPasswordController;
+use App\Http\Controllers\LessonAdminController;
+use App\Http\Controllers\LessonController;
+use App\Http\Controllers\LevelAdminController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QuizAdminController;
+use App\Http\Controllers\QuizController;
 use App\Http\Controllers\SocialController;
+use App\Http\Controllers\TopicAdminController;
+use App\Http\Controllers\VocabularyAdminController;
 use App\Http\Controllers\VocabularyController;
-
-use App\Models\Lesson;
-use App\Models\Quiz;
-use Illuminate\Support\Facades\DB;
+use App\Services\CourseService;
+use App\Services\DashboardService;
+use App\Services\QuizService;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Http\Response;
 
 /*
 |--------------------------------------------------------------------------
@@ -22,11 +30,69 @@ use Illuminate\Http\Response;
 
 Route::get('/', function () {
     return view('home');
-});
+})->name('home');
 
 Route::get('/health', fn () => response()->json(['status' => 'ok']));
 
-Route::view('/admin', 'admin');
+/*
+|--------------------------------------------------------------------------
+| Public routes
+|--------------------------------------------------------------------------
+*/
+
+// Courses (public)
+Route::get('/courses', [CourseController::class, 'index'])->name('courses.index');
+Route::get('/courses/{course}', [CourseController::class, 'show'])->name('courses.show');
+
+// Lessons (public - view, but complete requires auth)
+Route::get('/lessons/{lesson}', [LessonController::class, 'show'])->name('lessons.show');
+
+// Vocabularies (public browse)
+Route::get('/vocabularies', [VocabularyController::class, 'index'])->name('vocabularies.index');
+
+// Quizzes (public list + play)
+Route::get('/quizzes', [QuizController::class, 'index'])->name('quizzes.index');
+Route::get('/quizzes/{quiz}', [QuizController::class, 'show'])->name('quizzes.show');
+Route::get('/quizzes/{quiz}/play', [QuizController::class, 'play'])->name('quizzes.play');
+
+/*
+|--------------------------------------------------------------------------
+| Admin routes
+|--------------------------------------------------------------------------
+*/
+Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(function () {
+    Route::get('/', function (DashboardService $dashboardService, CourseService $courseService, QuizService $quizService) {
+        $stats = $dashboardService->getGeneralStats();
+        $chartData = $dashboardService->getAdminChartData();
+        $courses = $courseService->getAll();
+        return view('admin.dashboard', compact('stats', 'chartData', 'courses'));
+    })->name('dashboard');
+
+    // Courses
+    Route::resource('courses', CourseAdminController::class)->except(['show']);
+    // Levels
+    Route::resource('levels', LevelAdminController::class)->except(['show']);
+    // Topics
+    Route::resource('topics', TopicAdminController::class)->except(['show']);
+    // Lessons
+    Route::resource('lessons', LessonAdminController::class)->except(['show']);
+    // Vocabularies
+    Route::resource('vocabularies', VocabularyAdminController::class)->except(['show']);
+    // Quizzes
+    Route::resource('quizzes', QuizAdminController::class)->except(['show']);
+    // Quiz Questions
+    Route::get('quizzes/{quiz}/questions', [QuizAdminController::class, 'questions'])->name('quizzes.questions');
+    Route::post('quizzes/{quiz}/questions', [QuizAdminController::class, 'storeQuestion'])->name('quizzes.questions.store');
+    Route::put('questions/{question}', [QuizAdminController::class, 'updateQuestion'])->name('quizzes.questions.update');
+    Route::delete('questions/{question}', [QuizAdminController::class, 'destroyQuestion'])->name('quizzes.questions.destroy');
+    Route::post('quizzes/{quiz}/import', [QuizAdminController::class, 'import'])->name('quizzes.import');
+    // Users
+    Route::resource('users', AdminUserController::class)->only(['index', 'show', 'destroy']);
+    Route::put('users/{user}/assign-role', [AdminUserController::class, 'assignRole'])->name('users.assign-role');
+    Route::post('users/{user}/lock', [AdminUserController::class, 'lock'])->name('users.lock');
+    Route::post('users/{user}/unlock', [AdminUserController::class, 'unlock'])->name('users.unlock');
+    Route::post('users/{user}/reset-password', [AdminUserController::class, 'resetPassword'])->name('users.reset-password');
+});
 
 /*
 |--------------------------------------------------------------------------
@@ -41,123 +107,73 @@ Route::post('/register', [AuthController::class, 'register'])->name('register.st
 // Đăng nhập
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login'])->name('login.store');
+
 // Đăng nhập Google
-Route::get('/auth/google', [SocialController::class, 'google'])
-    ->name('google.login');
+Route::get('/auth/google', [SocialController::class, 'google'])->name('google.login');
+Route::get('/auth/google/callback', [SocialController::class, 'googleCallback'])->name('google.callback');
 
-Route::get('/auth/google/callback', [SocialController::class, 'googleCallback'])
-    ->name('google.callback');
 // Đăng nhập Facebook
-Route::get('/auth/facebook', [SocialController::class, 'facebook'])
-    ->name('facebook.login');
+Route::get('/auth/facebook', [SocialController::class, 'facebook'])->name('facebook.login');
+Route::get('/auth/facebook/callback', [SocialController::class, 'facebookCallback'])->name('facebook.callback');
 
-Route::get('/auth/facebook/callback', [SocialController::class, 'facebookCallback'])
-    ->name('facebook.callback');
 // Quên mật khẩu
-Route::get('/forgot-password', [ForgotPasswordController::class, 'showForgotForm'])
-    ->name('password.request');
-
-Route::post('/forgot-password', [ForgotPasswordController::class, 'sendResetLink'])
-    ->name('password.email');
-
-Route::get('/reset-password/{token}', [ForgotPasswordController::class, 'showResetForm'])
-    ->name('password.reset');
-
-Route::post('/reset-password', [ForgotPasswordController::class, 'resetPassword'])
-    ->name('password.update');
+Route::get('/forgot-password', [ForgotPasswordController::class, 'showForgotForm'])->name('password.request');
+Route::post('/forgot-password', [ForgotPasswordController::class, 'sendResetLink'])->name('password.email');
+Route::get('/reset-password/{token}', [ForgotPasswordController::class, 'showResetForm'])->name('password.reset');
+Route::post('/reset-password', [ForgotPasswordController::class, 'resetPassword'])->name('password.update');
 
 // Đăng xuất
-Route::post('/logout', [AuthController::class, 'logout'])
-    ->name('logout');
+Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
 // Xác nhận email
-Route::get('/verify-email', [EmailVerificationController::class, 'notice'])
-    ->name('verification.notice');
-
-Route::post('/verify-email/resend', [EmailVerificationController::class, 'resend'])
-    ->name('verification.send');
-
+Route::get('/verify-email', [EmailVerificationController::class, 'notice'])->name('verification.notice');
+Route::post('/verify-email/resend', [EmailVerificationController::class, 'resend'])->name('verification.send');
 Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])
     ->middleware('signed')
     ->name('verification.verify');
 
 /*
 |--------------------------------------------------------------------------
-| Profile (Yêu cầu đăng nhập)
+| Authenticated routes
 |--------------------------------------------------------------------------
 */
 
 Route::middleware('auth')->group(function () {
-    Route::get('/content', function () {
-        $lessons = Lesson::query()
-            ->withCount('quizzes')
-            ->orderBy('order')
-            ->orderBy('id')
-            ->get();
+    // Dashboard / Learning
+    Route::get('/dashboard', function (DashboardService $dashboardService) {
+        $stats = $dashboardService->getUserDashboard(auth()->id());
+        return view('dashboard', compact('stats'));
+    })->name('dashboard');
 
-        return view('content.index', compact('lessons'));
-    })->name('content.index');
+    // Lessons
+    Route::post('/lessons/{lesson}/complete', [LessonController::class, 'complete'])->name('lessons.complete');
 
-    Route::get('/content/lessons/{lesson}', function (Lesson $lesson) {
-        abort_unless(auth()->user()->role?->slug === 'admin' || auth()->user()->role?->slug === 'learner', 403);
+    // Quizzes submit + result
+    Route::post('/quizzes/{quiz}/submit', [QuizController::class, 'submit'])->name('quizzes.submit');
+    Route::get('/attempts/{attempt}/result', [QuizController::class, 'result'])->name('quizzes.result');
 
-        return view('content.quizzes', ['lesson' => $lesson, 'quizzes' => $lesson->quizzes()->withCount('questions')->get()]);
-    })->name('content.quizzes');
+    // Vocabulary management (create, upload, update, delete)
+    Route::post('/vocabularies', [VocabularyController::class, 'store'])->name('vocabularies.store');
+    Route::post('/vocabularies/{vocabulary}/upload', [VocabularyController::class, 'upload'])->name('vocabularies.upload');
+    Route::put('/vocabularies/{vocabulary}', [VocabularyController::class, 'update'])->name('vocabularies.update');
+    Route::delete('/vocabularies/{vocabulary}', [VocabularyController::class, 'destroy'])->name('vocabularies.destroy');
 
-    Route::get('/content/lessons/{lesson}/quizzes/{quiz}', function (Lesson $lesson, Quiz $quiz) {
-        abort_unless($quiz->lesson_id === $lesson->id, 404);
-        abort_unless(auth()->user()->role?->slug === 'admin' || auth()->user()->role?->slug === 'learner', 403);
+    // Vocabulary import
+    Route::get('/vocabularies/import', [VocabularyController::class, 'importForm'])->name('vocabularies.import');
+    Route::post('/vocabularies/import', [VocabularyController::class, 'import'])->name('vocabularies.import.store');
 
-        return view('content.questions', ['lesson' => $lesson, 'quiz' => $quiz->load('questions.answers')]);
-    })->name('content.questions');
+    // Flashcards
+    Route::get('/vocabularies/flashcards', [VocabularyController::class, 'flashcards'])->name('vocabularies.flashcards');
 
-    Route::post('/content/lessons/{lesson}/quizzes/{quiz}/import', [QuizAdminController::class, 'import'])
-        ->middleware('auth')
-        ->name('content.quiz.import');
+    // Bookmarks
+    Route::get('/bookmarks', [BookmarkController::class, 'index'])->name('bookmarks.index');
+    Route::post('/vocabularies/{vocabulary}/bookmark', [BookmarkController::class, 'toggle'])->name('bookmarks.toggle');
 
-    Route::get('/learning', fn () => view('learning.index', ['bookmarkCount' => DB::table('vocabulary_bookmarks')->where('user_id', auth()->id())->count(), 'history' => DB::table('study_history')->where('user_id', auth()->id())->latest('created_at')->limit(8)->get()]))->name('learning.index');
-    
-    Route::get('/words', [VocabularyController::class, 'index'])->name('vocabulary.index');
-    Route::post('/vocabulary/{vocabulary}/upload', [VocabularyController::class, 'upload'])->name('vocabulary.upload');
-    Route::get('/vocabulary/{vocabulary}/download', [VocabularyController::class, 'downloadImage'])->name('vocabulary.download');
-    Route::put('/vocabulary/{vocabulary}', [VocabularyController::class, 'update'])->name('vocabulary.update');
-    Route::delete('/vocabulary/{vocabulary}', [VocabularyController::class, 'destroy'])->name('vocabulary.delete');
-    
-    Route::get('/quizzes/{quiz}/play', fn (Quiz $quiz) => view('quiz.play', compact('quiz')))->name('quizzes.play');
+    // Profile
+    Route::get('/profile', [ProfileController::class, 'index'])->name('profile');
+    Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    Route::get('/quizzes/{quiz}/results/download', function (Quiz $quiz) {
-        $lines = [
-            'quiz_id,' . $quiz->id,
-            'quiz_title,' . $quiz->title,
-            'user_id,user_name,score,status,finished_at',
-        ];
-
-        foreach ($quiz->attempts()->with('user')->get() as $attempt) {
-            $lines[] = implode(',', [
-                $attempt->user_id,
-                str_replace(',', ' ', $attempt->user?->name ?? ''),
-                $attempt->score,
-                $attempt->status,
-                $attempt->finished_at?->toDateTimeString() ?? '',
-            ]);
-        }
-
-        $content = implode("\n", $lines);
-
-        return response($content, 200)
-            ->header('Content-Type', 'text/csv; charset=utf-8')
-            ->header('Content-Disposition', 'attachment; filename="quiz-results-' . $quiz->id . '.csv"');
-    })->name('quizzes.results.download');
-
-    // Hồ sơ người học
-    Route::get('/profile', [ProfileController::class, 'index'])
-        ->name('profile');
-
-    // Cập nhật hồ sơ
-    Route::put('/profile', [ProfileController::class, 'update'])
-        ->name('profile.update');
-
-    // Xóa tài khoản
-    Route::delete('/profile', [ProfileController::class, 'destroy'])
-        ->name('profile.destroy');
+    // Words (alias)
+    Route::get('/words', [VocabularyController::class, 'index'])->name('words.index');
 });

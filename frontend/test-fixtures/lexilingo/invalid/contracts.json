@@ -1,0 +1,8 @@
+[
+  { "definition": "CategoryListResponse", "payload": { "data": [{ "id": "", "name": "Basics" }], "meta": {} } },
+  { "definition": "CategoryDetailResponse", "payload": { "data": { "id": "cat-1", "name": "Basics", "slug": "basics", "description": null, "icon": null, "color": null, "course_count": 1, "order_index": 0 }, "meta": {} } },
+  { "definition": "PaginatedCourseResponse", "payload": { "data": [], "pagination": {}, "meta": {} } },
+  { "definition": "CourseDetailResponse", "payload": { "data": { "id": "course-1", "title": "English A1" }, "meta": {} } },
+  { "definition": "LessonContentResponse", "payload": { "data": { "description": null, "prerequisites": "none", "estimated_minutes": 10, "pass_threshold": 80, "content": null }, "meta": {} } },
+  { "definition": "VocabularyItemList", "payload": [{ "id": "", "word": "hello" }] }
+]
