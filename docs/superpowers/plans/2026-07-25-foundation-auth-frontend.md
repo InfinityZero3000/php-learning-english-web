@@ -104,7 +104,7 @@ do not introduce service interfaces or repositories for Auth.
 - Modify: `frontend/package.json`, `frontend/pnpm-lock.yaml`
 - Test: parse/lint command in this task
 
-- [ ] **Step 1: Write the initial OpenAPI document**
+- [x] **Step 1: Write the initial OpenAPI document**
 
 Define these Phase 1–3 operations:
 
@@ -139,7 +139,7 @@ User:
     role: { type: [string, "null"] }
 ```
 
-- [ ] **Step 2: Pin and run the OpenAPI validator**
+- [x] **Step 2: Pin and run the OpenAPI validator**
 
 ```bash
 cd frontend
@@ -151,7 +151,7 @@ Commit the resulting `package.json` and `pnpm-lock.yaml`. Expected: exit code
 0 with no broken references. This is a Phase 1 gate; do not start Task 3 if it
 fails.
 
-- [ ] **Step 3: Confirm every frontend Auth call has a documented operation**
+- [x] **Step 3: Confirm every frontend Auth call has a documented operation**
 
 Run:
 
@@ -176,7 +176,7 @@ git commit -m "docs: define Laravel v1 auth API contract"
 - Create: `frontend/scripts/validate-lexilingo-schema.mjs`
 - Create: `frontend/test-fixtures/lexilingo/{valid,invalid}/*.json`
 
-- [ ] **Step 1: Write the JSON Schema fixture**
+- [x] **Step 1: Write the JSON Schema fixture**
 
 Cover the exact fields defined in the approved design for:
 
@@ -193,7 +193,7 @@ Use `"additionalProperties": true` at response-envelope boundaries so harmless
 upstream additions do not break imports, but require every field consumed by
 Laravel. Treat all external IDs as non-empty strings, not UUID-specific values.
 
-- [ ] **Step 2: Validate JSON syntax**
+- [x] **Step 2: Validate JSON syntax**
 
 Run:
 
@@ -223,7 +223,7 @@ node scripts/validate-lexilingo-schema.mjs
 Expected: every valid fixture passes and every invalid fixture fails. This is
 the second Phase 1 gate.
 
-- [ ] **Step 3: Record the pinned source**
+- [x] **Step 3: Record the pinned source**
 
 Add schema annotations:
 
@@ -247,7 +247,7 @@ git commit -m "docs: pin LexiLingo import contract"
 - Create: `database/migrations/2026_07_25_000000_extend_learning_schema_for_integration.php`
 - Test: `tests/Feature/IntegrationSchemaTest.php`
 
-- [ ] **Step 1: Write failing schema tests**
+- [x] **Step 1: Write failing schema tests**
 
 Test every approved table, column type/default, foreign key, cascade/null
 behavior, unique index and JSON field. At minimum assert:
@@ -285,7 +285,7 @@ php artisan test tests/Feature/IntegrationSchemaTest.php
 
 Expected: FAIL because the new tables/columns do not exist.
 
-- [ ] **Step 3: Implement the migration**
+- [x] **Step 3: Implement the migration**
 
 Required rules:
 
@@ -309,7 +309,7 @@ Required rules:
 - `user_vocabularies` is unique on `(user_id, vocabulary_id)`.
 - `vocabulary_reviews` is append-only and cascades with its user vocabulary.
 
-- [ ] **Step 4: Run migration tests**
+- [x] **Step 4: Run migration tests**
 
 ```bash
 php artisan test tests/Feature/IntegrationSchemaTest.php
@@ -361,7 +361,7 @@ git commit -m "feat: extend learning schema for integrations"
 - Modify: `database/seeders/CatalogSeeder.php`
 - Test: `tests/Feature/IntegrationSchemaTest.php`
 
-- [ ] **Step 1: Add failing relationship tests**
+- [x] **Step 1: Add failing relationship tests**
 
 Cover:
 
@@ -385,13 +385,13 @@ phase, keep the invariant documented in the model test.
 php artisan test tests/Feature/IntegrationSchemaTest.php
 ```
 
-- [ ] **Step 3: Implement minimal Eloquent relationships and casts**
+- [x] **Step 3: Implement minimal Eloquent relationships and casts**
 
 Use existing Eloquent patterns. Add JSON casts for translation/tags/content and
 datetime casts for review scheduling. Do not add repositories or model service
 interfaces.
 
-- [ ] **Step 4: Seed CEFR levels**
+- [x] **Step 4: Seed CEFR levels**
 
 Add A1–C2 with additive upserts while retaining the existing
 Beginner/Intermediate/Advanced rows:
@@ -402,7 +402,7 @@ Beginner/Intermediate/Advanced rows:
 ['name' => 'C2', 'slug' => 'c2', 'sort_order' => 6],
 ```
 
-- [ ] **Step 5: Run tests and Pint**
+- [x] **Step 5: Run tests and Pint**
 
 ```bash
 php artisan test tests/Feature/IntegrationSchemaTest.php
@@ -445,7 +445,7 @@ in a non-testing smoke process
 php artisan test tests/Feature/Api/V1/HealthApiTest.php
 ```
 
-- [ ] **Step 3: Load `routes/spa.php` under `web` middleware**
+- [x] **Step 3: Load `routes/spa.php` under `web` middleware**
 
 Register the route file from `bootstrap/app.php` using the routing callback
 supported by Laravel 13. The group prefix is `/api/v1`; do not place these
@@ -464,7 +464,7 @@ Route::get('/csrf-cookie', fn () => response()->noContent());
 
 The CSRF route must execute the full `web` middleware stack.
 
-- [ ] **Step 4: Add production cookie/frontend examples**
+- [x] **Step 4: Add production cookie/frontend examples**
 
 Add non-secret examples:
 
@@ -486,7 +486,7 @@ Add concrete config accessors:
 'admin_frontend_url' => env('ADMIN_FRONTEND_URL', 'http://localhost:3001'),
 ```
 
-- [ ] **Step 5: Run focused and full tests**
+- [x] **Step 5: Run focused and full tests**
 
 ```bash
 php artisan test tests/Feature/Api/V1/HealthApiTest.php
@@ -531,7 +531,7 @@ Cover:
 php artisan test tests/Feature/Api/V1/AuthApiTest.php
 ```
 
-- [ ] **Step 3: Implement the minimal JSON controller**
+- [x] **Step 3: Implement the minimal JSON controller**
 
 Reuse the current request validation rules and lifecycle behavior. All
 non-204 success responses use the shared `ApiResponse::success()` helper and
@@ -548,7 +548,7 @@ unverified account. Never return a bearer or refresh token.
 The OpenAPI contract explicitly documents `204` responses without a body and
 the health response as its own exception to the envelope.
 
-- [ ] **Step 4: Add routes and throttles**
+- [x] **Step 4: Add routes and throttles**
 
 ```php
 Route::post('/auth/register', ...)->middleware('throttle:5,1');
@@ -557,7 +557,7 @@ Route::post('/auth/logout', ...)->middleware('auth');
 Route::get('/auth/me', ...)->middleware('auth');
 ```
 
-- [ ] **Step 5: Run focused, legacy, and full tests**
+- [x] **Step 5: Run focused, legacy, and full tests**
 
 ```bash
 php artisan test tests/Feature/Api/V1/AuthApiTest.php
@@ -606,7 +606,7 @@ Cover:
 php artisan test tests/Feature/Api/V1/PasswordApiTest.php
 ```
 
-- [ ] **Step 3: Implement JSON controllers**
+- [x] **Step 3: Implement JSON controllers**
 
 Reuse the already hardened logic from existing controllers. Keep neutral
 forgot-password behavior for:
@@ -632,7 +632,7 @@ request body. It reads the pending user ID from the server-side
 `verify_email` session key, returns the same neutral response when the key is
 absent, and applies `throttle:3,1`.
 
-- [ ] **Step 4: Configure canonical verification and reset URLs**
+- [x] **Step 4: Configure canonical verification and reset URLs**
 
 In `AppServiceProvider`, customize the built-in Laravel notification URL
 builders to use the canonical signed route and
@@ -640,7 +640,7 @@ builders to use the canonical signed route and
 endpoint marks the user, then redirects to `FRONTEND_URL/login`. Never put mail
 credentials or reset tokens in logs.
 
-- [ ] **Step 5: Run all Auth/Mail tests**
+- [x] **Step 5: Run all Auth/Mail tests**
 
 ```bash
 php artisan test tests/Feature/Api/V1 tests/Feature/ForgotPasswordTest.php tests/Feature/RegistrationTest.php
@@ -679,12 +679,12 @@ Cover:
 php artisan test tests/Feature/Api/V1/ProfileApiTest.php
 ```
 
-- [ ] **Step 3: Implement controller and routes**
+- [x] **Step 3: Implement controller and routes**
 
 Keep profile, password, and deletion as separate actions. Use existing Laravel
 validation rules and return the canonical `UserResource` or `204`.
 
-- [ ] **Step 4: Run focused and legacy tests**
+- [x] **Step 4: Run focused and legacy tests**
 
 ```bash
 php artisan test tests/Feature/Api/V1/ProfileApiTest.php tests/Feature/ProfileTest.php
@@ -735,7 +735,7 @@ Add `test` scripts and Vitest dependencies to both apps. The learner app uses
 pnpm; the admin app uses npm/package-lock. Keep `LARAVEL_API_ORIGIN`
 server-only in both Vercel projects.
 
- - [ ] **Step 2: Verify configuration loads**
+ - [x] **Step 2: Verify configuration loads**
 
 ```bash
 cd frontend && pnpm install --frozen-lockfile && pnpm build
@@ -783,7 +783,7 @@ write failing tests for CSRF initialization, credentials, the decoded
 `X-XSRF-TOKEN`, and Laravel `{message, errors}` parsing. Run the focused tests
 before and after the client change.
 
-- [ ] **Step 2: Expose only implemented Auth methods**
+- [x] **Step 2: Expose only implemented Auth methods**
 
 ```ts
 auth.register(...)
@@ -842,7 +842,7 @@ network/server error
 
 On success, navigate to `/`; do not store tokens.
 
-- [ ] **Step 2: Add current-user and logout behavior**
+- [x] **Step 2: Add current-user and logout behavior**
 
 The app shell calls `auth.me()`, renders the authenticated name, and exposes a
 logout action. A `401` redirects protected screens to `/login`; transport
@@ -888,7 +888,7 @@ localStorage.setItem("admin_token", ...)
 After login, call `auth.me()`. Only role slug `admin` enters `/dashboard`;
 otherwise log out and show a forbidden message.
 
-- [ ] **Step 2: Guard admin layouts**
+- [x] **Step 2: Guard admin layouts**
 
 On initial load:
 
@@ -918,7 +918,7 @@ git commit -m "feat: protect admin frontend with Laravel session"
 - Modify: `docs/openapi/laravel-v1.yaml` only if implementation revealed an
   reviewed contract correction
 
-- [ ] **Step 1: Run backend gates**
+- [x] **Step 1: Run backend gates**
 
 ```bash
 DB_CONNECTION=sqlite DB_DATABASE=/private/tmp/learning-phase3-smoke.sqlite php artisan migrate --seed
@@ -953,18 +953,18 @@ health: both Next.js origins reach /api/v1/health via rewrite
 The protected shell is the only admin Phase 1–3 surface; unsupported CRUD
 screens remain hidden or disabled until their APIs are implemented.
 
-- [ ] **Step 4: Audit the contract**
+- [x] **Step 4: Audit the contract**
 
 Compare every implemented Phase 1–3 route and response against
 `docs/openapi/laravel-v1.yaml`. Contract mismatch is a failure even if tests
 pass.
 
-- [ ] **Step 5: Update plan evidence**
+- [x] **Step 5: Update plan evidence**
 
 Record exact test counts, build results, and remaining deferred phases in
 `docs/PROJECT_PLAN.md`. Do not mark dataset/learning/admin/AI phases complete.
 
-- [ ] **Step 6: Request final code review**
+- [x] **Step 6: Request final code review**
 
 Review security, session fixation, CSRF, rate limits, role authorization,
 password lifecycle, migration rollback, and frontend token removal.

@@ -1,0 +1,14 @@
+app = "linguist-mysql"
+primary_region = "sin"
+
+[build]
+  image = "mysql:8.4"
+
+[mounts]
+  source = "mysql_data"
+  destination = "/var/lib/mysql"
+
+[[vm]]
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1

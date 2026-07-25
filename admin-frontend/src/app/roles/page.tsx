@@ -183,7 +183,7 @@ export default function RolesPage() {
           <div>
             <p className="text-sm font-bold" style={{ color: '#1b1c1c' }}>Role assignment is done per-user</p>
             <p className="text-sm font-medium mt-0.5" style={{ color: '#3e4850' }}>
-              Go to <strong>Users → [select user] → Role</strong> to change a user's role. Only ADMIN accounts can assign roles. Role changes take effect immediately.
+              Go to <strong>Users → [select user] → Role</strong> to change a user&apos;s role. Only ADMIN accounts can assign roles. Role changes take effect immediately.
             </p>
           </div>
         </div>

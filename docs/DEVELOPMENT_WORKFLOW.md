@@ -102,11 +102,11 @@ docker compose exec app php artisan migrate
 
 Workflow `.github/workflows/tests.yml` chạy khi push, mở/cập nhật Pull Request và theo lịch. CI:
 
-1. Khởi tạo MySQL 8.4.
-2. Cài dependency Composer trên PHP 8.3, 8.4 và 8.5.
-3. Chạy Pint.
-4. Chạy migrate, seed, rollback và migrate lại.
-5. Chạy PHPUnit.
+1. Backend chạy MySQL 8.4, Composer trên PHP 8.3, 8.4 và 8.5, Pint,
+   migration/rollback và PHPUnit.
+2. Learner frontend chạy frozen pnpm install, ESLint, schema fixtures và
+   production build.
+3. Admin frontend chạy `npm ci`, ESLint và production build.
 
 Không merge khi bất kỳ matrix job nào thất bại. Xem log tại tab **Actions**, sửa lỗi trên cùng feature branch và push lại.
 
@@ -117,6 +117,7 @@ Nên bật branch protection cho `main`:
 - Require status checks to pass.
 - Require branches to be up to date.
 - Block force pushes và deletions.
+- Disable direct pushes to `main`.
 
 ## 6. Thiết lập Fly.io một lần
 
@@ -165,10 +166,12 @@ Không đưa các giá trị này vào `fly.toml`, `.env.example`, Issue hoặc 
 
 Mỗi push vào `main` (thông thường là commit tạo bởi Squash and merge):
 
-1. Job `tests` chạy Pint, migration và PHPUnit.
-2. Nếu mọi PHP matrix đều đạt, job `deploy` chạy `flyctl deploy --remote-only`.
+1. Các job `backend`, `learner` và `admin` chạy độc lập.
+2. Chỉ khi cả ba job đạt, job `deploy` chạy `flyctl deploy --remote-only`.
 3. Fly build `Dockerfile.fly`, chạy `php artisan migrate --force`, sau đó rolling deploy.
-4. Fly chỉ chuyển traffic khi `/health` trả HTTP 200. Endpoint này kiểm tra HTTP/process liveness; kết nối MySQL/Redis được xác minh bởi release migration và log ứng dụng.
+4. Fly chỉ chuyển traffic khi `/health` trả HTTP 200. Endpoint kiểm tra kết
+   nối MySQL và kiểm tra Redis khi cache, session hoặc queue dùng Redis; lỗi
+   dependency trả HTTP 503.
 
 Pull Request, branch khác, scheduled test hoặc CI thất bại sẽ không deploy.
 
@@ -199,5 +202,6 @@ Rollback image **không rollback database**. Migration production phải tương
 ## 9. Giới hạn hiện tại
 
 - Chưa có staging, queue worker, cron hoặc multi-region.
+- Queue đang chạy đồng bộ; chỉ cấu hình Redis queue sau khi có worker riêng.
 - Filesystem Fly Machine là tạm thời; module upload phải dùng object storage trước production.
 - `composer.lock` phải được cập nhật cùng `composer.json`; không xóa lockfile khỏi Pull Request.

@@ -58,7 +58,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       .catch((error) => {
         if (cancelled) return;
         if (error instanceof ApiError && error.status === 401) {
-          if (pathname !== "/login") router.replace("/login");
+          if (pathname !== "/login") window.location.replace("/login");
         } else {
           setAuthError(true);
         }

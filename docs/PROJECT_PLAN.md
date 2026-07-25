@@ -66,8 +66,34 @@ Blade hiện tại là giao diện chuyển tiếp để Auth/Profile tiếp t�
 khi hai Next.js app được chuyển đổi. Giao diện production cuối cùng là
 `frontend/` và `admin-frontend/`.
 
+### Trạng thái xác minh 25/07/2026
+
+- Hoàn thành contract Laravel v1, schema import LexiLingo, migration/model tích
+  hợp, session Auth API, mail/password/profile API và login guard cho hai
+  frontend.
+- Laravel đã có cấu hình server-to-server cho hai host LexiLingo qua
+  `LEXILINGO_BACKEND_URL` và `LEXILINGO_AI_URL`; import key và AI service
+  secret chỉ đọc từ biến môi trường.
+- `php artisan test`: **55 tests, 236 assertions, pass**.
+- `./vendor/bin/pint --test`: pass.
+- LexiLingo JSON Schema fixtures: pass.
+- Vocabulary core-data sync đã có lệnh
+  `php artisan lexilingo:sync-vocabulary`: ghi/upsert vào MySQL theo
+  `external_id`, cache page upstream ngắn hạn bằng Redis; request runtime đọc
+  dữ liệu local thay vì gọi LexiLingo lặp lại.
+- Redocly OpenAPI lint: valid, còn 4 warning tài liệu không chặn build.
+- Learner frontend: TypeScript, ESLint và production build pass.
+- Admin frontend: TypeScript và production build pass; ESLint còn 12 lỗi trong
+  các màn CRUD cũ chưa nối Laravel API.
+- Chưa hoàn thành: importer đầy đủ categories/courses/units/lessons và
+  checkpoint/archive, protected lesson-content sync, các proxy
+  translate/STT/TTS/pronunciation, admin CRUD API, browser smoke production và
+  kiểm thử trực tiếp với host/secret LexiLingo thật.
+
 ## Quy ước bàn giao
 
+- Biến môi trường production được quản lý tại `docs/PRODUCTION_ENV.md`; mọi thay
+  đổi env trong code phải cập nhật tài liệu này và `.env.example`.
 - Mỗi nhiệm vụ có issue riêng, nhánh riêng và pull request được review.
 - Migration đã merge không được sửa lịch sử; tạo migration mới khi schema thay đổi.
 - Pull request phải chạy `php artisan test` và `./vendor/bin/pint --test`.

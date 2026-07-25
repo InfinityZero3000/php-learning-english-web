@@ -2,11 +2,15 @@ openapi: 3.1.0
 info:
   title: Learning English API
   version: 1.0.0
+  license:
+    name: MIT
+    identifier: MIT
 servers:
   - url: /
 paths:
   /api/v1/health:
     get:
+      summary: Check API health
       operationId: health
       security: []
       responses:
@@ -22,6 +26,7 @@ paths:
                   version: { const: v1 }
   /api/v1/csrf-cookie:
     get:
+      summary: Initialize the CSRF cookie
       operationId: csrfCookie
       security: []
       responses:
@@ -30,8 +35,34 @@ paths:
           headers:
             Set-Cookie:
               schema: { type: string }
+  /api/v1/vocabulary:
+    get:
+      summary: Read locally persisted vocabulary
+      operationId: listVocabulary
+      security: []
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string }
+        - in: query
+          name: per_page
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: Vocabulary page
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Vocabulary" }
+                  meta: { type: object }
   /api/v1/auth/register:
     post:
+      summary: Register a learner account
       operationId: register
       security: [{ csrf: [] }]
       requestBody:
@@ -40,11 +71,12 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/RegisterRequest" }
       responses:
-        "201": { $ref: "#/components/responses/UserResponse" }
+        "201": { $ref: "#/components/responses/MessageEnvelopeResponse" }
         "419": { $ref: "#/components/responses/CsrfError" }
         "422": { $ref: "#/components/responses/ValidationError" }
   /api/v1/auth/login:
     post:
+      summary: Log in with a Laravel session
       operationId: login
       security: [{ csrf: [] }]
       requestBody:
@@ -54,11 +86,13 @@ paths:
             schema: { $ref: "#/components/schemas/LoginRequest" }
       responses:
         "200": { $ref: "#/components/responses/UserResponse" }
+        "403": { $ref: "#/components/responses/EmailUnverified" }
         "419": { $ref: "#/components/responses/CsrfError" }
         "422": { $ref: "#/components/responses/ValidationError" }
         "429": { $ref: "#/components/responses/MessageResponse" }
   /api/v1/auth/logout:
     post:
+      summary: Log out the current user
       operationId: logout
       security: [{ session: [], csrf: [] }]
       responses:
@@ -67,6 +101,7 @@ paths:
         "419": { $ref: "#/components/responses/CsrfError" }
   /api/v1/auth/me:
     get:
+      summary: Get the current user
       operationId: currentUser
       security: [{ session: [] }]
       responses:
@@ -74,15 +109,17 @@ paths:
         "401": { $ref: "#/components/responses/Unauthenticated" }
   /api/v1/auth/email/resend:
     post:
+      summary: Resend a pending verification email
       operationId: resendVerification
       security: [{ csrf: [] }]
       responses:
-        "202": { $ref: "#/components/responses/MessageResponse" }
+        "200": { $ref: "#/components/responses/MessageEnvelopeResponse" }
         "419": { $ref: "#/components/responses/CsrfError" }
         "422": { $ref: "#/components/responses/ValidationError" }
         "429": { $ref: "#/components/responses/MessageResponse" }
   /api/v1/auth/email/verify/{id}/{hash}:
     get:
+      summary: Verify a signed email link
       operationId: verifyEmail
       security: []
       parameters:
@@ -112,6 +149,7 @@ paths:
         "403": { $ref: "#/components/responses/MessageResponse" }
   /api/v1/auth/password/forgot:
     post:
+      summary: Request a password reset email
       operationId: forgotPassword
       security: [{ csrf: [] }]
       requestBody:
@@ -124,12 +162,13 @@ paths:
               properties:
                 email: { type: string, format: email }
       responses:
-        "202": { $ref: "#/components/responses/MessageResponse" }
+        "200": { $ref: "#/components/responses/MessageEnvelopeResponse" }
         "419": { $ref: "#/components/responses/CsrfError" }
         "422": { $ref: "#/components/responses/ValidationError" }
         "429": { $ref: "#/components/responses/MessageResponse" }
   /api/v1/auth/password/reset:
     post:
+      summary: Reset a password
       operationId: resetPassword
       security: [{ csrf: [] }]
       requestBody:
@@ -138,11 +177,12 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/ResetPasswordRequest" }
       responses:
-        "200": { $ref: "#/components/responses/MessageResponse" }
+        "200": { $ref: "#/components/responses/MessageEnvelopeResponse" }
         "419": { $ref: "#/components/responses/CsrfError" }
         "422": { $ref: "#/components/responses/ValidationError" }
   /api/v1/profile:
     put:
+      summary: Update the current profile
       operationId: updateProfile
       security: [{ session: [], csrf: [] }]
       requestBody:
@@ -151,16 +191,16 @@ paths:
           application/json:
             schema:
               type: object
-              required: [name, email]
+              required: [name]
               properties:
-                name: { type: string, minLength: 1, maxLength: 255 }
-                email: { type: string, format: email }
+                name: { type: string, minLength: 1, maxLength: 100 }
       responses:
         "200": { $ref: "#/components/responses/UserResponse" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "419": { $ref: "#/components/responses/CsrfError" }
         "422": { $ref: "#/components/responses/ValidationError" }
     delete:
+      summary: Delete the current account
       operationId: deleteProfile
       security: [{ session: [], csrf: [] }]
       requestBody:
@@ -179,6 +219,7 @@ paths:
         "422": { $ref: "#/components/responses/ValidationError" }
   /api/v1/profile/password:
     put:
+      summary: Change the current password
       operationId: updatePassword
       security: [{ session: [], csrf: [] }]
       requestBody:
@@ -202,7 +243,7 @@ components:
     session:
       type: apiKey
       in: cookie
-      name: learning_english_session
+      name: english-learning-session
       description: Laravel web session cookie.
     csrf:
       type: apiKey
@@ -230,6 +271,12 @@ components:
       required: [message]
       properties:
         message: { type: string }
+    MessageEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: "#/components/schemas/Message" }
+        meta: { type: object }
     ValidationError:
       type: object
       required: [message, errors]
@@ -244,7 +291,7 @@ components:
       type: object
       required: [name, email, password, password_confirmation]
       properties:
-        name: { type: string, minLength: 1, maxLength: 255 }
+        name: { type: string, minLength: 1, maxLength: 100 }
         email: { type: string, format: email }
         password: { type: string, minLength: 8 }
         password_confirmation: { type: string }
@@ -263,6 +310,21 @@ components:
         email: { type: string, format: email }
         password: { type: string, minLength: 8 }
         password_confirmation: { type: string }
+    Vocabulary:
+      type: object
+      required: [id, word, meaning]
+      properties:
+        id: { type: integer }
+        external_id: { type: [string, "null"] }
+        word: { type: string }
+        meaning: { type: string }
+        definition: { type: [string, "null"] }
+        translation: { type: [object, "null"] }
+        pronunciation: { type: [string, "null"] }
+        part_of_speech: { type: [string, "null"] }
+        difficulty_level: { type: [string, "null"] }
+        tags: { type: [array, "null"] }
+        external_audio_url: { type: [string, "null"] }
   responses:
     UserResponse:
       description: User payload
@@ -274,6 +336,21 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Message" }
+    MessageEnvelopeResponse:
+      description: Operation result
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/MessageEnvelope" }
+    EmailUnverified:
+      description: Email verification required
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [message, code]
+            properties:
+              message: { type: string }
+              code: { const: EMAIL_UNVERIFIED }
     ValidationError:
       description: Invalid input
       content:

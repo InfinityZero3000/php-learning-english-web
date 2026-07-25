@@ -89,7 +89,9 @@ export default function DecksPage() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  // Fetching on mount intentionally updates this page's local request state.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void load(); }, []);
 
   const handleSave = async (data: Partial<Deck>) => {
     if (data.id) {

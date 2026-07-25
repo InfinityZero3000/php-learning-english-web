@@ -4,11 +4,28 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\EmailVerificationController;
 use App\Http\Controllers\Api\V1\PasswordController;
 use App\Http\Controllers\Api\V1\ProfileController;
+use App\Http\Controllers\Api\V1\VocabularyController;
+use App\Support\HealthCheck;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 Route::prefix('api/v1')->group(function (): void {
-    Route::get('/health', fn () => response()->json(['status' => 'ok', 'version' => 'v1']));
+    Route::get('/', fn () => response()->json([
+        'name' => config('app.name'),
+        'version' => 'v1',
+        'status' => 'ok',
+        'health' => url('/api/v1/health'),
+    ]));
+    Route::get('/health', fn (HealthCheck $health) => $health->response('v1'))
+        ->withoutMiddleware([
+            StartSession::class,
+            ShareErrorsFromSession::class,
+            PreventRequestForgery::class,
+        ]);
     Route::get('/csrf-cookie', fn () => response()->noContent());
+    Route::get('/vocabulary', [VocabularyController::class, 'index']);
 
     Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
     Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:5,1');

@@ -39,6 +39,14 @@ services:
       timeout: 5s
       retries: 20
 
+  adminer:
+    image: adminer:4.8.1-standalone
+    ports:
+      - "${ADMINER_PORT:-8081}:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
   redis:
     image: redis:8-alpine
     ports:

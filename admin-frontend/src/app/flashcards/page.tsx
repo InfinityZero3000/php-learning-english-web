@@ -144,7 +144,8 @@ export default function FlashcardsPage() {
     }
   }, [page, search, categoryFilter, difficultyFilter]);
 
-  useEffect(() => { load(); }, [load]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void load(); }, [load]);
 
   const handleSave = async (formData: Partial<Word>) => {
     if (formData.id) await words.update(formData.id, formData);

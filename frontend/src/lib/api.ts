@@ -152,7 +152,7 @@ export const api = {
 
 export const auth = {
   register: (name: string, email: string, password: string, passwordConfirmation: string) =>
-    apiRequest<AppUser>("/api/v1/auth/register", {
+    apiRequest<{ message: string }>("/api/v1/auth/register", {
       method: "POST",
       body: JSON.stringify({ name, email, password, password_confirmation: passwordConfirmation })
     }),
@@ -164,12 +164,12 @@ export const auth = {
   logout: () => request<void>("/api/v1/auth/logout", { method: "POST" }),
   me: api.me,
   forgotPassword: (email: string) =>
-    apiRequest<null>("/api/v1/auth/password/forgot", {
+    apiRequest<{ message: string }>("/api/v1/auth/password/forgot", {
       method: "POST",
       body: JSON.stringify({ email })
     }),
   resetPassword: (payload: { token: string; email: string; password: string; password_confirmation: string }) =>
-    apiRequest<null>("/api/v1/auth/password/reset", {
+    apiRequest<{ message: string }>("/api/v1/auth/password/reset", {
       method: "POST",
       body: JSON.stringify(payload)
     })
