@@ -27,7 +27,7 @@
         <div class="card" style="margin-top:16px">
             <div class="toolbar">
                 <strong>Tiện ích nổi bật</strong>
-                <a class="link" href="{{ route('content.index') }}">Quản lý nội dung</a>
+                <a class="link" href="{{ route('courses.index') }}">Khám phá khóa học</a>
             </div>
             <div class="grid">
                 <div class="card" style="padding:16px;box-shadow:none">
