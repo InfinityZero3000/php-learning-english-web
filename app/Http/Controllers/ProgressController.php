@@ -12,6 +12,10 @@ class ProgressController extends Controller
 {
     public function index()
     {
+        if (app()->isProduction()) {
+            return redirect()->away(config('app.frontend_url').'/progress');
+        }
+
         $user = auth()->user();
 
         // Bài học đã hoàn thành

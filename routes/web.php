@@ -4,14 +4,11 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\CourseController;
-use App\Http\Controllers\EmailVerificationController;
-use App\Http\Controllers\ForgotPasswordController;
 use App\Http\Controllers\LessonController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProgressController;
 use App\Http\Controllers\QuizAttemptController;
 use App\Http\Controllers\QuizController;
-use App\Http\Controllers\SocialController;
 use App\Http\Controllers\VocabularyController;
 use App\Http\Controllers\WordsController;
 use App\Support\HealthCheck;
@@ -45,56 +42,19 @@ Route::get('/health', fn (HealthCheck $health) => $health->response())
 |--------------------------------------------------------------------------
 */
 
-// Đăng ký
-Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
-Route::post('/register', [AuthController::class, 'register'])->name('register.store');
-
-// Đăng nhập
-Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
-Route::post('/login', [AuthController::class, 'login'])
-    ->middleware('throttle:5,1')
-    ->name('login.store');
-// Đăng nhập Google
-Route::get('/auth/google', [SocialController::class, 'google'])
-    ->name('google.login');
-
-Route::get('/auth/google/callback', [SocialController::class, 'googleCallback'])
-    ->name('google.callback');
-// Đăng nhập Facebook
-Route::get('/auth/facebook', [SocialController::class, 'facebook'])
-    ->name('facebook.login');
-
-Route::get('/auth/facebook/callback', [SocialController::class, 'facebookCallback'])
-    ->name('facebook.callback');
-// Quên mật khẩu
-Route::get('/forgot-password', [ForgotPasswordController::class, 'showForgotForm'])
-    ->name('password.request');
-
-Route::post('/forgot-password', [ForgotPasswordController::class, 'sendResetLink'])
-    ->middleware('throttle:3,1')
-    ->name('password.email');
-
-Route::get('/reset-password/{token}', [ForgotPasswordController::class, 'showResetForm'])
-    ->name('password.reset');
-
-Route::post('/reset-password', [ForgotPasswordController::class, 'resetPassword'])
-    ->name('password.update');
+Route::get('/register', fn () => redirect()->away(config('app.frontend_url').'/register'))->name('register');
+Route::get('/login', fn () => redirect()->away(config('app.frontend_url').'/login'))->name('login');
+Route::get('/forgot-password', fn () => redirect()->away(config('app.frontend_url').'/forgot-password'))->name('password.request');
+Route::get('/reset-password/{token}', fn (string $token) => redirect()->away(
+    config('app.frontend_url').'/reset-password?'.http_build_query(['token' => $token, 'email' => request()->query('email', '')])
+))->name('password.reset');
 
 // Đăng xuất
 Route::post('/logout', [AuthController::class, 'logout'])
     ->name('logout');
 
-// Xác nhận email
-Route::get('/verify-email', [EmailVerificationController::class, 'notice'])
+Route::get('/verify-email', fn () => redirect()->away(config('app.frontend_url').'/verify-email'))
     ->name('verification.notice');
-
-Route::post('/verify-email/resend', [EmailVerificationController::class, 'resend'])
-    ->middleware('throttle:3,1')
-    ->name('verification.send');
-
-Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])
-    ->middleware('signed')
-    ->name('verification.verify');
 
 /*
 |--------------------------------------------------------------------------

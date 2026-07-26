@@ -11,6 +11,10 @@ class WordsController extends Controller
 {
     public function index(Request $request)
     {
+        if (app()->isProduction()) {
+            return redirect()->away(config('app.frontend_url').'/words');
+        }
+
         $query = Vocabulary::with(['topic', 'lesson']);
 
         if ($request->filled('search')) {
