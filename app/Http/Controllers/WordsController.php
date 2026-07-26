@@ -11,6 +11,10 @@ class WordsController extends Controller
 {
     public function index(Request $request)
     {
+        if (app()->isProduction()) {
+            return redirect()->away(config('app.frontend_url').'/vocabulary');
+        }
+
         $query = Vocabulary::with(['topic', 'lesson']);
 
         if ($request->filled('search')) {
@@ -38,8 +42,13 @@ class WordsController extends Controller
         return view('words.index', compact('vocabularies', 'topics', 'bookmarkedIds'));
     }
 
-    public function show(Vocabulary $vocabulary)
+    public function show(string $vocabulary)
     {
+        if (app()->isProduction()) {
+            return redirect()->away(config('app.frontend_url').'/vocabulary');
+        }
+
+        $vocabulary = Vocabulary::findOrFail($vocabulary);
         $vocabulary->load(['lesson', 'topic']);
 
         $isBookmarked = false;

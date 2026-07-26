@@ -29,7 +29,7 @@ class AdminMiddlewareTest extends TestCase
 
     public function test_guest_is_redirected_to_login(): void
     {
-        $this->get('/admin/users')->assertRedirect('/login');
+        $this->get('/admin/users')->assertRedirect(config('app.admin_frontend_url').'/login');
     }
 
     public function test_admin_can_update_a_users_role(): void

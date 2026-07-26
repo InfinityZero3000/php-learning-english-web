@@ -157,13 +157,21 @@ Chỉ cấu hình khi bật social login:
 |---|---:|---|
 | `GOOGLE_CLIENT_ID` | Không | OAuth 2.0 Web client ID |
 | `GOOGLE_CLIENT_SECRET` | Có | Secret đã rotate, lưu bằng Fly secret |
-| `GOOGLE_REDIRECT_URI` | Không | `${APP_URL}/auth/google/callback` |
+| `GOOGLE_REDIRECT_URI` | Không | `${FRONTEND_URL}/api/v1/auth/oauth/google/callback` |
 | `FACEBOOK_CLIENT_ID` | Không | Facebook App ID |
 | `FACEBOOK_CLIENT_SECRET` | Có | Facebook App Secret |
-| `FACEBOOK_REDIRECT_URI` | Không | `${APP_URL}/auth/facebook/callback` |
+| `FACEBOOK_REDIRECT_URI` | Không | `${FRONTEND_URL}/api/v1/auth/oauth/facebook/callback` |
 
 Authorized redirect URI trong Google/Facebook Console phải khớp tuyệt đối với
-biến redirect tương ứng. Không tải hoặc commit file
+biến redirect tương ứng và đi qua domain frontend để giữ session cookie host-only.
+Production hiện dùng:
+
+```text
+https://linguist-nova.vercel.app/api/v1/auth/oauth/google/callback
+https://linguist-nova.vercel.app/api/v1/auth/oauth/facebook/callback
+```
+
+Không tải hoặc commit file
 `client_secret_*.json`; pattern này đã được chặn trong `.gitignore`.
 
 ## 2. Learner frontend trên Vercel

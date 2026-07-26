@@ -38,4 +38,10 @@ describe("session API client", () => {
       errors: { email: ["Required"] }
     });
   });
+
+  it("initializes CSRF before resending verification", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(null, { status: 204 })).mockResolvedValueOnce(new Response(JSON.stringify({ data: { message: "sent" } }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    await auth.resendVerification();
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/auth/email/resend", expect.objectContaining({ method: "POST" }));
+  });
 });

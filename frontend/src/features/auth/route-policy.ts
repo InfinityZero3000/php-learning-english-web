@@ -1,4 +1,9 @@
 const protectedPrefixes = ["/profile", "/progress", "/import"];
+const authPaths = ["/login", "/register", "/verify-email", "/forgot-password", "/reset-password", "/auth/callback"];
+
+export function isAuthPath(pathname: string) {
+  return authPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+}
 
 export function isProtectedPath(pathname: string) {
   return protectedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
@@ -18,7 +23,7 @@ export function safeNext(raw: string | null | undefined, origin?: string) {
   try {
     const base = origin ?? (typeof window === "undefined" ? "http://localhost" : window.location.origin);
     const target = new URL(raw, base);
-    return target.origin === new URL(base).origin
+    return target.origin === new URL(base).origin && !isAuthPath(target.pathname)
       ? `${target.pathname}${target.search}${target.hash}`
       : "/";
   } catch {

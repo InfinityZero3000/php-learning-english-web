@@ -35,7 +35,7 @@ class SkeletonRoutesTest extends TestCase
 
     public function test_admin_requires_an_authenticated_admin(): void
     {
-        $this->get('/admin')->assertRedirect('/login');
+        $this->get('/admin')->assertRedirect(config('app.admin_frontend_url').'/login');
     }
 
     public function test_api_status_endpoint_is_available(): void

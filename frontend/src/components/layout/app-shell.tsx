@@ -14,7 +14,7 @@ import { NotificationWidget } from "@/components/layout/notifications";
 import { Button } from "@/components/ui/button";
 import { CatLoader } from "@/components/ui/cat-loader";
 import { AuthProvider, useAuth } from "@/features/auth/auth-context";
-import { isProtectedPath, loginHref } from "@/features/auth/route-policy";
+import { isAuthPath, isProtectedPath, loginHref } from "@/features/auth/route-policy";
 import { cn } from "@/lib/utils";
 import type { AppUser } from "@/types/api";
 
@@ -66,7 +66,7 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
     router.refresh();
   }
 
-  if (pathname === "/login") return <div className="app-shell">{children}</div>;
+  if (isAuthPath(pathname)) return <div className="app-shell">{children}</div>;
   if (protectedRoute && (status === "checking" || status === "guest")) {
     return <AppShellLoading label="Checking session..." />;
   }

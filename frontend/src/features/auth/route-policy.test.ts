@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isProtectedPath, loginHref, safeNext } from "./route-policy";
+import { isAuthPath, isProtectedPath, loginHref, safeNext } from "./route-policy";
 
 describe("learner route policy", () => {
   it("matches protected route segments only", () => {
@@ -20,5 +20,10 @@ describe("learner route policy", () => {
 
   it("accepts a same-origin relative path", () => {
     expect(safeNext("/vocabulary?search=hello", "https://app.example")).toBe("/vocabulary?search=hello");
+  });
+
+  it.each(["/login", "/register", "/verify-email", "/forgot-password", "/reset-password", "/auth/callback"])("recognizes auth path %s", path => {
+    expect(isAuthPath(path)).toBe(true);
+    expect(safeNext(`${path}?next=/profile`, "https://app.example")).toBe("/");
   });
 });

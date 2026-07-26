@@ -25,7 +25,7 @@ class ProfileTest extends TestCase
     {
         $response = $this->get(route('profile'));
 
-        $response->assertRedirect(route('login'));
+        $response->assertRedirect(config('app.frontend_url').'/login');
     }
 
     public function test_user_can_update_name(): void
@@ -146,6 +146,6 @@ class ProfileTest extends TestCase
     {
         $response = $this->delete(route('profile.destroy'));
 
-        $response->assertRedirect(route('login'));
+        $response->assertRedirect(config('app.frontend_url').'/login');
     }
 }
