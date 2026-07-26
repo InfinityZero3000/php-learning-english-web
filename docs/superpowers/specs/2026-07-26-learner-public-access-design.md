@@ -33,7 +33,8 @@ state. After login, the frontend queries the current user and only the
 user-specific data needed by the active page.
 
 Public pages may display quiz, flashcard, and vocabulary catalog content to a
-guest. Any action that persists user state—quiz submission, review/save,
+guest. Any action that creates or persists user state—quiz start/submission,
+review/save,
 bookmark, import, create/update/delete, or enrichment—redirects to login with a
 safe return URL instead of issuing a protected request.
 
@@ -51,9 +52,15 @@ pathname change. While state is `checking`, protected children do not mount.
 Once guest status is known, navigation to a protected route redirects before
 rendering its children.
 
-The return URL includes pathname and query string, is URL-encoded, and is
-consumed after login only when it begins with exactly one `/` and not `//`.
-Invalid or external values fall back to `/`.
+The auth context exposes a `refreshUser()` operation. After `auth.login()`
+succeeds, the login page awaits `refreshUser()` before navigating to the safe
+return URL. This transitions the persistent shell from guest to authenticated
+without relying on a layout remount.
+
+The return URL includes pathname and query string and is URL-encoded. Before
+navigation, parse it against `window.location.origin` and accept it only when
+the resolved origin is unchanged, the raw value starts with `/`, and it contains
+no backslash. Invalid or external values fall back to `/`.
 
 ## Error Handling
 
@@ -72,7 +79,7 @@ must not expose per-user fields.
 
 Component tests cover guest access to public pages, segment-aware protected
 redirects (including nested and lookalike paths), safe `next` handling,
-authenticated rendering, and auth transport failures. Tests also prove that
+the login-to-authenticated-shell transition, and auth transport failures. Tests also prove that
 protected children never mount before redirect and guests make zero
 user-specific requests. Existing API client tests, frontend lint/build, and
 backend authorization tests remain green.
