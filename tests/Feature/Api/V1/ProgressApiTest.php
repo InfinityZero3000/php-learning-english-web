@@ -181,3 +181,4 @@ class ProgressApiTest extends TestCase
             ->assertJsonPath('meta.total', 1);
     }
 }
+

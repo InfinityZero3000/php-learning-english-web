@@ -113,3 +113,4 @@ class CatalogApiTest extends TestCase
             ->assertJsonCount(1, 'data');
     }
 }
+

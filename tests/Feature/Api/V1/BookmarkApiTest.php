@@ -185,3 +185,4 @@ class BookmarkApiTest extends TestCase
             ->assertJsonPath('meta.total', 1);
     }
 }
+
