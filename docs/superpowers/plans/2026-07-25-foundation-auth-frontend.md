@@ -762,7 +762,7 @@ git commit -m "chore: proxy Next.js APIs to Laravel"
 - Modify: `frontend/src/lib/api.ts`
 - Modify: `admin-frontend/src/lib/api.ts`
 
-- [ ] **Step 1: Implement one small request primitive per app**
+- [x] **Step 1: Implement one small request primitive per app**
 
 Behavior:
 
@@ -801,7 +801,7 @@ Temporarily retain unrelated old API exports only if existing pages require
 them to compile; mark their controls disabled in later feature plans. Remove
 all `localStorage.getItem("admin_token")` and bearer-token headers.
 
-- [ ] **Step 3: Run lint/build**
+- [x] **Step 3: Run lint/build**
 
 ```bash
 cd frontend && pnpm lint && pnpm test && pnpm build
@@ -824,7 +824,7 @@ git commit -m "refactor: use Laravel session API clients"
 - Modify: `frontend/src/components/layout/app-shell.tsx`
 - Modify: `frontend/src/features/profile/profile-page.tsx`
 
-- [ ] **Step 1: Add the login screen**
+- [x] **Step 1: Add the login screen**
 
 Add a focused component test first (mock `auth.login`) covering submitting,
 invalid credentials, and successful navigation.
@@ -853,7 +853,7 @@ failures display an error instead of pretending the user is logged out.
 For this vertical slice, connect name update and current-user display. Hide or
 disable legacy profile controls not covered by Phase 1–3 APIs.
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 ```bash
 cd frontend && pnpm lint && pnpm test && pnpm build
@@ -873,7 +873,7 @@ git commit -m "feat: connect learner login to Laravel"
 - Modify: `admin-frontend/src/app/login/page.tsx`
 - Modify: `admin-frontend/src/components/AdminLayout.tsx`
 
-- [ ] **Step 1: Replace token login**
+- [x] **Step 1: Replace token login**
 
 Add a focused `AdminLayout` test first covering `401`, non-admin, transport
 failure, and authorized admin states. Hide or disable dashboard/navigation
@@ -897,7 +897,7 @@ On initial load:
 - Transport failure shows retry UI.
 - Authorized admin renders children.
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 ```bash
 cd admin-frontend && npm run lint && npm test && npm run build
@@ -929,7 +929,7 @@ php artisan test
 Use only a disposable SQLite/MySQL test database; never run
 `migrate:fresh` against a shared or production database. Expected: all pass.
 
-- [ ] **Step 2: Run frontend gates**
+- [x] **Step 2: Run frontend gates**
 
 ```bash
 cd frontend && pnpm lint && pnpm test && pnpm build
@@ -938,7 +938,7 @@ cd ../admin-frontend && npm run lint && npm test && npm run build
 
 Expected: all pass.
 
-- [ ] **Step 3: Run local smoke test**
+- [x] **Step 3: Run local smoke test**
 
 Start Laravel and both Next.js apps. Verify:
 
