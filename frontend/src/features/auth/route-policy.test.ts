@@ -24,5 +24,6 @@ describe("learner route policy", () => {
 
   it.each(["/login", "/register", "/verify-email", "/forgot-password", "/reset-password", "/auth/callback"])("recognizes auth path %s", path => {
     expect(isAuthPath(path)).toBe(true);
+    expect(safeNext(`${path}?next=/profile`, "https://app.example")).toBe("/");
   });
 });

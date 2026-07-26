@@ -23,7 +23,7 @@ export function safeNext(raw: string | null | undefined, origin?: string) {
   try {
     const base = origin ?? (typeof window === "undefined" ? "http://localhost" : window.location.origin);
     const target = new URL(raw, base);
-    return target.origin === new URL(base).origin
+    return target.origin === new URL(base).origin && !isAuthPath(target.pathname)
       ? `${target.pathname}${target.search}${target.hash}`
       : "/";
   } catch {
