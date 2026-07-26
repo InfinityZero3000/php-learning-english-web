@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AiProxyController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\EmailVerificationController;
 use App\Http\Controllers\Api\V1\OAuthController;
@@ -45,5 +46,10 @@ Route::prefix('api/v1')->group(function (): void {
         Route::put('/profile', [ProfileController::class, 'update']);
         Route::put('/profile/password', [ProfileController::class, 'password']);
         Route::delete('/profile', [ProfileController::class, 'destroy']);
+
+        Route::post('/ai/translate', [AiProxyController::class, 'translate'])->middleware('throttle:20,1');
+        Route::post('/ai/pronunciation', [AiProxyController::class, 'pronunciation'])->middleware('throttle:10,1');
+        Route::post('/ai/speech-to-text', [AiProxyController::class, 'speechToText'])->middleware('throttle:10,1');
+        Route::post('/ai/text-to-speech', [AiProxyController::class, 'textToSpeech'])->middleware('throttle:20,1');
     });
 });
