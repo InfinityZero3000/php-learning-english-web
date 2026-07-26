@@ -3,12 +3,15 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ApiError, auth } from "@/lib/api";
+import { useAuth } from "@/features/auth/auth-context";
+import { safeNext } from "@/features/auth/route-policy";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function LoginPage() {
   const router = useRouter();
+  const { refreshUser } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -21,7 +24,8 @@ export function LoginPage() {
 
     try {
       await auth.login(email, password);
-      router.replace("/");
+      await refreshUser();
+      router.replace(safeNext(new URLSearchParams(window.location.search).get("next")));
       router.refresh();
     } catch (cause) {
       if (cause instanceof ApiError) {

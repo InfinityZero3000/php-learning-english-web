@@ -21,6 +21,9 @@ class VocabularyApiTest extends TestCase
         $this->getJson('/api/v1/vocabulary?search=hello')
             ->assertOk()
             ->assertJsonPath('data.0.external_id', 'lexi-word-1')
-            ->assertJsonPath('meta.total', 1);
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonMissingPath('data.0.user_id')
+            ->assertJsonMissingPath('data.0.progress')
+            ->assertJsonMissingPath('data.0.bookmarked');
     }
 }

@@ -9,10 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { api } from "@/lib/api";
+import { useAuth } from "@/features/auth/auth-context";
 import { formatPercent, masteryLabel } from "@/lib/utils";
 import type { NotificationItem, UserProgress, Word } from "@/types/api";
 
 export function DashboardPage() {
+  const { status } = useAuth();
   const [stats, setStats] = useState({ totalWords: 0, mastered: 0, learning: 0, dueNow: 0, retention: 0, streak: 0 });
   const [wordOfDay, setWordOfDay] = useState<Word | null>(null);
   const [review, setReview] = useState<UserProgress[]>([]);
@@ -22,19 +24,24 @@ export function DashboardPage() {
 
   useEffect(() => {
     async function load() {
+      const catalog = await api.publicVocabulary({ perPage: 100 }).catch(() => ({
+        words: [] as Word[],
+        meta: {} as Record<string, unknown>
+      }));
+      const authenticated = status === "authenticated";
       const emptyStats: Record<string, number> = {};
-      const [count, progressStats, fsrsStats, streak, reviewQueue, cats, notes] = await Promise.all([
-        api.wordCount().catch(() => ({ count: 0 })),
-        api.progressStats().catch(() => emptyStats),
-        api.fsrsStats().catch(() => emptyStats),
-        api.streak().catch(() => emptyStats),
-        api.reviewQueue().catch(() => []),
-        api.categories().catch(() => []),
-        api.notifications().catch(() => [])
-      ]);
-      const random = await api.randomWords(1).catch(() => []);
+      const [progressStats, fsrsStats, streak, reviewQueue, notes] = authenticated
+        ? await Promise.all([
+            api.progressStats().catch(() => emptyStats),
+            api.fsrsStats().catch(() => emptyStats),
+            api.streak().catch(() => emptyStats),
+            api.reviewQueue().catch(() => []),
+            api.notifications().catch(() => [])
+          ])
+        : [emptyStats, emptyStats, emptyStats, [], []];
+      const cats = [...new Set(catalog.words.map((word) => word.category).filter((value): value is string => Boolean(value)))];
       setStats({
-        totalWords: count.count ?? 0,
+        totalWords: Number(catalog.meta.total ?? catalog.words.length),
         mastered: progressStats.mastered ?? 0,
         learning: progressStats.learning ?? 0,
         dueNow: fsrsStats.dueNow ?? progressStats.dueNow ?? 0,
@@ -44,11 +51,11 @@ export function DashboardPage() {
       setReview(reviewQueue.slice(0, 5));
       setCategories(cats);
       setNotifications(notes.slice(0, 4));
-      setWordOfDay(random[0] ?? null);
+      setWordOfDay(catalog.words[0] ?? null);
       setLoading(false);
     }
     load().catch(() => setLoading(false));
-  }, []);
+  }, [status]);
 
   const newWords = Math.max(stats.totalWords - stats.mastered - stats.learning, 0);
   const masteryTotal = Math.max(stats.totalWords, 1);

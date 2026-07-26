@@ -21,10 +21,10 @@
 - Create: `frontend/src/features/auth/route-policy.ts`
 - Test: `frontend/src/features/auth/route-policy.test.ts`
 
-- [ ] Write helper tests for `/profile`, nested `/profile/x`, lookalike `/profiled`, query preservation, `//evil`, absolute URLs, raw/decoded backslashes, and fallback `/`.
-- [ ] Run `cd frontend && pnpm vitest run src/features/auth/route-policy.test.ts` and require failure.
-- [ ] Implement `AuthProvider`, `useAuth()`, `refreshUser()`, logout state clearing, protected route policy, and safe return URL helpers.
-- [ ] Run `cd frontend && pnpm vitest run src/features/auth/route-policy.test.ts` and require pass.
+- [x] Write helper tests for `/profile`, nested `/profile/x`, lookalike `/profiled`, query preservation, `//evil`, absolute URLs, raw/decoded backslashes, and fallback `/`.
+- [x] Run `cd frontend && pnpm vitest run src/features/auth/route-policy.test.ts` and require failure.
+- [x] Implement `AuthProvider`, `useAuth()`, `refreshUser()`, logout state clearing, protected route policy, and safe return URL helpers.
+- [x] Run `cd frontend && pnpm vitest run src/features/auth/route-policy.test.ts` and require pass.
 
 ### Task 2: Use the shared state in the shell and login
 
@@ -34,12 +34,12 @@
 - Modify: `frontend/src/features/auth/login-page.test.tsx`
 - Create: `frontend/src/components/layout/app-shell.test.tsx`
 
-- [ ] Write shell integration tests for guest public rendering, protected redirect-before-child-mount, unavailable public rendering, unavailable protected retry, authenticated rendering, post-login refresh, and post-logout guest state.
-- [ ] Remove the unconditional guest redirect and the pathname-triggered repeated `auth.me()` call.
-- [ ] Redirect guests only from protected routes using encoded pathname and query.
-- [ ] Await `refreshUser()` after login, then navigate to a validated `next` or `/`.
-- [ ] Make protected retry call `refreshUser()`; keep public children mounted when auth is unavailable.
-- [ ] Run `cd frontend && pnpm vitest run src/components/layout/app-shell.test.tsx src/features/auth/login-page.test.tsx` and require pass for login-to-authenticated-shell and malicious `next` cases.
+- [x] Write shell integration tests for guest public rendering, protected redirect-before-child-mount, unavailable public rendering, unavailable protected retry, authenticated rendering, post-login refresh, and post-logout guest state.
+- [x] Remove the unconditional guest redirect and the pathname-triggered repeated `auth.me()` call.
+- [x] Redirect guests only from protected routes using encoded pathname and query.
+- [x] Await `refreshUser()` after login, then navigate to a validated `next` or `/`.
+- [x] Make protected retry call `refreshUser()`; keep public children mounted when auth is unavailable.
+- [x] Run `cd frontend && pnpm vitest run src/components/layout/app-shell.test.tsx src/features/auth/login-page.test.tsx` and require pass for login-to-authenticated-shell and malicious `next` cases.
 
 ## Chunk 2: Public and user-owned data
 
@@ -58,12 +58,12 @@
 - Create: `frontend/src/features/flashcards/flashcards-page.test.tsx`
 - Create: `frontend/src/features/quiz/quiz-page.test.tsx`
 
-- [ ] Point guest catalog loading to the existing public `/api/v1/vocabulary` contract; do not call nonexistent legacy `/api/words`, `/api/topics`, or `/api/flashcards` routes.
-- [ ] Derive guest word count/categories/display cards from the returned public vocabulary page where needed.
-- [ ] Derive guest quiz categories/setup data from public vocabulary and remove its calls to nonexistent `/api/words/categories` and `/api/topics`.
-- [ ] Load progress, FSRS, streak, review queue, notifications, and due words only for authenticated users.
-- [ ] Render login calls to action instead of user metrics/actions for guests.
-- [ ] Run `cd frontend && pnpm vitest run src/components/layout/notifications.test.tsx src/features/dashboard/dashboard-page.test.tsx src/features/flashcards/flashcards-page.test.tsx src/features/quiz/quiz-page.test.tsx` and prove zero guest calls to progress, FSRS, streak, notifications, review queue, or due words.
+- [x] Point guest catalog loading to the existing public `/api/v1/vocabulary` contract; do not call nonexistent legacy `/api/words`, `/api/topics`, or `/api/flashcards` routes.
+- [x] Derive guest word count/categories/display cards from the returned public vocabulary page where needed.
+- [x] Derive guest quiz categories/setup data from public vocabulary and remove its calls to nonexistent `/api/words/categories` and `/api/topics`.
+- [x] Load progress, FSRS, streak, review queue, notifications, and due words only for authenticated users.
+- [x] Render login calls to action instead of user metrics/actions for guests.
+- [x] Run `cd frontend && pnpm vitest run src/components/layout/notifications.test.tsx src/features/dashboard/dashboard-page.test.tsx src/features/flashcards/flashcards-page.test.tsx src/features/quiz/quiz-page.test.tsx` and prove zero guest calls to progress, FSRS, streak, notifications, review queue, or due words.
 
 ### Task 4: Gate persistent actions on public pages
 
@@ -74,9 +74,9 @@
 - Create: `frontend/src/features/quiz/quiz-page.test.tsx`
 - Create: `frontend/src/features/vocabulary/vocabulary-page.test.tsx`
 
-- [ ] Redirect quiz start, review/save/import, bookmark, mutation, and enrichment actions to safe login return URLs when unauthenticated.
-- [ ] Keep public catalog/filter/search requests available.
-- [ ] Run `cd frontend && pnpm vitest run src/features/quiz/quiz-page.test.tsx src/features/flashcards/flashcards-page.test.tsx src/features/vocabulary/vocabulary-page.test.tsx` and verify protected mutation methods are never called before redirect.
+- [x] Redirect quiz start, review/save/import, bookmark, mutation, and enrichment actions to safe login return URLs when unauthenticated.
+- [x] Keep public catalog/filter/search requests available.
+- [x] Run `cd frontend && pnpm vitest run src/features/quiz/quiz-page.test.tsx src/features/flashcards/flashcards-page.test.tsx src/features/vocabulary/vocabulary-page.test.tsx` and verify protected mutation methods are never called before redirect.
 
 ### Task 5: Preserve backend authorization boundaries
 
@@ -85,16 +85,16 @@
 - Test: `tests/Feature/Api/V1/AuthApiTest.php`
 - Test: `tests/Feature/Api/V1/ProfileApiTest.php`
 
-- [ ] Assert guest `GET /api/v1/vocabulary` returns `200`, pagination metadata, and no per-user progress/review/bookmark fields.
-- [ ] Assert guest `/api/v1/auth/me` and profile mutation endpoints return `401` using the existing Auth/Profile API tests.
-- [ ] Do not add or accept `404` assertions for progress, quiz, bookmark, or import APIs; those endpoints remain deferred to their assigned feature issues and the frontend must not call them for guests.
-- [ ] Run `php artisan test tests/Feature/Api/V1/VocabularyApiTest.php tests/Feature/Api/V1/AuthApiTest.php tests/Feature/Api/V1/ProfileApiTest.php` and require pass.
+- [x] Assert guest `GET /api/v1/vocabulary` returns `200`, pagination metadata, and no per-user progress/review/bookmark fields.
+- [x] Assert guest `/api/v1/auth/me` and profile mutation endpoints return `401` using the existing Auth/Profile API tests.
+- [x] Do not add or accept `404` assertions for progress, quiz, bookmark, or import APIs; those endpoints remain deferred to their assigned feature issues and the frontend must not call them for guests.
+- [x] Run `php artisan test tests/Feature/Api/V1/VocabularyApiTest.php tests/Feature/Api/V1/AuthApiTest.php tests/Feature/Api/V1/ProfileApiTest.php` and require pass.
 
 ## Chunk 3: Verification
 
 ### Task 6: Full quality gate
 
-- [ ] Run `cd frontend && pnpm test && pnpm lint && pnpm build`.
-- [ ] Run `php artisan test` and `./vendor/bin/pint --test`.
-- [ ] Create a disposable DB with `SMOKE_DB=$(mktemp /tmp/learner-public-smoke.XXXXXX.sqlite)` then run `DB_CONNECTION=sqlite DB_DATABASE="$SMOKE_DB" php artisan migrate:fresh --seed --force`; start Laravel from the repo root with the same DB variables on `127.0.0.1:18080`, start Next from `frontend/` using `LARAVEL_API_ORIGIN=http://127.0.0.1:18080 pnpm dev --hostname 127.0.0.1 --port 13000`, and use `curl --fail` to verify public pages, `/api/v1/vocabulary`, and `/api/v1/health` return `200`. Rely on JS component tests for final protected-route URLs because redirect is client-side; stop both processes and delete only `$SMOKE_DB` after the check.
-- [ ] Review the diff for unrelated changes and record exact gate results in the PR description.
+- [x] Run `cd frontend && pnpm test && pnpm lint && pnpm build`.
+- [x] Run `php artisan test` and `./vendor/bin/pint --test`.
+- [x] Create a disposable DB with `SMOKE_DB=$(mktemp /tmp/learner-public-smoke.XXXXXX.sqlite)` then run `DB_CONNECTION=sqlite DB_DATABASE="$SMOKE_DB" php artisan migrate:fresh --seed --force`; start Laravel from the repo root with the same DB variables on `127.0.0.1:18080`, start Next from `frontend/` using `LARAVEL_API_ORIGIN=http://127.0.0.1:18080 pnpm dev --hostname 127.0.0.1 --port 13000`, and use `curl --fail` to verify public pages, `/api/v1/vocabulary`, and `/api/v1/health` return `200`. Rely on JS component tests for final protected-route URLs because redirect is client-side; stop both processes and delete only `$SMOKE_DB` after the check.
+- [x] Review the diff for unrelated changes and record exact gate results in the PR description.
