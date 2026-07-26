@@ -112,12 +112,20 @@ return new class extends Migration
     {
         $isSqlite = DB::connection()->getDriverName() === 'sqlite';
 
+        // MySQL: Drop FK constraints BEFORE unique indexes,
+        // because MySQL may use a composite unique index to enforce the FK.
+        if (! $isSqlite) {
+            if ($this->hasForeignKey('bookmarks', 'bookmarks_vocabulary_id_foreign')) {
+                DB::statement('ALTER TABLE `bookmarks` DROP FOREIGN KEY `bookmarks_vocabulary_id_foreign`');
+            }
+        }
+
         // Drop new unique indexes
-        Schema::table('bookmarks', function ($table) {
-            if ($this->hasIndex('bookmarks', 'bookmarks_user_id_lesson_id_bookmark_type_unique')) {
+        Schema::table('bookmarks', function ($table) use ($isSqlite) {
+            if (! $isSqlite || $this->hasIndex('bookmarks', 'bookmarks_user_id_lesson_id_bookmark_type_unique')) {
                 $table->dropUnique('bookmarks_user_id_lesson_id_bookmark_type_unique');
             }
-            if ($this->hasIndex('bookmarks', 'bookmarks_user_id_vocabulary_id_bookmark_type_unique')) {
+            if (! $isSqlite || $this->hasIndex('bookmarks', 'bookmarks_user_id_vocabulary_id_bookmark_type_unique')) {
                 $table->dropUnique('bookmarks_user_id_vocabulary_id_bookmark_type_unique');
             }
         });
