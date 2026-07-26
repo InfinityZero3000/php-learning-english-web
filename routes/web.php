@@ -27,7 +27,9 @@ use Illuminate\View\Middleware\ShareErrorsFromSession;
 */
 
 Route::get('/', function () {
-    return view('home');
+    return app()->isProduction()
+        ? redirect()->away(config('app.frontend_url'))
+        : view('home');
 });
 
 Route::get('/health', fn (HealthCheck $health) => $health->response())

@@ -17,6 +17,15 @@ class SkeletonRoutesTest extends TestCase
             ->assertDontSee('LexiLingo');
     }
 
+    public function test_production_ui_entries_redirect_to_the_learner_frontend(): void
+    {
+        $this->app->detectEnvironment(fn () => 'production');
+        config(['app.frontend_url' => 'https://linguist-nova.vercel.app']);
+
+        $this->get('/')->assertRedirect('https://linguist-nova.vercel.app');
+        $this->get('/login')->assertRedirect('https://linguist-nova.vercel.app/login');
+    }
+
     public function test_health_endpoint_is_available(): void
     {
         $this->getJson('/health')

@@ -53,7 +53,9 @@ class AuthController extends Controller
      */
     public function showLogin()
     {
-        return view('auth.login');
+        return app()->isProduction()
+            ? redirect()->away(config('app.frontend_url').'/login')
+            : view('auth.login');
     }
 
     /**
