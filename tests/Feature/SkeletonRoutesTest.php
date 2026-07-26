@@ -13,7 +13,8 @@ class SkeletonRoutesTest extends TestCase
     {
         $this->get('/')
             ->assertOk()
-            ->assertSee('LexiLingo');
+            ->assertSee('English Learning')
+            ->assertDontSee('LexiLingo');
     }
 
     public function test_health_endpoint_is_available(): void
