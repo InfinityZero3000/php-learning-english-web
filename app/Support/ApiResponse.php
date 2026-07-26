@@ -10,4 +10,9 @@ class ApiResponse
     {
         return response()->json(['data' => $data, 'meta' => $meta], $status);
     }
+
+    public static function error(string $code, string $message, int $status, array $extra = []): JsonResponse
+    {
+        return response()->json(['message' => $message, 'code' => $code, ...$extra], $status);
+    }
 }

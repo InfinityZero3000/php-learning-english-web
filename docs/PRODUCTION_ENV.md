@@ -75,6 +75,9 @@ Không sử dụng Mailtrap Sandbox ở production.
 | `LEXILINGO_IMPORT_KEY` | Khi sync lesson content protected | Có | Key chỉ có quyền `content:read`; không dùng admin token 30 phút |
 | `LEXILINGO_AI_SERVICE_SECRET` | Khi gọi internal AI | Có | Gửi bằng `X-AI-Service-Secret` |
 | `LEXILINGO_TIMEOUT` | Không | Không | `30`; code giới hạn trong khoảng 1–60 giây |
+| `LEXILINGO_AI_RETRY_TIMES` | Không | Không | `2`; số lần thử lại khi timeout/5xx trên proxy AI (`/api/v1/ai/*`, `/api/v1/stt/*`, `/api/v1/tts/*`), không retry lỗi 4xx |
+| `LEXILINGO_AI_RETRY_DELAY_MS` | Không | Không | `200`; thời gian chờ giữa các lần retry |
+| `LEXILINGO_AI_MAX_AUDIO_KB` | Không | Không | `10240` (10 MB); giới hạn dung lượng file audio gửi lên cho pronunciation/STT |
 
 Public category/course/vocabulary request không được gửi import key. Vocabulary
 được đồng bộ vào MySQL bằng:
