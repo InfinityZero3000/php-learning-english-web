@@ -19,9 +19,13 @@ class ProgressApiTest extends TestCase
     use RefreshDatabase;
 
     private User $user;
+
     private int $lesson1Id;
+
     private int $course1Id;
+
     private int $course2Id;
+
     private int $quiz1Id;
 
     protected function setUp(): void

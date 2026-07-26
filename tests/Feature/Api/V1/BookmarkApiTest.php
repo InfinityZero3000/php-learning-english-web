@@ -17,7 +17,9 @@ class BookmarkApiTest extends TestCase
     use RefreshDatabase;
 
     private User $user;
+
     private User $otherUser;
+
     private int $lesson1Id;
 
     protected function setUp(): void

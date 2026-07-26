@@ -15,8 +15,11 @@ class CatalogApiTest extends TestCase
     use RefreshDatabase;
 
     private int $course1Id;
+
     private int $course2Id;
+
     private int $lesson1Id;
+
     private int $beginnerLevelId;
 
     protected function setUp(): void

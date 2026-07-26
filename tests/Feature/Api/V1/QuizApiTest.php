@@ -4,7 +4,6 @@ namespace Tests\Feature\Api\V1;
 
 use App\Models\Answer;
 use App\Models\Attempt;
-use App\Models\Lesson;
 use App\Models\Question;
 use App\Models\Quiz;
 use App\Models\User;
@@ -19,6 +18,7 @@ class QuizApiTest extends TestCase
     use RefreshDatabase;
 
     private User $user;
+
     private int $quiz1Id;
 
     protected function setUp(): void
