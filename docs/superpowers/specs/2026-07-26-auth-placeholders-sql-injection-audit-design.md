@@ -32,13 +32,19 @@ through parameterized APIs. Any unsafe interpolation found in an authentication
 path must be replaced at the shared query boundary and covered by the smallest
 relevant regression test.
 
+Record the inspected auth routes and query boundaries, the raw-query search
+patterns and results, and the final findings. This audit record is required even
+when no vulnerability is found.
+
 ## Verification
 
 - Run the focused frontend auth tests.
 - Run frontend lint and production build.
 - Run backend authentication tests and the full backend suite if production
   code changes.
+- If backend production code changes, deploy Laravel through the existing Fly.io
+  workflow, verify its health endpoint, and smoke-test the affected auth API
+  without exposing credentials.
 - Deploy the learner frontend to Vercel production only after checks pass.
 - Confirm the production deployment reaches `Ready` and owns the
   `linguist-nova.vercel.app` alias.
-
