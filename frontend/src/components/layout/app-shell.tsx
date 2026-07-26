@@ -38,7 +38,8 @@ const titles: Record<string, string> = {
 };
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  return <AuthProvider><AppShellContent>{children}</AppShellContent></AuthProvider>;
+  const pathname = usePathname();
+  return <AuthProvider checkSession={isProtectedPath(pathname)}><AppShellContent>{children}</AppShellContent></AuthProvider>;
 }
 
 function AppShellContent({ children }: { children: React.ReactNode }) {
