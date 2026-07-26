@@ -4,7 +4,9 @@ namespace Tests\Feature\Api\V1;
 
 use App\Models\Answer;
 use App\Models\Attempt;
+use App\Models\Lesson;
 use App\Models\Question;
+use App\Models\Quiz;
 use App\Models\User;
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\LessonQuizSeeder;
@@ -17,6 +19,7 @@ class QuizApiTest extends TestCase
     use RefreshDatabase;
 
     private User $user;
+    private int $quiz1Id;
 
     protected function setUp(): void
     {
@@ -26,20 +29,23 @@ class QuizApiTest extends TestCase
         $this->seed(LessonQuizSeeder::class);
 
         $this->user = User::where('email', 'user@example.com')->first();
+        $this->quiz1Id = Quiz::with('lesson')->whereHas('lesson', function ($q) {
+            $q->where('slug', 'dong-vat-hoang-da');
+        })->value('id');
     }
 
     public function test_guest_gets_401_on_quiz_routes(): void
     {
-        $this->getJson('/api/v1/quizzes/1')->assertUnauthorized();
-        $this->postJson('/api/v1/quizzes/1/submit')->assertUnauthorized();
-        $this->getJson('/api/v1/quizzes/1/history')->assertUnauthorized();
+        $this->getJson("/api/v1/quizzes/{$this->quiz1Id}")->assertUnauthorized();
+        $this->postJson("/api/v1/quizzes/{$this->quiz1Id}/submit")->assertUnauthorized();
+        $this->getJson("/api/v1/quizzes/{$this->quiz1Id}/history")->assertUnauthorized();
     }
 
     public function test_user_can_view_quiz_with_questions(): void
     {
         $this->actingAs($this->user);
 
-        $this->getJson('/api/v1/quizzes/1')
+        $this->getJson("/api/v1/quizzes/{$this->quiz1Id}")
             ->assertOk()
             ->assertJsonStructure([
                 'data' => [
@@ -57,12 +63,12 @@ class QuizApiTest extends TestCase
     {
         $this->actingAs($this->user);
 
-        $question = Question::where('quiz_id', 1)->first();
+        $question = Question::where('quiz_id', $this->quiz1Id)->first();
         $correctAnswer = Answer::where('question_id', $question->id)
             ->where('is_correct', true)
             ->first();
 
-        $allQuestions = Question::where('quiz_id', 1)->pluck('id');
+        $allQuestions = Question::where('quiz_id', $this->quiz1Id)->pluck('id');
 
         $answers = $allQuestions->map(function ($qId) {
             $answer = Answer::where('question_id', $qId)->where('is_correct', true)->first();
@@ -73,13 +79,13 @@ class QuizApiTest extends TestCase
             ];
         })->toArray();
 
-        $this->postJson('/api/v1/quizzes/1/submit', ['answers' => $answers])
+        $this->postJson("/api/v1/quizzes/{$this->quiz1Id}/submit", ['answers' => $answers])
             ->assertCreated()
             ->assertJsonPath('data.score', 100);
 
         $this->assertDatabaseHas('attempts', [
             'user_id' => $this->user->id,
-            'quiz_id' => 1,
+            'quiz_id' => $this->quiz1Id,
         ]);
     }
 
@@ -87,7 +93,7 @@ class QuizApiTest extends TestCase
     {
         $this->actingAs($this->user);
 
-        $allQuestions = Question::where('quiz_id', 1)->pluck('id');
+        $allQuestions = Question::where('quiz_id', $this->quiz1Id)->pluck('id');
         $answers = $allQuestions->map(function ($qId) {
             $correct = Answer::where('question_id', $qId)->where('is_correct', true)->first();
 
@@ -97,7 +103,7 @@ class QuizApiTest extends TestCase
             ];
         })->toArray();
 
-        $this->postJson('/api/v1/quizzes/1/submit', ['answers' => $answers])
+        $this->postJson("/api/v1/quizzes/{$this->quiz1Id}/submit", ['answers' => $answers])
             ->assertCreated();
 
         $wrongAnswers = $allQuestions->map(function ($qId) {
@@ -109,12 +115,12 @@ class QuizApiTest extends TestCase
             ];
         })->toArray();
 
-        $this->postJson('/api/v1/quizzes/1/submit', ['answers' => $wrongAnswers])
+        $this->postJson("/api/v1/quizzes/{$this->quiz1Id}/submit", ['answers' => $wrongAnswers])
             ->assertOk()
             ->assertJsonPath('data.score', 100);
 
         $this->assertEquals(1, Attempt::where('user_id', $this->user->id)
-            ->where('quiz_id', 1)
+            ->where('quiz_id', $this->quiz1Id)
             ->whereNotNull('completed_at')
             ->count());
     }
@@ -123,11 +129,11 @@ class QuizApiTest extends TestCase
     {
         $this->actingAs($this->user);
 
-        $this->postJson('/api/v1/quizzes/1/submit', [])
+        $this->postJson("/api/v1/quizzes/{$this->quiz1Id}/submit", [])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['answers']);
 
-        $this->postJson('/api/v1/quizzes/1/submit', ['answers' => []])
+        $this->postJson("/api/v1/quizzes/{$this->quiz1Id}/submit", ['answers' => []])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['answers']);
     }
@@ -138,13 +144,13 @@ class QuizApiTest extends TestCase
 
         Attempt::create([
             'user_id' => $this->user->id,
-            'quiz_id' => 1,
+            'quiz_id' => $this->quiz1Id,
             'score' => 80,
             'started_at' => now(),
             'completed_at' => now(),
         ]);
 
-        $this->getJson('/api/v1/quizzes/1/history')
+        $this->getJson("/api/v1/quizzes/{$this->quiz1Id}/history")
             ->assertOk()
             ->assertJsonStructure(['data', 'meta'])
             ->assertJsonPath('meta.total', 1)
@@ -158,13 +164,13 @@ class QuizApiTest extends TestCase
 
         Attempt::create([
             'user_id' => $otherUser->id,
-            'quiz_id' => 1,
+            'quiz_id' => $this->quiz1Id,
             'score' => 80,
             'started_at' => now(),
             'completed_at' => now(),
         ]);
 
-        $this->getJson('/api/v1/quizzes/1/history')
+        $this->getJson("/api/v1/quizzes/{$this->quiz1Id}/history")
             ->assertOk()
             ->assertJsonPath('meta.total', 0);
     }

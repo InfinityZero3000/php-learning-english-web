@@ -2,6 +2,9 @@
 
 namespace Tests\Feature\Api\V1;
 
+use App\Models\Course;
+use App\Models\Lesson;
+use App\Models\Level;
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\LessonQuizSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -11,10 +14,25 @@ class CatalogApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    private int $course1Id;
+    private int $course2Id;
+    private int $lesson1Id;
+    private int $beginnerLevelId;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->seed(CatalogSeeder::class);
+        $this->seed(LessonQuizSeeder::class);
+
+        $this->course1Id = Course::where('slug', 'tieng-anh-co-ban')->value('id');
+        $this->course2Id = Course::where('slug', 'tieng-anh-giao-tiep')->value('id');
+        $this->lesson1Id = Lesson::where('slug', 'dong-vat-hoang-da')->value('id');
+        $this->beginnerLevelId = Level::where('slug', 'beginner')->value('id');
+    }
+
     public function test_courses_listing_returns_paginated_published_courses(): void
     {
-        $this->seed(CatalogSeeder::class);
-
         $this->getJson('/api/v1/catalog/courses')
             ->assertOk()
             ->assertJsonStructure([
@@ -26,8 +44,6 @@ class CatalogApiTest extends TestCase
 
     public function test_courses_can_be_searched(): void
     {
-        $this->seed(CatalogSeeder::class);
-
         $this->getJson('/api/v1/catalog/courses?search=Cơ+Bản')
             ->assertOk()
             ->assertJsonPath('meta.total', 1)
@@ -36,9 +52,7 @@ class CatalogApiTest extends TestCase
 
     public function test_courses_can_be_filtered_by_level(): void
     {
-        $this->seed(CatalogSeeder::class);
-
-        $this->getJson('/api/v1/catalog/courses?level_id=1')
+        $this->getJson("/api/v1/catalog/courses?level_id={$this->beginnerLevelId}")
             ->assertOk()
             ->assertJsonPath('meta.total', 1)
             ->assertJsonPath('data.0.slug', 'tieng-anh-co-ban');
@@ -46,9 +60,7 @@ class CatalogApiTest extends TestCase
 
     public function test_course_detail_returns_course_data(): void
     {
-        $this->seed(CatalogSeeder::class);
-
-        $this->getJson('/api/v1/catalog/courses/1')
+        $this->getJson("/api/v1/catalog/courses/{$this->course1Id}")
             ->assertOk()
             ->assertJsonPath('data.slug', 'tieng-anh-co-ban')
             ->assertJsonStructure(['data' => ['id', 'title', 'slug', 'lessons_count']]);
@@ -56,9 +68,6 @@ class CatalogApiTest extends TestCase
 
     public function test_lessons_listing_returns_published_lessons(): void
     {
-        $this->seed(CatalogSeeder::class);
-        $this->seed(LessonQuizSeeder::class);
-
         $this->getJson('/api/v1/catalog/lessons')
             ->assertOk()
             ->assertJsonStructure(['data', 'meta'])
@@ -67,9 +76,6 @@ class CatalogApiTest extends TestCase
 
     public function test_draft_lessons_are_not_listed(): void
     {
-        $this->seed(CatalogSeeder::class);
-        $this->seed(LessonQuizSeeder::class);
-
         $this->getJson('/api/v1/catalog/lessons')
             ->assertOk()
             ->assertJsonPath('meta.total', 2);
@@ -81,10 +87,7 @@ class CatalogApiTest extends TestCase
 
     public function test_course_lessons_returns_paginated_result(): void
     {
-        $this->seed(CatalogSeeder::class);
-        $this->seed(LessonQuizSeeder::class);
-
-        $this->getJson('/api/v1/catalog/courses/1/lessons')
+        $this->getJson("/api/v1/catalog/courses/{$this->course1Id}/lessons")
             ->assertOk()
             ->assertJsonStructure(['data', 'meta'])
             ->assertJsonPath('meta.total', 2);
@@ -92,10 +95,7 @@ class CatalogApiTest extends TestCase
 
     public function test_lesson_detail_returns_lesson_with_content(): void
     {
-        $this->seed(CatalogSeeder::class);
-        $this->seed(LessonQuizSeeder::class);
-
-        $this->getJson('/api/v1/catalog/lessons/1')
+        $this->getJson("/api/v1/catalog/lessons/{$this->lesson1Id}")
             ->assertOk()
             ->assertJsonPath('data.slug', 'dong-vat-hoang-da')
             ->assertJsonStructure(['data' => ['quizzes_count', 'vocabularies_count']]);
@@ -103,9 +103,6 @@ class CatalogApiTest extends TestCase
 
     public function test_pagination_respects_per_page(): void
     {
-        $this->seed(CatalogSeeder::class);
-        $this->seed(LessonQuizSeeder::class);
-
         $this->getJson('/api/v1/catalog/lessons?per_page=1')
             ->assertOk()
             ->assertJsonPath('meta.per_page', 1)

@@ -3,6 +3,7 @@
 namespace Tests\Feature\Api\V1;
 
 use App\Models\Bookmark;
+use App\Models\Lesson;
 use App\Models\User;
 use App\Models\Vocabulary;
 use Database\Seeders\CatalogSeeder;
@@ -16,8 +17,8 @@ class BookmarkApiTest extends TestCase
     use RefreshDatabase;
 
     private User $user;
-
     private User $otherUser;
+    private int $lesson1Id;
 
     protected function setUp(): void
     {
@@ -28,13 +29,14 @@ class BookmarkApiTest extends TestCase
 
         $this->user = User::where('email', 'user@example.com')->first();
         $this->otherUser = User::factory()->create();
+        $this->lesson1Id = Lesson::where('slug', 'dong-vat-hoang-da')->value('id');
     }
 
     public function test_guest_gets_401_on_bookmark_routes(): void
     {
         $this->getJson('/api/v1/bookmarks')->assertUnauthorized();
         $this->postJson('/api/v1/bookmarks/vocabulary/1/toggle')->assertUnauthorized();
-        $this->postJson('/api/v1/bookmarks/lesson/1/toggle')->assertUnauthorized();
+        $this->postJson("/api/v1/bookmarks/lesson/{$this->lesson1Id}/toggle")->assertUnauthorized();
     }
 
     public function test_user_can_toggle_vocabulary_bookmark(): void
@@ -106,13 +108,13 @@ class BookmarkApiTest extends TestCase
     {
         $this->actingAs($this->user);
 
-        $this->postJson('/api/v1/bookmarks/lesson/1/toggle')
+        $this->postJson("/api/v1/bookmarks/lesson/{$this->lesson1Id}/toggle")
             ->assertCreated()
             ->assertJsonPath('data.status', 'bookmarked');
 
         $this->assertDatabaseHas('bookmarks', [
             'user_id' => $this->user->id,
-            'lesson_id' => 1,
+            'lesson_id' => $this->lesson1Id,
             'bookmark_type' => 'lesson',
         ]);
     }
@@ -121,17 +123,17 @@ class BookmarkApiTest extends TestCase
     {
         $this->actingAs($this->user);
 
-        $this->postJson('/api/v1/bookmarks/lesson/1/toggle')
+        $this->postJson("/api/v1/bookmarks/lesson/{$this->lesson1Id}/toggle")
             ->assertCreated()
             ->assertJsonPath('data.status', 'bookmarked');
 
-        $this->postJson('/api/v1/bookmarks/lesson/1/toggle')
+        $this->postJson("/api/v1/bookmarks/lesson/{$this->lesson1Id}/toggle")
             ->assertOk()
             ->assertJsonPath('data.status', 'unbookmarked');
 
         $this->assertDatabaseMissing('bookmarks', [
             'user_id' => $this->user->id,
-            'lesson_id' => 1,
+            'lesson_id' => $this->lesson1Id,
             'bookmark_type' => 'lesson',
         ]);
     }
