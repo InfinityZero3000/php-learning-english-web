@@ -112,54 +112,83 @@ return new class extends Migration
     {
         $isSqlite = DB::connection()->getDriverName() === 'sqlite';
 
-        // MySQL: Drop FK constraints BEFORE unique indexes,
-        // because MySQL may use a composite unique index to enforce the FK.
         if (! $isSqlite) {
-            if ($this->hasForeignKey('bookmarks', 'bookmarks_vocabulary_id_foreign')) {
-                DB::statement('ALTER TABLE `bookmarks` DROP FOREIGN KEY `bookmarks_vocabulary_id_foreign`');
+            // Drop ALL FK constraints on vocabulary_id column
+            // (MySQL may have auto-generated names, so we query info schema)
+            $dbName = DB::connection()->getDatabaseName();
+            $fks = DB::table('information_schema.KEY_COLUMN_USAGE')
+                ->where('TABLE_SCHEMA', $dbName)
+                ->where('TABLE_NAME', 'bookmarks')
+                ->where('COLUMN_NAME', 'vocabulary_id')
+                ->whereNotNull('REFERENCED_TABLE_NAME')
+                ->pluck('CONSTRAINT_NAME');
+
+            foreach ($fks as $fk) {
+                try {
+                    DB::statement("ALTER TABLE `bookmarks` DROP FOREIGN KEY `{$fk}`");
+                } catch (Throwable) {
+                }
             }
         }
 
-        // Drop new unique indexes
-        Schema::table('bookmarks', function ($table) use ($isSqlite) {
-            if (! $isSqlite || $this->hasIndex('bookmarks', 'bookmarks_user_id_lesson_id_bookmark_type_unique')) {
-                $table->dropUnique('bookmarks_user_id_lesson_id_bookmark_type_unique');
-            }
-            if (! $isSqlite || $this->hasIndex('bookmarks', 'bookmarks_user_id_vocabulary_id_bookmark_type_unique')) {
-                $table->dropUnique('bookmarks_user_id_vocabulary_id_bookmark_type_unique');
-            }
-        });
+        // Drop new unique indexes (wrapped in try-catch at Schema level)
+        try {
+            Schema::table('bookmarks', function ($table) use ($isSqlite) {
+                if (! $isSqlite || $this->hasIndex('bookmarks', 'bookmarks_user_id_lesson_id_bookmark_type_unique')) {
+                    $table->dropUnique('bookmarks_user_id_lesson_id_bookmark_type_unique');
+                }
+                if (! $isSqlite || $this->hasIndex('bookmarks', 'bookmarks_user_id_vocabulary_id_bookmark_type_unique')) {
+                    $table->dropUnique('bookmarks_user_id_vocabulary_id_bookmark_type_unique');
+                }
+            });
+        } catch (Throwable) {
+        }
 
         // Drop lesson_id FK and column
         if (Schema::hasColumn('bookmarks', 'lesson_id')) {
-            Schema::table('bookmarks', function ($table) {
-                $table->dropConstrainedForeignId('lesson_id');
-            });
+            try {
+                Schema::table('bookmarks', function ($table) {
+                    $table->dropConstrainedForeignId('lesson_id');
+                });
+            } catch (Throwable) {
+            }
         }
 
         // Drop bookmark_type column
         if (Schema::hasColumn('bookmarks', 'bookmark_type')) {
-            Schema::table('bookmarks', function ($table) {
-                $table->dropColumn('bookmark_type');
-            });
+            try {
+                Schema::table('bookmarks', function ($table) {
+                    $table->dropColumn('bookmark_type');
+                });
+            } catch (Throwable) {
+            }
         }
 
         if (! $isSqlite) {
             // Restore vocabulary_id as NOT NULL (MySQL only)
-            DB::statement('ALTER TABLE `bookmarks` MODIFY `vocabulary_id` BIGINT UNSIGNED NOT NULL');
+            try {
+                DB::statement('ALTER TABLE `bookmarks` MODIFY `vocabulary_id` BIGINT UNSIGNED NOT NULL');
+            } catch (Throwable) {
+            }
 
-            // Rebuild FK constraint if missing
-            if (! $this->hasForeignKey('bookmarks', 'bookmarks_vocabulary_id_foreign')) {
-                DB::statement('ALTER TABLE `bookmarks` ADD CONSTRAINT `bookmarks_vocabulary_id_foreign` FOREIGN KEY (`vocabulary_id`) REFERENCES `vocabularies` (`id`) ON DELETE CASCADE');
+            // Rebuild FK constraint
+            try {
+                if (! $this->hasForeignKey('bookmarks', 'bookmarks_vocabulary_id_foreign')) {
+                    DB::statement('ALTER TABLE `bookmarks` ADD CONSTRAINT `bookmarks_vocabulary_id_foreign` FOREIGN KEY (`vocabulary_id`) REFERENCES `vocabularies` (`id`) ON DELETE CASCADE');
+                }
+            } catch (Throwable) {
             }
         }
 
         // Restore old unique index
-        Schema::table('bookmarks', function ($table) {
-            if (! $this->hasIndex('bookmarks', 'bookmarks_user_id_vocabulary_id_unique')) {
-                $table->unique(['user_id', 'vocabulary_id'], 'bookmarks_user_id_vocabulary_id_unique');
-            }
-        });
+        try {
+            Schema::table('bookmarks', function ($table) {
+                if (! $this->hasIndex('bookmarks', 'bookmarks_user_id_vocabulary_id_unique')) {
+                    $table->unique(['user_id', 'vocabulary_id'], 'bookmarks_user_id_vocabulary_id_unique');
+                }
+            });
+        } catch (Throwable) {
+        }
     }
 
     private function hasIndex(string $table, string $index): bool
