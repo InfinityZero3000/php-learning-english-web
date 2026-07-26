@@ -238,6 +238,132 @@ paths:
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "419": { $ref: "#/components/responses/CsrfError" }
         "422": { $ref: "#/components/responses/ValidationError" }
+  /api/v1/ai/translate:
+    post:
+      summary: Translate text via the LexiLingo AI service (server-side proxy)
+      operationId: aiTranslate
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text, target_lang]
+              properties:
+                text: { type: string, minLength: 1, maxLength: 5000 }
+                target_lang: { type: string, minLength: 2, maxLength: 2 }
+                source_lang: { type: [string, "null"], minLength: 2, maxLength: 2 }
+      responses:
+        "200":
+          description: Upstream translation result, relayed as-is inside the data envelope
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: object }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/MessageResponse" }
+        "502": { $ref: "#/components/responses/UpstreamError" }
+        "504": { $ref: "#/components/responses/UpstreamTimeout" }
+  /api/v1/ai/pronunciation:
+    post:
+      summary: Score pronunciation of an audio recording (server-side proxy)
+      operationId: aiPronunciation
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [audio, reference_text]
+              properties:
+                audio: { type: string, format: binary, description: "mp3/wav/m4a/ogg, size capped by LEXILINGO_AI_MAX_AUDIO_KB" }
+                reference_text: { type: string, minLength: 1, maxLength: 500 }
+                language: { type: [string, "null"], minLength: 2, maxLength: 2 }
+      responses:
+        "200":
+          description: Upstream pronunciation-assessment result, relayed as-is inside the data envelope
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: object }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/MessageResponse" }
+        "502": { $ref: "#/components/responses/UpstreamError" }
+        "504": { $ref: "#/components/responses/UpstreamTimeout" }
+  /api/v1/ai/speech-to-text:
+    post:
+      summary: Transcribe an audio recording (server-side proxy)
+      operationId: aiSpeechToText
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [audio]
+              properties:
+                audio: { type: string, format: binary, description: "mp3/wav/m4a/ogg, size capped by LEXILINGO_AI_MAX_AUDIO_KB" }
+                language: { type: [string, "null"], minLength: 2, maxLength: 2 }
+      responses:
+        "200":
+          description: Upstream transcription result, relayed as-is inside the data envelope
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: object }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/MessageResponse" }
+        "502": { $ref: "#/components/responses/UpstreamError" }
+        "504": { $ref: "#/components/responses/UpstreamTimeout" }
+  /api/v1/ai/text-to-speech:
+    post:
+      summary: Synthesize speech audio from text (server-side proxy)
+      operationId: aiTextToSpeech
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string, minLength: 1, maxLength: 1000 }
+                voice: { type: [string, "null"], maxLength: 50 }
+                language: { type: [string, "null"], minLength: 2, maxLength: 2 }
+      responses:
+        "200":
+          description: Synthesized audio bytes (binary, not JSON)
+          content:
+            audio/mpeg:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/MessageResponse" }
+        "502": { $ref: "#/components/responses/UpstreamError" }
+        "504": { $ref: "#/components/responses/UpstreamTimeout" }
 components:
   securitySchemes:
     session:
@@ -366,3 +492,23 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Message" }
+    UpstreamError:
+      description: LexiLingo AI service rejected or failed the request; upstream body is never relayed
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [message, code]
+            properties:
+              message: { type: string }
+              code: { type: string, enum: [UPSTREAM_REJECTED, UPSTREAM_ERROR, PROXY_ERROR] }
+    UpstreamTimeout:
+      description: LexiLingo AI service was unreachable within the configured timeout/retry budget
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [message, code]
+            properties:
+              message: { type: string }
+              code: { const: UPSTREAM_TIMEOUT }

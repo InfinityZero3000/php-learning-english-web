@@ -111,6 +111,38 @@ khi hai Next.js app được chuyển đổi. Giao diện production cuối cùn
   list không mang `category_id`), đồng bộ `tags` sang `Topic`, và nội dung đầy
   đủ từng lesson (vẫn chỉ có outline).
 
+### Trạng thái xác minh 27/07/2026 — Issue #10 (proxy AI translate/pronunciation/STT/TTS)
+
+- 4 endpoint mới dưới `/api/v1/ai/*` (`translate`, `pronunciation`,
+  `speech-to-text`, `text-to-speech`), yêu cầu đăng nhập, dùng
+  `LexiLingoClient::internalAi()` (đã có sẵn từ trước, chưa từng có caller
+  thật) nên `X-AI-Service-Secret` không lộ ra frontend.
+- Validate `mimes:mp3,wav,m4a,ogg` + `max:LEXILINGO_AI_MAX_AUDIO_KB` cho audio,
+  `max` độ dài nội dung cho text; retry giới hạn
+  (`LEXILINGO_AI_RETRY_TIMES`/`_DELAY_MS`, mặc định 2 lần/200ms) chỉ khi
+  timeout hoặc lỗi 5xx, không retry lỗi 4xx.
+- Lỗi upstream được chuẩn hóa, không bao giờ trả nguyên body upstream:
+  timeout/connection → 504 `UPSTREAM_TIMEOUT`; upstream 4xx → 422
+  `UPSTREAM_REJECTED`; upstream 5xx → 502 `UPSTREAM_ERROR`. Log chỉ ghi
+  action/user_id/exception class/status — không log audio, text hay secret.
+- text-to-speech trả về audio nhị phân trực tiếp (không bọc JSON); 3 endpoint
+  còn lại relay nguyên JSON body của upstream trong `data` (xem giới hạn bên
+  dưới).
+- `tests/Feature/Api/V1/AiProxyTest.php`: đủ 6 kịch bản theo acceptance
+  criteria (success/validation/timeout/4xx/5xx/rate-limit) trên `translate`,
+  cộng test riêng cho audio validation, JSON passthrough, response nhị phân
+  và guard chưa đăng nhập.
+- `docs/openapi/laravel-v1.yaml` đã thêm 4 path trên, `redocly lint` pass
+  (0 lỗi, giữ nguyên 4 warning cũ không liên quan).
+- **Giới hạn đã biết**: `docs/api_docs_lexilingo.md` chỉ liệt kê method+path,
+  không có schema request/response thật (schema nằm ở Swagger của chính AI
+  Service, sandbox này không truy cập được) — field request là suy đoán hợp
+  lý theo REST convention, và response JSON được relay nguyên trạng thay vì
+  ánh xạ field cụ thể. Cần đối chiếu lại khi có Swagger/OpenAPI thật của AI
+  Service. Không triển khai `WEBSOCKET /api/v1/stt/stream`, `GET
+  /api/v1/voice/ready`, `POST /api/v1/voice/ticket` (thuộc luồng streaming
+  thời gian thực, kiến trúc khác với proxy HTTP này).
+
 ## Quy ước bàn giao
 
 - Biến môi trường production được quản lý tại `docs/PRODUCTION_ENV.md`; mọi thay
