@@ -74,12 +74,45 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 type Envelope<T> = { data: T; meta: Record<string, unknown> };
 
+type PublicVocabulary = {
+  id: number;
+  word: string;
+  meaning?: string;
+  translation?: string;
+  pronunciation?: string;
+  part_of_speech?: string;
+  difficulty_level?: string;
+  tags?: string[];
+};
+
 function apiRequest<T>(path: string, init?: RequestInit) {
   return request<Envelope<T>>(path, init).then((response) => response.data);
 }
 
 export const api = {
   me: () => apiRequest<AppUser>("/api/v1/auth/me"),
+  publicVocabulary: async (query?: { search?: string; page?: number; perPage?: number }): Promise<{
+    words: Word[];
+    meta: Record<string, unknown>;
+  }> => {
+    const response = await request<Envelope<PublicVocabulary[]>>(`/api/v1/vocabulary${toQuery({
+      search: query?.search,
+      page: query?.page,
+      per_page: query?.perPage
+    })}`);
+    return {
+      words: response.data.map((item) => ({
+        id: item.id,
+        word: item.word,
+        translation: item.translation || item.meaning || "",
+        pronunciation: item.pronunciation,
+        partOfSpeech: item.part_of_speech,
+        difficulty: item.difficulty_level as Word["difficulty"],
+        category: item.tags?.[0]
+      })),
+      meta: response.meta
+    };
+  },
   words: (query?: Query) => request<Word[]>(`/api/words${toQuery(query)}`),
   wordsPage: (query?: Query) => request<PageResponse<Word>>(`/api/words${toQuery(query)}`),
   word: (id: number) => request<Word>(`/api/words/${id}`),

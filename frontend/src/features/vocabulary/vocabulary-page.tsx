@@ -1,6 +1,6 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   IconBooks,
   IconCheck,
@@ -19,6 +19,8 @@ import { Dialog } from "@/components/ui/dialog";
 import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/api";
+import { useAuth } from "@/features/auth/auth-context";
+import { loginHref } from "@/features/auth/route-policy";
 import type { DictionaryLookup, DifficultyLevel, PageResponse, Topic, Word } from "@/types/api";
 
 const INITIAL_WORD_COUNT = 20;
@@ -229,6 +231,8 @@ function WordDetail3DModal({ word, onClose }: { word: Word | null, onClose: () =
 }
 
 export function VocabularyPage() {
+  const router = useRouter();
+  const { status } = useAuth();
   const params = useSearchParams();
   const [words, setWords] = useState<Word[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
@@ -273,11 +277,10 @@ export function VocabularyPage() {
     }
     let ignore = false;
     const t = setTimeout(() => {
-      api.wordsPage({ search: search.trim(), size: 5 })
+      api.publicVocabulary({ search: search.trim(), perPage: 5 })
         .then((res) => {
           if (!ignore) {
-            const normalized = normalizeWordPage(res, 0, 5);
-            setSuggestedWords(normalized.content);
+            setSuggestedWords(res.words);
             setShowSuggestions(true);
           }
         })
@@ -289,16 +292,6 @@ export function VocabularyPage() {
     };
   }, [search]);
 
-  useEffect(() => {
-    Promise.all([
-      api.categories().catch(() => [] as string[]),
-      api.topics().catch(() => [] as Topic[])
-    ]).then(([cats, topicList]) => {
-      setCategories(cats);
-      setTopics(topicList);
-    });
-  }, []);
-
   const loadWords = useCallback(async (offset: number, size: number, mode: "replace" | "append") => {
     const requestSeq = ++requestSeqRef.current;
     if (mode === "append") {
@@ -309,15 +302,20 @@ export function VocabularyPage() {
     }
 
     try {
-      const wordPage = normalizeWordPage(await api.wordsPage({
-        offset,
-        size,
-        search: querySearch,
-        category,
-        difficulty,
-        topicId,
-        cefrLevel: cefr
-      }), offset, size);
+      const result = await api.publicVocabulary({
+        page: Math.floor(offset / size) + 1,
+        perPage: size,
+        search: querySearch
+      });
+      const filtered = result.words.filter((word) =>
+        (!category || word.category === category) &&
+        (!difficulty || word.difficulty === difficulty) &&
+        (!cefr || word.cefrLevel === cefr)
+      );
+      const wordPage = normalizeWordPage(filtered, 0, size);
+      wordPage.totalElements = Number(result.meta.total ?? filtered.length);
+      wordPage.last = Number(result.meta.current_page ?? 1) >= Number(result.meta.last_page ?? 1);
+      setCategories((current) => [...new Set([...current, ...result.words.map((word) => word.category).filter((value): value is string => Boolean(value))])]);
 
       if (requestSeq !== requestSeqRef.current) return;
 
@@ -340,7 +338,7 @@ export function VocabularyPage() {
         loadingMoreRef.current = false;
       }
     }
-  }, [category, cefr, difficulty, querySearch, toast, topicId]);
+  }, [category, cefr, difficulty, querySearch, toast]);
 
   const loadNextBatch = useCallback(() => {
     if (replacingRef.current || loadingMoreRef.current || !hasMoreRef.current) return;
@@ -424,6 +422,10 @@ export function VocabularyPage() {
 
   async function saveWord(event: FormEvent) {
     event.preventDefault();
+    if (status !== "authenticated") {
+      router.push(loginHref("/vocabulary"));
+      return;
+    }
     if (!editing?.word) return;
     try {
       if (editing.id) {
@@ -444,6 +446,10 @@ export function VocabularyPage() {
   }
 
   async function deleteWord() {
+    if (status !== "authenticated") {
+      router.push(loginHref("/vocabulary"));
+      return;
+    }
     if (!deleting) return;
     try {
       await api.deleteWord(deleting.id);
@@ -456,6 +462,10 @@ export function VocabularyPage() {
   }
 
   async function enrich(id: number) {
+    if (status !== "authenticated") {
+      router.push(loginHref("/vocabulary"));
+      return;
+    }
     try {
       await api.enrichWord(id);
       toast("Enrichment queued.", "success");

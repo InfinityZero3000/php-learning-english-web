@@ -2,11 +2,14 @@
 
 import { IconArrowLeft, IconCircleCheck, IconCircleX, IconPlayerPlay, IconPuzzle } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AppShellLoading } from "@/components/layout/app-shell";
 import { Dialog } from "@/components/ui/dialog";
 import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/api";
+import { useAuth } from "@/features/auth/auth-context";
+import { loginHref } from "@/features/auth/route-policy";
 import type { Topic, Word } from "@/types/api";
 
 const AUTO_ADVANCE_MS = 1600;
@@ -39,6 +42,8 @@ function QuizHero() {
 }
 
 export function QuizPage() {
+  const router = useRouter();
+  const { status } = useAuth();
   const [categories, setCategories] = useState<string[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [category, setCategory] = useState("");
@@ -62,12 +67,9 @@ export function QuizPage() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
-    Promise.all([
-      api.categories().catch(() => [] as string[]),
-      api.topics().catch(() => [] as Topic[]),
-    ]).then(([cats, tops]) => {
-      setCategories(cats);
-      setTopics(tops);
+    api.publicVocabulary({ perPage: 100 }).then((catalog) => {
+      setCategories([...new Set(catalog.words.map((word) => word.category).filter((value): value is string => Boolean(value)))]);
+      setTopics([]);
       setLoading(false);
     }).catch(() => setLoading(false));
     return () => clearTimeout(timerRef.current);
@@ -98,6 +100,10 @@ export function QuizPage() {
   }, [current, words, distractors, quizType, correctAnswer]);
 
   async function start() {
+    if (status !== "authenticated") {
+      router.push(loginHref("/quiz"));
+      return;
+    }
     if (starting) return;
     setStarting(true);
     try {

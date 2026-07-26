@@ -161,7 +161,7 @@ rg -n "/api/v1/" frontend admin-frontend
 
 Expected: every Phase 1–3 path is present in `laravel-v1.yaml`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/openapi/laravel-v1.yaml frontend/package.json frontend/pnpm-lock.yaml
@@ -233,7 +233,7 @@ Add schema annotations:
 }
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/openapi/lexilingo-import.schema.json frontend/scripts/validate-lexilingo-schema.mjs frontend/test-fixtures/lexilingo frontend/package.json frontend/pnpm-lock.yaml
@@ -277,7 +277,7 @@ signed `sort_order = -1`, its original `course_id` and a deterministic,
 collision-resistant slug/content
 preserved. Test `user_vocabularies` uniqueness and review cascade delete.
 
-- [ ] **Step 2: Run the tests to verify failure**
+- [x] **Step 2: Run the tests to verify failure**
 
 ```bash
 php artisan test tests/Feature/IntegrationSchemaTest.php
@@ -317,7 +317,7 @@ php artisan test tests/Feature/IntegrationSchemaTest.php
 
 Expected: PASS.
 
-- [ ] **Step 5: Verify a forward upgrade and rollback on disposable databases**
+- [x] **Step 5: Verify a forward upgrade and rollback on disposable databases**
 
 ```bash
 DB_CONNECTION=sqlite DB_DATABASE=/private/tmp/learning-upgrade.sqlite \
@@ -339,7 +339,7 @@ The harness must clear any
 PHPUnit `DB_DATABASE=:memory:` override. Repeat against disposable MySQL in CI.
 Never run `migrate:fresh` against an uncontrolled configured database.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add database/migrations tests/Feature/IntegrationSchemaTest.php
@@ -379,7 +379,7 @@ Prove the application rejects assigning a lesson to a unit belonging to a
 different course at the request boundary when lesson APIs are added; for this
 phase, keep the invariant documented in the model test.
 
-- [ ] **Step 2: Run the tests to verify failure**
+- [x] **Step 2: Run the tests to verify failure**
 
 ```bash
 php artisan test tests/Feature/IntegrationSchemaTest.php
@@ -409,7 +409,7 @@ php artisan test tests/Feature/IntegrationSchemaTest.php
 ./vendor/bin/pint --test
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/Models database/seeders tests/Feature/IntegrationSchemaTest.php
@@ -427,7 +427,7 @@ git commit -m "feat: model integrated learning content"
 - Modify: `.env.example`
 - Test: `tests/Feature/Api/V1/HealthApiTest.php`
 
-- [ ] **Step 1: Write failing route tests**
+- [x] **Step 1: Write failing route tests**
 
 Test:
 
@@ -439,7 +439,7 @@ POST mutation with a cross-site Origin and without a valid token is rejected
 in a non-testing smoke process
 ```
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 ```bash
 php artisan test tests/Feature/Api/V1/HealthApiTest.php
@@ -493,7 +493,7 @@ php artisan test tests/Feature/Api/V1/HealthApiTest.php
 php artisan test
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add bootstrap/app.php routes/spa.php .env.example tests/Feature/Api/V1/HealthApiTest.php
@@ -512,7 +512,7 @@ git commit -m "feat: add first-party session API foundation"
 - Modify: `routes/spa.php`
 - Test: `tests/Feature/Api/V1/AuthApiTest.php`
 
-- [ ] **Step 1: Write failing API tests**
+- [x] **Step 1: Write failing API tests**
 
 Cover:
 
@@ -525,7 +525,7 @@ Cover:
 - Logout invalidates the session.
 - Login is limited to five attempts per minute.
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 ```bash
 php artisan test tests/Feature/Api/V1/AuthApiTest.php
@@ -565,7 +565,7 @@ php artisan test tests/Feature/RegistrationTest.php tests/Feature/LoginTest.php
 php artisan test
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/Http/Controllers/Api app/Http/Requests/Api app/Http/Resources routes/spa.php tests/Feature/Api/V1/AuthApiTest.php
@@ -584,7 +584,7 @@ git commit -m "feat: expose session authentication API"
 - Modify: `routes/spa.php`
 - Test: `tests/Feature/Api/V1/PasswordApiTest.php`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Cover:
 
@@ -600,7 +600,7 @@ Cover:
 - Reset links target `FRONTEND_URL/reset-password` and contain token/email.
 - No test sends real mail (`Notification::fake()`).
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 ```bash
 php artisan test tests/Feature/Api/V1/PasswordApiTest.php
@@ -647,7 +647,7 @@ php artisan test tests/Feature/Api/V1 tests/Feature/ForgotPasswordTest.php tests
 ./vendor/bin/pint --test
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/Http/Controllers/Api app/Models app/Providers/AppServiceProvider.php routes/spa.php tests/Feature/Api/V1
@@ -663,7 +663,7 @@ git commit -m "feat: expose verified mail and password APIs"
 - Modify: `routes/spa.php`
 - Test: `tests/Feature/Api/V1/ProfileApiTest.php`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Cover:
 
@@ -673,7 +673,7 @@ Cover:
   and deletes the user.
 - Guests receive `401`.
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 ```bash
 php artisan test tests/Feature/Api/V1/ProfileApiTest.php
@@ -690,7 +690,7 @@ validation rules and return the canonical `UserResource` or `204`.
 php artisan test tests/Feature/Api/V1/ProfileApiTest.php tests/Feature/ProfileTest.php
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/Http/Controllers/Api app/Http/Requests/Api routes/spa.php tests/Feature/Api/V1/ProfileApiTest.php
@@ -710,7 +710,7 @@ git commit -m "feat: expose protected profile API"
 - Create: `frontend/vitest.config.ts` and auth/client test files as needed
 - Create: `admin-frontend/vitest.config.ts` and auth/guard test files as needed
 
-- [ ] **Step 1: Add the server-only origin**
+- [x] **Step 1: Add the server-only origin**
 
 Both configs use:
 
@@ -747,7 +747,7 @@ Set server-only `LARAVEL_API_ORIGIN` in each Vercel project. Laravel must also
 set `APP_URL`, `FRONTEND_URL`, `ADMIN_FRONTEND_URL`, secure/same-site session
 settings, and the configured mail transport before production smoke tests.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/next.config.ts frontend/.env.example admin-frontend/next.config.ts admin-frontend/.env.example
@@ -762,7 +762,7 @@ git commit -m "chore: proxy Next.js APIs to Laravel"
 - Modify: `frontend/src/lib/api.ts`
 - Modify: `admin-frontend/src/lib/api.ts`
 
-- [ ] **Step 1: Implement one small request primitive per app**
+- [x] **Step 1: Implement one small request primitive per app**
 
 Behavior:
 
@@ -801,14 +801,14 @@ Temporarily retain unrelated old API exports only if existing pages require
 them to compile; mark their controls disabled in later feature plans. Remove
 all `localStorage.getItem("admin_token")` and bearer-token headers.
 
-- [ ] **Step 3: Run lint/build**
+- [x] **Step 3: Run lint/build**
 
 ```bash
 cd frontend && pnpm lint && pnpm test && pnpm build
 cd ../admin-frontend && npm run lint && npm test && npm run build
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/src/lib admin-frontend/src/lib
@@ -824,7 +824,7 @@ git commit -m "refactor: use Laravel session API clients"
 - Modify: `frontend/src/components/layout/app-shell.tsx`
 - Modify: `frontend/src/features/profile/profile-page.tsx`
 
-- [ ] **Step 1: Add the login screen**
+- [x] **Step 1: Add the login screen**
 
 Add a focused component test first (mock `auth.login`) covering submitting,
 invalid credentials, and successful navigation.
@@ -848,18 +848,18 @@ The app shell calls `auth.me()`, renders the authenticated name, and exposes a
 logout action. A `401` redirects protected screens to `/login`; transport
 failures display an error instead of pretending the user is logged out.
 
-- [ ] **Step 3: Connect profile basics**
+- [x] **Step 3: Connect profile basics**
 
 For this vertical slice, connect name update and current-user display. Hide or
 disable legacy profile controls not covered by Phase 1–3 APIs.
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 ```bash
 cd frontend && pnpm lint && pnpm test && pnpm build
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/app frontend/src/features frontend/src/components/layout/app-shell.tsx
@@ -873,7 +873,7 @@ git commit -m "feat: connect learner login to Laravel"
 - Modify: `admin-frontend/src/app/login/page.tsx`
 - Modify: `admin-frontend/src/components/AdminLayout.tsx`
 
-- [ ] **Step 1: Replace token login**
+- [x] **Step 1: Replace token login**
 
 Add a focused `AdminLayout` test first covering `401`, non-admin, transport
 failure, and authorized admin states. Hide or disable dashboard/navigation
@@ -897,13 +897,13 @@ On initial load:
 - Transport failure shows retry UI.
 - Authorized admin renders children.
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 ```bash
 cd admin-frontend && npm run lint && npm test && npm run build
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add admin-frontend/src/app/login/page.tsx admin-frontend/src/components/AdminLayout.tsx
@@ -929,7 +929,7 @@ php artisan test
 Use only a disposable SQLite/MySQL test database; never run
 `migrate:fresh` against a shared or production database. Expected: all pass.
 
-- [ ] **Step 2: Run frontend gates**
+- [x] **Step 2: Run frontend gates**
 
 ```bash
 cd frontend && pnpm lint && pnpm test && pnpm build
@@ -938,7 +938,7 @@ cd ../admin-frontend && npm run lint && npm test && npm run build
 
 Expected: all pass.
 
-- [ ] **Step 3: Run local smoke test**
+- [x] **Step 3: Run local smoke test**
 
 Start Laravel and both Next.js apps. Verify:
 
@@ -969,7 +969,7 @@ Record exact test counts, build results, and remaining deferred phases in
 Review security, session fixation, CSRF, rate limits, role authorization,
 password lifecycle, migration rollback, and frontend token removal.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add docs/PROJECT_PLAN.md docs/openapi

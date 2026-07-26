@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { IconBell, IconBellFilled } from "@tabler/icons-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { api } from "@/lib/api";
+import { useAuth } from "@/features/auth/auth-context";
 
 type Notification = {
   id: number;
@@ -27,6 +28,7 @@ const formatRelative = (dateStr: string) => {
 };
 
 export function NotificationWidget() {
+  const { status } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
@@ -45,10 +47,13 @@ export function NotificationWidget() {
   };
 
   useEffect(() => {
+    if (status !== "authenticated") return;
     fetchNotifs();
     const interval = setInterval(fetchNotifs, 60_000);
     return () => clearInterval(interval);
-  }, []);
+  }, [status]);
+
+  if (status !== "authenticated") return null;
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);

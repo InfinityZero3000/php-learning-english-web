@@ -2,6 +2,7 @@
 
 import { IconReload, IconSearch, IconSparkles } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AppShellLoading } from "@/components/layout/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/toast";
 import { ApiError, api } from "@/lib/api";
+import { useAuth } from "@/features/auth/auth-context";
+import { loginHref } from "@/features/auth/route-policy";
 import type { TrustedFlashcard, UserProgress } from "@/types/api";
 
 const TRUSTED_INITIAL = 3;
@@ -33,6 +36,8 @@ function uniqueTrustedCards(cards: TrustedFlashcard[]) {
 }
 
 export function FlashcardsPage() {
+  const router = useRouter();
+  const { status } = useAuth();
   const [due, setDue] = useState<UserProgress[]>([]);
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -49,14 +54,18 @@ export function FlashcardsPage() {
   const { toast } = useToast();
 
   const load = useCallback(async () => {
-    const [dueWords, cards] = await Promise.all([api.dueWords(30).catch(() => []), api.flashcards(searchQuery).catch(() => [])]);
+    const [dueWords, catalog] = await Promise.all([
+      status === "authenticated" ? api.dueWords(30).catch(() => []) : Promise.resolve([]),
+      api.publicVocabulary({ search: searchQuery, perPage: 100 }).catch(() => ({ words: [], meta: {} }))
+    ]);
+    const cards = catalog.words.map((word) => ({ id: word.id, word: word.word, translation: word.translation }));
     setDue(dueWords);
     setTrusted(uniqueTrustedCards(cards));
     setVisibleCount(TRUSTED_INITIAL);
     setIndex(0);
     setFlipped(false);
     setLoading(false);
-  }, [searchQuery]);
+  }, [searchQuery, status]);
 
   useEffect(() => {
     load().catch(() => { setLoading(false); toast("Không thể tải flashcards từ backend. Đang hiển thị dữ liệu trống.", "warning"); });
@@ -66,6 +75,10 @@ export function FlashcardsPage() {
   const progress = due.length ? (index / due.length) * 100 : 0;
 
   async function review(rating: number) {
+    if (status !== "authenticated") {
+      router.push(loginHref("/flashcards"));
+      return;
+    }
     if (!current?.word?.id) return;
     try {
       await api.reviewWord(current.word.id, rating, 0);
@@ -79,6 +92,10 @@ export function FlashcardsPage() {
   }
 
   async function importTrusted() {
+    if (status !== "authenticated") {
+      router.push(loginHref("/flashcards"));
+      return;
+    }
     if (importing) return;
     setImporting(true);
     setTrusted([]);
@@ -95,6 +112,10 @@ export function FlashcardsPage() {
   }
 
   async function saveTrusted(id: number) {
+    if (status !== "authenticated") {
+      router.push(loginHref("/flashcards"));
+      return;
+    }
     if (savingId) return;
     setSavingId(id);
     try {

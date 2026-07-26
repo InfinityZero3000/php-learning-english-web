@@ -13,7 +13,8 @@ import { AppDiamondIcon, AppFlameIcon, navigationIcons } from "@/components/icon
 import { NotificationWidget } from "@/components/layout/notifications";
 import { Button } from "@/components/ui/button";
 import { CatLoader } from "@/components/ui/cat-loader";
-import { api, ApiError, auth } from "@/lib/api";
+import { AuthProvider, useAuth } from "@/features/auth/auth-context";
+import { isProtectedPath, loginHref } from "@/features/auth/route-policy";
 import { cn } from "@/lib/utils";
 import type { AppUser } from "@/types/api";
 
@@ -37,54 +38,43 @@ const titles: Record<string, string> = {
 };
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  return <AuthProvider><AppShellContent>{children}</AppShellContent></AuthProvider>;
+}
+
+function AppShellContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [user, setUser] = useState<AppUser | null>(null);
-  const [authChecked, setAuthChecked] = useState(false);
-  const [authError, setAuthError] = useState(false);
+  const { status, user, refreshUser, logout: clearSession } = useAuth();
   const [streak, setStreak] = useState(0);
   const [xp] = useState(0);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const pageTitle = useMemo(() => titles[pathname] || "FSRSpring", [pathname]);
 
-  useEffect(() => {
-    let cancelled = false;
+  const protectedRoute = isProtectedPath(pathname);
 
-    api.me()
-      .then((data) => {
-        if (!cancelled) setUser(data);
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        if (error instanceof ApiError && error.status === 401) {
-          if (pathname !== "/login") window.location.replace("/login");
-        } else {
-          setAuthError(true);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setAuthChecked(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [pathname, router]);
+  useEffect(() => {
+    if (status === "guest" && protectedRoute) {
+      router.replace(loginHref(pathname, window.location.search.slice(1)));
+    }
+  }, [pathname, protectedRoute, router, status]);
 
   async function logout() {
-    await auth.logout().catch(() => undefined);
-    router.replace("/login");
+    await clearSession();
+    router.replace("/");
     router.refresh();
   }
 
   if (pathname === "/login") return children;
-  if (!authChecked) return <AppShellLoading label="Checking session..." />;
-  if (authError) {
+  if (protectedRoute && (status === "checking" || status === "guest")) {
+    return <AppShellLoading label="Checking session..." />;
+  }
+  if (protectedRoute && status === "unavailable") {
     return (
       <main className="flex min-h-screen items-center justify-center p-6 text-center">
         <div>
           <p className="font-bold">Could not reach the server.</p>
-          <Button className="mt-4" onClick={() => window.location.reload()}>Retry</Button>
+          <Button className="mt-4" onClick={() => void refreshUser()}>Retry</Button>
         </div>
       </main>
     );
@@ -118,7 +108,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
         <div className="border-t-2 border-border pt-6">
-          {!authChecked ? (
+          {status === "checking" ? (
             <div className="space-y-4" aria-label="Checking login status">
               <div className="flex items-center gap-2">
                 <div className="h-10 w-10 shrink-0 animate-pulse rounded-full border-2 border-border bg-muted" />
@@ -129,7 +119,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </div>
               <div className="h-10 w-full animate-pulse rounded-xl bg-muted" />
             </div>
-          ) : user ? (
+          ) : status === "authenticated" && user ? (
             <div className="space-y-6">
               <Link href="/profile" className="flex items-center gap-2">
                 <Avatar user={user} size="lg" />
