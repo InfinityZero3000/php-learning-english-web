@@ -52,4 +52,11 @@ return [
         'ai_service_secret' => env('LEXILINGO_AI_SERVICE_SECRET'),
         'timeout' => (int) env('LEXILINGO_TIMEOUT', 30),
     ],
+    'enrichment' => [
+        'enabled' => filter_var(env('APP_ENRICHMENT_ENABLED', false), FILTER_VALIDATE_BOOL),
+        'wiktapi_url' => env('APP_API_WIKTAPI_BASE_URL'),
+        'libretranslate_url' => env('APP_API_LIBRETRANSLATE_BASE_URL'),
+        'pixabay_key' => env('APP_API_PIXABAY_KEY'),
+        'pexels_key' => env('APP_API_PEXELS_KEY'),
+    ],
 ];

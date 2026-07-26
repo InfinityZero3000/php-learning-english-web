@@ -2,10 +2,13 @@
 
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\EmailVerificationController;
+use App\Http\Controllers\Api\V1\LexiLingoContentController;
 use App\Http\Controllers\Api\V1\OAuthController;
 use App\Http\Controllers\Api\V1\PasswordController;
 use App\Http\Controllers\Api\V1\ProfileController;
 use App\Http\Controllers\Api\V1\VocabularyController;
+use App\Models\Vocabulary;
+use App\Services\VocabularyEnrichmentService;
 use App\Support\HealthCheck;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Session\Middleware\StartSession;
@@ -27,6 +30,13 @@ Route::prefix('api/v1')->group(function (): void {
         ]);
     Route::get('/csrf-cookie', fn () => response()->noContent());
     Route::get('/vocabulary', [VocabularyController::class, 'index']);
+    Route::get('/content/news', [LexiLingoContentController::class, 'news']);
+    Route::get('/content/youtube', [LexiLingoContentController::class, 'youtube']);
+    Route::post('/enrichment/words/{vocabulary}', function (Vocabulary $vocabulary, VocabularyEnrichmentService $service) {
+        abort_unless(auth()->check(), 401);
+
+        return response()->json(['data' => $service->enrich($vocabulary)]);
+    })->middleware('auth');
 
     Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
     Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
