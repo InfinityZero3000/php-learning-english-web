@@ -44,4 +44,11 @@ describe("AppShell public access", () => {
     render(<AppShell><p>Public catalog</p></AppShell>);
     expect(await screen.findByText("Public catalog")).toBeInTheDocument();
   });
+
+  it("keeps the login page above the persistent background", async () => {
+    pathname = "/login";
+    render(<AppShell><p>Login form</p></AppShell>);
+
+    expect((await screen.findByText("Login form")).parentElement).toHaveClass("app-shell");
+  });
 });

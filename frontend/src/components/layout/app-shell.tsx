@@ -66,7 +66,7 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
     router.refresh();
   }
 
-  if (pathname === "/login") return children;
+  if (pathname === "/login") return <div className="app-shell">{children}</div>;
   if (protectedRoute && (status === "checking" || status === "guest")) {
     return <AppShellLoading label="Checking session..." />;
   }
