@@ -34,4 +34,22 @@ class PasswordApiTest extends TestCase
 
         $this->assertTrue(password_verify('new-password', $user->fresh()->password));
     }
+
+    public function test_reset_notification_points_to_frontend_with_encoded_parameters(): void
+    {
+        config(['app.frontend_url' => 'https://frontend.example']);
+        Notification::fake();
+        $user = User::factory()->create(['email' => 'learner+test@example.com']);
+
+        $this->postJson('/api/v1/auth/password/forgot', ['email' => $user->email])->assertOk();
+
+        Notification::assertSentTo($user, ResetPassword::class, function (ResetPassword $notification) use ($user): bool {
+            $url = $notification->toMail($user)->actionUrl;
+            parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
+
+            return str_starts_with($url, 'https://frontend.example/reset-password?')
+                && $query['token'] === $notification->token
+                && $query['email'] === $user->email;
+        });
+    }
 }
