@@ -85,10 +85,31 @@ khi hai Next.js app được chuyển đổi. Giao diện production cuối cùn
 - Learner frontend: TypeScript, ESLint và production build pass.
 - Admin frontend: TypeScript và production build pass; ESLint còn 12 lỗi trong
   các màn CRUD cũ chưa nối Laravel API.
-- Chưa hoàn thành: importer đầy đủ categories/courses/units/lessons và
-  checkpoint/archive, protected lesson-content sync, các proxy
+- Chưa hoàn thành: protected lesson-content sync (`description`/
+  `prerequisites`/`estimated_minutes`/`pass_threshold` qua
+  `/api/v1/learning/lessons/{id}/content`), các proxy
   translate/STT/TTS/pronunciation, admin CRUD API, browser smoke production và
   kiểm thử trực tiếp với host/secret LexiLingo thật.
+
+### Trạng thái xác minh 26/07/2026 — Issue #9 (importer category/course/unit/lesson/vocabulary)
+
+- Importer idempotent đã có cho category, course (kèm unit và lesson outline
+  lồng trong course detail) và vocabulary: validate bằng
+  `docs/openapi/lexilingo-import.schema.json` (thư viện `opis/json-schema`,
+  draft 2020-12) trước khi upsert theo `external_id`.
+- Checkpoint/cursor lưu ở bảng `lexilingo_import_checkpoints` (theo từng
+  entity); payload không hợp lệ được archive an toàn vào
+  `lexilingo_import_failures` thay vì làm fail cả trang.
+- Lệnh `php artisan lexilingo:import {entity} --limit= --dry-run --reset`
+  (entity: `categories`/`courses`/`vocabulary`/`all`). `--dry-run` không ghi
+  DB. Mỗi course được upsert (cùng unit/lesson) trong transaction riêng — một
+  course lỗi chỉ rollback chính nó, không ảnh hưởng các course khác trong
+  cùng trang.
+- `tests/Feature/LexiLingoImportTest.php`: fixture hợp lệ/không hợp lệ, rerun
+  idempotent, rollback theo transaction, dry-run không ghi DB — đều có test.
+- Chưa làm trong đợt này: liên kết `category_id` cho course (payload course
+  list không mang `category_id`), đồng bộ `tags` sang `Topic`, và nội dung đầy
+  đủ từng lesson (vẫn chỉ có outline).
 
 ## Quy ước bàn giao
 

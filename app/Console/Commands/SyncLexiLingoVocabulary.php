@@ -9,13 +9,18 @@ class SyncLexiLingoVocabulary extends Command
 {
     protected $signature = 'lexilingo:sync-vocabulary
         {--offset=0 : Upstream offset}
-        {--limit=100 : Page size, maximum 100}';
+        {--limit=100 : Page size, maximum 100}
+        {--dry-run : Validate only, no database writes}';
 
     protected $description = 'Persist LexiLingo vocabulary into the local database';
 
     public function handle(LexiLingoVocabularySync $sync): int
     {
-        $count = $sync->syncPage((int) $this->option('offset'), (int) $this->option('limit'));
+        $count = $sync->syncPage(
+            (int) $this->option('offset'),
+            (int) $this->option('limit'),
+            (bool) $this->option('dry-run'),
+        );
         $this->info("Synchronized {$count} vocabulary items.");
 
         return self::SUCCESS;

@@ -20,10 +20,17 @@ class LexiLingoVocabularySyncTest extends TestCase
         Http::fake([
             'backend.lexilingo.test/*' => Http::response([[
                 'id' => 'lexi-word-1',
+                'course_id' => null,
+                'lesson_id' => null,
                 'word' => 'hello',
                 'definition' => 'a greeting',
                 'translation' => ['vi' => 'xin chào'],
+                'pronunciation' => null,
+                'audio_url' => null,
+                'part_of_speech' => 'interjection',
+                'difficulty_level' => 'beginner',
                 'tags' => ['greeting'],
+                'usage_frequency' => 10,
             ]]),
         ]);
 

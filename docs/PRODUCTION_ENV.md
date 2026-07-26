@@ -86,6 +86,30 @@ fly ssh console -C "php artisan lexilingo:sync-vocabulary --limit=100"
 Page upstream được cache Redis 5 phút; dữ liệu vocabulary core được upsert vào
 MySQL theo `external_id`. API `/api/v1/vocabulary` chỉ đọc dữ liệu local.
 
+Category/course/unit/lesson (outline) dùng chung `LEXILINGO_*` ở trên, không
+cần biến mới:
+
+```bash
+fly ssh console -C "php artisan lexilingo:import categories --limit=50"
+fly ssh console -C "php artisan lexilingo:import courses --limit=50"
+fly ssh console -C "php artisan lexilingo:import all --dry-run"
+```
+
+`--dry-run` chỉ validate và không ghi DB (bao gồm không tạo/nâng checkpoint).
+`--reset` bỏ qua checkpoint đã lưu và chạy lại từ offset 0. Import idempotent
+theo `external_id`, an toàn khi chạy lại cùng payload. Hai bảng vận hành:
+
+- `lexilingo_import_checkpoints`: vị trí (`cursor`) đã đồng bộ theo từng
+  entity (`categories`/`courses`/`vocabulary`), dùng để resume.
+- `lexilingo_import_failures`: payload gốc + lỗi validate của các bản ghi bị
+  từ chối (không làm fail cả trang) — kiểm tra bảng này khi nghi ngờ dữ liệu
+  import thiếu.
+
+Nội dung đầy đủ của từng lesson (`description`/`prerequisites`/
+`estimated_minutes`/`pass_threshold` qua `/api/v1/learning/lessons/{id}/content`)
+chưa được đồng bộ — chỉ mới có outline (tiêu đề, thứ tự, loại, XP) từ course
+detail. Đây là việc tiếp theo, chưa triển khai.
+
 ### Khuyến nghị
 
 ```dotenv
