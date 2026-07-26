@@ -43,6 +43,9 @@ body {
   font-weight: 500;
 }
 
+.auth-photo { transform: translate(var(--auth-x, 0), var(--auth-y, 0)) scale(1.04); transition: transform 180ms ease-out; }
+@media (prefers-reduced-motion: reduce) { .auth-photo { transform: scale(1.04); transition: none; } }
+
 .app-background-layer {
   --app-background-image: radial-gradient(circle at 12% 0%, rgba(28, 176, 246, 0.12), transparent 28rem);
   --app-background-overlay: transparent;
