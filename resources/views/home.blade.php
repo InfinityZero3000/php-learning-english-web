@@ -10,7 +10,7 @@
     <div style="position:relative; z-index:1;">
         <div style="font-size:2rem; margin-bottom:8px;">👋</div>
         <h2 style="font-weight:800; font-size:1.6rem; margin-bottom:6px;">
-            Chào mừng đến với LexiLingo!
+            Chào mừng đến với English Learning!
         </h2>
         <p style="opacity:.85; margin-bottom:20px; font-size:.95rem; max-width:500px;">
             Nền tảng học tiếng Anh hiện đại — Bài học, Quiz và từ vựng trong một nơi.
@@ -156,4 +156,3 @@
     </div>
 </div>
 @endsection
-
