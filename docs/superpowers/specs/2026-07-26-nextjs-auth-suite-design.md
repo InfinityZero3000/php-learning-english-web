@@ -20,8 +20,11 @@ On small screens the photograph becomes a short hero above the form. Forms remai
 - `/verify-email`: shows the email-verification instruction and supports resend through the existing `POST /api/v1/auth/email/resend` endpoint.
 - `/forgot-password`: email submission and a privacy-preserving success message.
 - `/reset-password`: reads `token` and `email` from the query string, validates password confirmation, submits the reset, then links or redirects to login.
+- `/auth/callback`: a transient OAuth completion screen that calls `refreshUser()`, which verifies the new Laravel session and writes the frontend session hint, before replacing the route with the validated destination. Failure returns to `/login?oauth_error=session_failed`.
 
 All routes share a new, small `AuthLayout` built from the project's existing generic `Button`, `Input`, and `Card` components. Form pages remain separate components rather than introducing a form framework or schema dependency. The implementation does not add a UI or animation dependency.
+
+The route policy exposes `isAuthPath()` for `/login`, `/register`, `/verify-email`, `/forgot-password`, `/reset-password`, and `/auth/callback`. `AppShell` renders every auth path outside the learner navigation chrome but inside the stacking context required to remain above the persistent background.
 
 ## API and session flow
 
@@ -50,12 +53,12 @@ The `next` parameter defaults to `/`, accepts only internal paths beginning with
 2. creates or loads the learner account,
 3. regenerates the Laravel session,
 4. permits login only when a new account can be created as `learner` or an existing account already has the learner role; an email owned by an admin or any non-learner role fails without linking or logging in,
-5. redirects to the configured `FRONTEND_URL` with the consumed safe destination,
+5. redirects to `{FRONTEND_URL}/auth/callback?next=<encoded-safe-destination>` so Next.js bootstraps its auth state before navigation,
 6. redirects to `/login?oauth_error=<code>` on a handled provider error without exposing provider messages or credentials.
 
 The Next.js buttons navigate to the backend through same-origin `/api/v1/auth/oauth/{provider}` paths. Only `google` and `facebook` are accepted. Provider credentials and exact callback URLs remain Fly secrets.
 
-Stable error codes are `cancelled`, `invalid_state`, `email_missing`, `role_conflict`, and `provider_failed`. Next.js maps these codes to user-facing text; raw provider errors are logged server-side without credentials and never returned in the URL.
+Stable error codes are `cancelled`, `invalid_state`, `email_missing`, `role_conflict`, `provider_failed`, and `session_failed`. Next.js maps these codes to user-facing text; raw provider errors are logged server-side without credentials and never returned in the URL.
 
 ## Password-reset email
 
@@ -102,3 +105,5 @@ The old learner-facing web POST authentication endpoints (`/login`, `/register`,
 - Existing frontend lint/test/build and backend PHP matrix remain green.
 - Production verification checks desktop and mobile screenshots, reduced-motion behavior, keyboard navigation, login API proxy health, and that Fly learner UI routes redirect to Next.js.
 - Registration verification covers the `/verify-email` state and resend action.
+- OAuth verification covers session bootstrapping before destination navigation.
+- Shell tests verify that every auth route renders without learner navigation and remains above the persistent background.
