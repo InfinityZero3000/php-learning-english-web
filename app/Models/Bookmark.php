@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Bookmark extends Model
 {
-    protected $fillable = ['user_id', 'vocabulary_id'];
+    protected $fillable = ['user_id', 'vocabulary_id', 'lesson_id', 'bookmark_type'];
 
     public function user(): BelongsTo
     {
@@ -17,5 +17,10 @@ class Bookmark extends Model
     public function vocabulary(): BelongsTo
     {
         return $this->belongsTo(Vocabulary::class);
+    }
+
+    public function lesson(): BelongsTo
+    {
+        return $this->belongsTo(Lesson::class);
     }
 }
