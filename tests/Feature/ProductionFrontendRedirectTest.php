@@ -18,7 +18,10 @@ class ProductionFrontendRedirectTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        config(['app.frontend_url' => 'https://frontend.example']);
+        config([
+            'app.frontend_url' => 'https://frontend.example',
+            'app.admin_frontend_url' => 'https://admin.example',
+        ]);
         $this->app->detectEnvironment(fn () => 'production');
     }
 
@@ -35,13 +38,16 @@ class ProductionFrontendRedirectTest extends TestCase
         $user = User::factory()->create();
         $this->actingAs($user)->get('/profile')->assertRedirect('https://frontend.example/profile');
         $this->actingAs($user)->get('/progress')->assertRedirect('https://frontend.example/progress');
-        $this->actingAs($user)->get('/words')->assertRedirect('https://frontend.example/words');
+        $this->actingAs($user)->get('/words')->assertRedirect('https://frontend.example/vocabulary');
+        $this->actingAs($user)->get('/words/999')->assertRedirect('https://frontend.example/vocabulary');
     }
 
     public function test_api_and_admin_boundaries_remain_on_laravel(): void
     {
         $this->get('/api/v1/health')->assertOk();
-        $this->get('/admin')->assertRedirect('/login');
+        $this->get('/admin')->assertRedirect('https://admin.example/login');
+        $this->get('/admin/users')->assertRedirect('https://admin.example/login');
+        $this->get('/profile')->assertRedirect('https://frontend.example/login');
 
         $user = User::factory()->unverified()->create();
         $url = URL::temporarySignedRoute('api.verification.verify', now()->addMinute(), [

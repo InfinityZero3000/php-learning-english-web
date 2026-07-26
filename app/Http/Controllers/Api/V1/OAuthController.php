@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Role;
 use App\Models\User;
 use App\Support\SafeFrontendPath;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -51,12 +52,22 @@ class OAuthController extends Controller
                 if (! $roleId) {
                     throw new \RuntimeException('Learner role is not configured');
                 }
-                $user = User::create([
-                    'role_id' => $roleId,
-                    'name' => $socialUser->getName() ?: $email,
-                    'email' => $email,
-                    'password' => Str::password(32),
-                ]);
+                try {
+                    $user = User::create([
+                        'role_id' => $roleId,
+                        'name' => $socialUser->getName() ?: $email,
+                        'email' => $email,
+                        'password' => Str::password(32),
+                    ]);
+                } catch (QueryException $exception) {
+                    $user = User::query()->where('email', $email)->first();
+                    if (! $user) {
+                        throw $exception;
+                    }
+                }
+                if ($user->role?->slug !== 'learner') {
+                    return $this->failure('role_conflict');
+                }
             }
             if (! $user->hasVerifiedEmail()) {
                 $user->markEmailAsVerified();

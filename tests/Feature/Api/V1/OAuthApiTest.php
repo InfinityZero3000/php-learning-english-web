@@ -6,6 +6,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Support\SafeFrontendPath;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Log;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\InvalidStateException;
 use Laravel\Socialite\Two\User as SocialUser;
@@ -44,9 +45,10 @@ class OAuthApiTest extends TestCase
     {
         $learner = Role::create(['name' => 'Learner', 'slug' => 'learner']);
         $this->mockSocialUser('google', 'new@example.com', 'New Learner');
+        $this->withSession(['auth.oauth_next' => '/profile?tab=words']);
+        $oldSessionId = session()->getId();
 
-        $response = $this->withSession(['auth.oauth_next' => '/profile?tab=words'])
-            ->get('/api/v1/auth/oauth/google/callback');
+        $response = $this->get('/api/v1/auth/oauth/google/callback');
 
         $user = User::where('email', 'new@example.com')->firstOrFail();
         $response->assertRedirect('http://localhost:3000/auth/callback?next=%2Fprofile%3Ftab%3Dwords')
@@ -54,6 +56,7 @@ class OAuthApiTest extends TestCase
         $this->assertSame($learner->id, $user->role_id);
         $this->assertNotNull($user->email_verified_at);
         $this->assertAuthenticatedAs($user);
+        $this->assertNotSame($oldSessionId, session()->getId());
     }
 
     public function test_callback_logs_in_existing_learner(): void
@@ -93,6 +96,25 @@ class OAuthApiTest extends TestCase
             ->assertRedirect('http://localhost:3000/login?oauth_error=invalid_state')
             ->assertSessionMissing('auth.oauth_next');
         $this->assertGuest();
+    }
+
+    public function test_callback_logs_only_safe_context_for_generic_provider_failure(): void
+    {
+        $provider = Mockery::mock();
+        $provider->shouldReceive('user')->once()->andThrow(new \RuntimeException('secret provider payload'));
+        Socialite::shouldReceive('driver')->with('facebook')->once()->andReturn($provider);
+        Log::shouldReceive('warning')->once()->with('OAuth callback failed', [
+            'provider' => 'facebook',
+            'exception' => \RuntimeException::class,
+        ]);
+
+        $this->withSession(['auth.oauth_next' => '/profile'])
+            ->get('/api/v1/auth/oauth/facebook/callback')
+            ->assertRedirect('http://localhost:3000/login?oauth_error=provider_failed')
+            ->assertSessionMissing('auth.oauth_next');
+
+        $this->assertGuest();
+        $this->assertDatabaseCount('users', 0);
     }
 
     public function test_callback_maps_cancellation_and_missing_email(): void
