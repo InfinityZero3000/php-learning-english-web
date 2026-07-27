@@ -112,6 +112,30 @@ return new class extends Migration
     {
         $isSqlite = DB::connection()->getDriverName() === 'sqlite';
 
+        if ($isSqlite) {
+            DB::statement('CREATE TABLE `bookmarks_old` (
+                `id` integer primary key autoincrement,
+                `user_id` integer not null,
+                `vocabulary_id` integer not null,
+                `created_at` datetime null,
+                `updated_at` datetime null,
+                foreign key(`user_id`) references `users`(`id`) on delete cascade,
+                foreign key(`vocabulary_id`) references `vocabularies`(`id`) on delete cascade
+            )');
+            DB::statement('INSERT INTO `bookmarks_old` (`id`, `user_id`, `vocabulary_id`, `created_at`, `updated_at`)
+                SELECT `id`, `user_id`, `vocabulary_id`, `created_at`, `updated_at`
+                FROM `bookmarks`
+                WHERE `vocabulary_id` IS NOT NULL');
+            DB::statement('DROP TABLE `bookmarks`');
+            DB::statement('ALTER TABLE `bookmarks_old` RENAME TO `bookmarks`');
+            DB::statement('CREATE UNIQUE INDEX `bookmarks_user_id_vocabulary_id_unique` ON `bookmarks` (`user_id`, `vocabulary_id`)');
+
+            return;
+        }
+
+        // The legacy schema cannot represent lesson-only bookmarks.
+        DB::table('bookmarks')->whereNull('vocabulary_id')->delete();
+
         if (! $isSqlite) {
             // Drop ALL FK constraints on vocabulary_id column
             // (MySQL may have auto-generated names, so we query info schema)
