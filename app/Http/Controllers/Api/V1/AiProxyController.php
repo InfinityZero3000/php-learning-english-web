@@ -36,7 +36,7 @@ class AiProxyController extends Controller
         ]);
 
         return $this->callUpstream('translate', function () use ($validated) {
-            $response = $this->retryable()->get('/api/v1/ai/translate', $validated);
+            $response = $this->retryable()->post('/api/v1/ai/translate', $validated);
 
             return ApiResponse::success($response->json());
         });
@@ -52,7 +52,12 @@ class AiProxyController extends Controller
 
         return $this->callUpstream('pronunciation', function () use ($request) {
             $response = $this->retryable()
-                ->attach('audio', $request->file('audio')->get(), 'audio')
+                ->attach(
+                    'audio',
+                    $request->file('audio')->get(),
+                    $request->file('audio')->getClientOriginalName(),
+                    ['Content-Type' => $request->file('audio')->getMimeType()],
+                )
                 ->post('/api/v1/stt/assess-pronunciation', [
                     'reference_text' => $request->string('reference_text')->toString(),
                     'language' => $request->input('language'),
@@ -71,7 +76,12 @@ class AiProxyController extends Controller
 
         return $this->callUpstream('speech_to_text', function () use ($request) {
             $response = $this->retryable()
-                ->attach('audio', $request->file('audio')->get(), 'audio')
+                ->attach(
+                    'audio',
+                    $request->file('audio')->get(),
+                    $request->file('audio')->getClientOriginalName(),
+                    ['Content-Type' => $request->file('audio')->getMimeType()],
+                )
                 ->post('/api/v1/stt/transcribe', [
                     'language' => $request->input('language'),
                 ]);
@@ -132,6 +142,13 @@ class AiProxyController extends Controller
 
             if ($exception->response->serverError()) {
                 return ApiResponse::error('UPSTREAM_ERROR', 'AI service failed to process the request.', 502);
+            }
+
+            if ($exception->response->status() === 429) {
+                return ApiResponse::error('UPSTREAM_RATE_LIMITED', 'AI service rate limit reached.', 429)
+                    ->withHeaders(array_filter([
+                        'Retry-After' => $exception->response->header('Retry-After'),
+                    ]));
             }
 
             return ApiResponse::error('UPSTREAM_REJECTED', 'AI service rejected the request.', 422);

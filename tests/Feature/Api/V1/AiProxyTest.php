@@ -52,7 +52,10 @@ class AiProxyTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.translated_text', 'Xin chào');
 
-        Http::assertSent(fn ($request) => $request->hasHeader('X-AI-Service-Secret', 'ai-secret'));
+        Http::assertSent(fn ($request) => $request->method() === 'POST'
+            && $request->url() === 'https://ai.lexilingo.test/api/v1/ai/translate'
+            && $request->data()['text'] === 'Hello'
+            && $request->hasHeader('X-AI-Service-Secret', 'ai-secret'));
     }
 
     public function test_translate_validates_required_fields(): void
@@ -104,6 +107,19 @@ class AiProxyTest extends TestCase
             ->assertStatus(502)
             ->assertJsonPath('code', 'UPSTREAM_ERROR')
             ->assertJsonMissing(['detail' => 'stack trace leaked here']);
+    }
+
+    public function test_translate_preserves_upstream_rate_limit(): void
+    {
+        Http::fake([
+            'ai.lexilingo.test/*' => Http::response([], 429, ['Retry-After' => '30']),
+        ]);
+
+        $this->actingAs($this->learner())
+            ->postJson('/api/v1/ai/translate', ['text' => 'Hello', 'target_lang' => 'vi'])
+            ->assertStatus(429)
+            ->assertHeader('Retry-After', '30')
+            ->assertJsonPath('code', 'UPSTREAM_RATE_LIMITED');
     }
 
     public function test_translate_retries_transient_failure_then_succeeds(): void
@@ -174,6 +190,11 @@ class AiProxyTest extends TestCase
             ])
             ->assertOk()
             ->assertJsonPath('data.text', 'hello world');
+
+        Http::assertSent(fn ($request) => $request->method() === 'POST'
+            && $request->url() === 'https://ai.lexilingo.test/api/v1/stt/transcribe'
+            && $request->hasFile('audio', filename: 'word.wav')
+            && str_contains($request->body(), 'Content-Type: audio/wav'));
     }
 
     public function test_text_to_speech_returns_binary_audio_with_content_type(): void
