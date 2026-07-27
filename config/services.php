@@ -47,11 +47,19 @@ return [
     'lexilingo' => [
         'backend_url' => env('LEXILINGO_BACKEND_URL'),
         'ai_url' => env('LEXILINGO_AI_URL'),
+        'partner_api_key' => env('LEXILINGO_PARTNER_API_KEY'),
         'import_key' => env('LEXILINGO_IMPORT_KEY'),
         'ai_service_secret' => env('LEXILINGO_AI_SERVICE_SECRET'),
         'timeout' => (int) env('LEXILINGO_TIMEOUT', 30),
         'ai_retry_times' => (int) env('LEXILINGO_AI_RETRY_TIMES', 2),
         'ai_retry_delay_ms' => (int) env('LEXILINGO_AI_RETRY_DELAY_MS', 200),
         'max_audio_kb' => (int) env('LEXILINGO_AI_MAX_AUDIO_KB', 10240),
+    ],
+    'enrichment' => [
+        'enabled' => filter_var(env('APP_ENRICHMENT_ENABLED', false), FILTER_VALIDATE_BOOL),
+        'wiktapi_url' => env('APP_API_WIKTAPI_BASE_URL'),
+        'libretranslate_url' => env('APP_API_LIBRETRANSLATE_BASE_URL'),
+        'pixabay_key' => env('APP_API_PIXABAY_KEY'),
+        'pexels_key' => env('APP_API_PEXELS_KEY'),
     ],
 ];

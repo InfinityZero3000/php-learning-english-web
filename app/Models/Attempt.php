@@ -11,7 +11,11 @@ class Attempt extends Model
 
     protected function casts(): array
     {
-        return ['started_at' => 'datetime', 'completed_at' => 'datetime'];
+        return [
+            'started_at' => 'datetime',
+            'completed_at' => 'datetime',
+            'score' => 'float',
+        ];
     }
 
     public function user(): BelongsTo

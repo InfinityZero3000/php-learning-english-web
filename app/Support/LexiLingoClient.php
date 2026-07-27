@@ -21,6 +21,14 @@ class LexiLingoClient
         );
     }
 
+    public function partnerBackend(): PendingRequest
+    {
+        return $this->backend()->withHeader(
+            'X-LexiLingo-API-Key',
+            $this->credential('partner_api_key'),
+        );
+    }
+
     public function ai(): PendingRequest
     {
         return $this->client('ai_url');
