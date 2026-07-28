@@ -18,7 +18,6 @@ class ReviewVocabularyRequest extends FormRequest
             'user_vocabulary_id' => ['required', 'integer', 'exists:user_vocabularies,id'],
             'rating' => ['required', 'string', 'in:again,hard,good,easy'],
             'base_revision' => ['required', 'integer', 'min:0'],
-            'reviewed_at' => ['required', 'date'],
         ];
     }
 

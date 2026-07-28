@@ -1413,6 +1413,21 @@ components:
         new_count: { type: integer, minimum: 0 }
         learning_count: { type: integer, minimum: 0 }
         review_count: { type: integer, minimum: 0 }
+        word: { type: string }
+        meaning: { type: string }
+        definition: { type: ["string", "null"] }
+        example: { type: ["string", "null"] }
+        pronunciation: { type: ["string", "null"] }
+        audio_url: { type: ["string", "null"] }
+        request_id: { type: string, format: uuid }
+        rating: { type: integer, minimum: 1, maximum: 4 }
+        step: { type: ["integer", "null"], minimum: 0 }
+        stability: { type: ["number", "null"], minimum: 0 }
+        difficulty: { type: ["number", "null"], minimum: 0 }
+        scheduled_days: { type: ["integer", "null"], minimum: 0 }
+        algorithm: { type: string }
+        average_stability: { type: number, minimum: 0 }
+        average_difficulty: { type: number, minimum: 0 }
         best_score: { type: ["integer", "null"], minimum: 0, maximum: 100 }
         severity: { type: string }
         rule_code: { type: string }
@@ -1489,12 +1504,11 @@ components:
       additionalProperties: false
     FsrsReviewRequest:
       type: object
-      required: [user_vocabulary_id, rating, base_revision, reviewed_at]
+      required: [user_vocabulary_id, rating, base_revision]
       properties:
         user_vocabulary_id: { type: integer, minimum: 1 }
         rating: { type: string, enum: [again, hard, good, easy] }
         base_revision: { type: integer, minimum: 0 }
-        reviewed_at: { type: string, format: date-time }
       additionalProperties: false
     TraceCagAssistanceRequest:
       type: object

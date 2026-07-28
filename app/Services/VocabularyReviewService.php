@@ -11,6 +11,7 @@ use App\Models\UserVocabulary;
 use App\Models\VocabularyReview;
 use Carbon\CarbonImmutable;
 use DateTimeImmutable;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -21,111 +22,123 @@ class VocabularyReviewService
 
     public function review(User $user, array $input): array
     {
-        return DB::transaction(function () use ($user, $input): array {
-            $existing = VocabularyReview::query()->where('request_id', $input['request_id'])->first();
-            if ($existing) {
-                if (! $this->sameRequest($existing, $user, $input)) {
-                    throw new ConflictHttpException('Request ID was already used with a different payload.');
+        try {
+            return DB::transaction(function () use ($user, $input): array {
+                $existing = VocabularyReview::query()->where('request_id', $input['request_id'])->first();
+                if ($existing) {
+                    if (! $this->sameRequest($existing, $user, $input)) {
+                        throw new ConflictHttpException('Request ID was already used with a different payload.');
+                    }
+
+                    return $this->reviewPayload($existing);
                 }
 
-                return $this->reviewPayload($existing);
-            }
-
-            $state = UserVocabulary::query()
-                ->whereKey($input['user_vocabulary_id'])
-                ->where('user_id', $user->id)
-                ->lockForUpdate()
-                ->first();
-            if (! $state) {
-                throw new HttpException(403, 'Vocabulary review is not available to this user.');
-            }
-
-            $existing = VocabularyReview::query()->where('request_id', $input['request_id'])->first();
-            if ($existing) {
-                if (! $this->sameRequest($existing, $user, $input)) {
-                    throw new ConflictHttpException('Request ID was already used with a different payload.');
+                $state = UserVocabulary::query()
+                    ->whereKey($input['user_vocabulary_id'])
+                    ->where('user_id', $user->id)
+                    ->lockForUpdate()
+                    ->first();
+                if (! $state) {
+                    throw new HttpException(403, 'Vocabulary review is not available to this user.');
                 }
 
-                return $this->reviewPayload($existing);
+                $existing = VocabularyReview::query()
+                    ->where('request_id', $input['request_id'])
+                    ->lockForUpdate()
+                    ->first();
+                if ($existing) {
+                    if (! $this->sameRequest($existing, $user, $input)) {
+                        throw new ConflictHttpException('Request ID was already used with a different payload.');
+                    }
+
+                    return $this->reviewPayload($existing);
+                }
+
+                if ((int) $state->revision !== (int) $input['base_revision']) {
+                    throw new ConflictHttpException('Review state changed; refresh before rating again.');
+                }
+
+                $reviewedAt = CarbonImmutable::now('UTC');
+                if ($state->due_at && $state->due_at->isAfter($reviewedAt)) {
+                    throw new ConflictHttpException('Vocabulary is not due; use unscheduled practice instead.');
+                }
+                $before = $this->stateSnapshot($state);
+                $card = new FsrsCard(
+                    state: $state->state,
+                    step: $state->step,
+                    stability: $state->stability,
+                    difficulty: $state->difficulty,
+                    due: new DateTimeImmutable(($state->due_at ?? $reviewedAt)->clone()->utc()->format('c')),
+                    lastReview: $state->last_reviewed_at
+                        ? new DateTimeImmutable($state->last_reviewed_at->clone()->utc()->format('c'))
+                        : null,
+                );
+                $result = $this->scheduler->review(
+                    $card,
+                    $this->ratingValue($input['rating']),
+                    new DateTimeImmutable($reviewedAt->format('c')),
+                );
+                $nextRevision = (int) $state->revision + 1;
+
+                $state->forceFill([
+                    'state' => $result->card->state,
+                    'step' => $result->card->step,
+                    'due_at' => $result->card->due,
+                    'stability' => $result->card->stability,
+                    'difficulty' => $result->card->difficulty,
+                    'scheduled_days' => $result->scheduledDays,
+                    'elapsed_days' => $result->elapsedDays,
+                    'repetitions' => (int) $state->repetitions + 1,
+                    'lapses' => (int) $state->lapses + ($input['rating'] === 'again' ? 1 : 0),
+                    'last_reviewed_at' => $reviewedAt,
+                    'algorithm' => 'fsrs-6',
+                    'algorithm_version' => FsrsConfig::VERSION,
+                    'revision' => $nextRevision,
+                ])->save();
+
+                $after = $this->stateSnapshot($state);
+                $review = VocabularyReview::create([
+                    'user_vocabulary_id' => $state->id,
+                    'request_id' => $input['request_id'],
+                    'rating' => $this->ratingValue($input['rating']),
+                    'response_time_ms' => null,
+                    'stability' => $state->stability,
+                    'difficulty' => $state->difficulty,
+                    'scheduled_days' => $state->scheduled_days,
+                    'elapsed_days' => $state->elapsed_days,
+                    'reviewed_at' => $reviewedAt,
+                    'algorithm' => 'fsrs-6',
+                    'algorithm_version' => FsrsConfig::VERSION,
+                    'base_revision' => $input['base_revision'],
+                    'resulting_revision' => $nextRevision,
+                    ...$this->prefixedSnapshot('before', $before),
+                    ...$this->prefixedSnapshot('after', $after),
+                ]);
+                $review->refresh();
+
+                LearningEvent::create([
+                    'learning_session_id' => null,
+                    'user_id' => $user->id,
+                    'vocabulary_review_id' => $review->id,
+                    'event_type' => 'vocabulary_review',
+                    'request_id' => $input['request_id'],
+                    'occurred_at' => $reviewedAt,
+                    'metadata' => ['rating' => $input['rating']],
+                ]);
+
+                return $this->reviewPayload($review);
+            }, 3);
+        } catch (QueryException $exception) {
+            $existing = VocabularyReview::query()->where('request_id', $input['request_id'])->first();
+            if (! $existing) {
+                throw $exception;
+            }
+            if (! $this->sameRequest($existing, $user, $input)) {
+                throw new ConflictHttpException('Request ID was already used with a different payload.');
             }
 
-            if ((int) $state->revision !== (int) $input['base_revision']) {
-                throw new ConflictHttpException('Review state changed; refresh before rating again.');
-            }
-
-            $reviewedAt = CarbonImmutable::parse($input['reviewed_at'])->utc();
-            if ($reviewedAt->isAfter(CarbonImmutable::now('UTC')->addMinute())) {
-                throw new ConflictHttpException('Review time cannot be in the future.');
-            }
-            if ($state->due_at && $state->due_at->isAfter($reviewedAt)) {
-                throw new ConflictHttpException('Vocabulary is not due; use unscheduled practice instead.');
-            }
-            $before = $this->stateSnapshot($state);
-            $card = new FsrsCard(
-                state: $state->state,
-                step: $state->step,
-                stability: $state->stability,
-                difficulty: $state->difficulty,
-                due: new DateTimeImmutable(($state->due_at ?? $reviewedAt)->clone()->utc()->format('c')),
-                lastReview: $state->last_reviewed_at
-                    ? new DateTimeImmutable($state->last_reviewed_at->clone()->utc()->format('c'))
-                    : null,
-            );
-            $result = $this->scheduler->review(
-                $card,
-                $this->ratingValue($input['rating']),
-                new DateTimeImmutable($reviewedAt->format('c')),
-            );
-            $nextRevision = (int) $state->revision + 1;
-
-            $state->forceFill([
-                'state' => $result->card->state,
-                'step' => $result->card->step,
-                'due_at' => $result->card->due,
-                'stability' => $result->card->stability,
-                'difficulty' => $result->card->difficulty,
-                'scheduled_days' => $result->scheduledDays,
-                'elapsed_days' => $result->elapsedDays,
-                'repetitions' => (int) $state->repetitions + 1,
-                'lapses' => (int) $state->lapses + ($input['rating'] === 'again' ? 1 : 0),
-                'last_reviewed_at' => $reviewedAt,
-                'algorithm' => 'fsrs-6',
-                'algorithm_version' => FsrsConfig::VERSION,
-                'revision' => $nextRevision,
-            ])->save();
-
-            $after = $this->stateSnapshot($state);
-            $review = VocabularyReview::create([
-                'user_vocabulary_id' => $state->id,
-                'request_id' => $input['request_id'],
-                'rating' => $this->ratingValue($input['rating']),
-                'response_time_ms' => null,
-                'stability' => $state->stability,
-                'difficulty' => $state->difficulty,
-                'scheduled_days' => $state->scheduled_days,
-                'elapsed_days' => $state->elapsed_days,
-                'reviewed_at' => $reviewedAt,
-                'algorithm' => 'fsrs-6',
-                'algorithm_version' => FsrsConfig::VERSION,
-                'base_revision' => $input['base_revision'],
-                'resulting_revision' => $nextRevision,
-                ...$this->prefixedSnapshot('before', $before),
-                ...$this->prefixedSnapshot('after', $after),
-            ]);
-            $review->refresh();
-
-            LearningEvent::create([
-                'learning_session_id' => null,
-                'user_id' => $user->id,
-                'vocabulary_review_id' => $review->id,
-                'event_type' => 'vocabulary_review',
-                'request_id' => $input['request_id'],
-                'occurred_at' => $reviewedAt,
-                'metadata' => ['rating' => $input['rating']],
-            ]);
-
-            return $this->reviewPayload($review);
-        }, 3);
+            return $this->reviewPayload($existing);
+        }
     }
 
     private function sameRequest(VocabularyReview $review, User $user, array $input): bool
@@ -133,8 +146,7 @@ class VocabularyReviewService
         return $review->userVocabulary()->where('user_id', $user->id)->exists()
             && (int) $review->user_vocabulary_id === (int) $input['user_vocabulary_id']
             && (int) $review->rating === $this->ratingValue($input['rating'])
-            && (int) $review->base_revision === (int) $input['base_revision']
-            && $review->reviewed_at->clone()->utc()->equalTo(CarbonImmutable::parse($input['reviewed_at'])->utc());
+            && (int) $review->base_revision === (int) $input['base_revision'];
     }
 
     private function stateSnapshot(UserVocabulary $state): array
@@ -160,6 +172,8 @@ class VocabularyReviewService
     private function reviewPayload(VocabularyReview $review): array
     {
         return [
+            'type' => 'fsrs_card',
+            'id' => $review->user_vocabulary_id,
             'request_id' => $review->request_id,
             'vocabulary_id' => $review->userVocabulary->vocabulary_id,
             'rating' => $review->rating,

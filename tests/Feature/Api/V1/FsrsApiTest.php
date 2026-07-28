@@ -21,12 +21,10 @@ class FsrsApiTest extends TestCase
     {
         [$user, , , $state] = $this->context();
         $requestId = (string) Str::uuid();
-        $reviewedAt = now('UTC')->startOfSecond()->toISOString();
         $payload = [
             'user_vocabulary_id' => $state->id,
             'rating' => 'good',
             'base_revision' => 0,
-            'reviewed_at' => $reviewedAt,
         ];
 
         $first = $this->actingAs($user)
@@ -58,7 +56,6 @@ class FsrsApiTest extends TestCase
             'user_vocabulary_id' => $state->id,
             'rating' => 'good',
             'base_revision' => 0,
-            'reviewed_at' => now('UTC')->startOfSecond()->toISOString(),
         ];
         $this->actingAs($user)->withHeader('X-Request-ID', $requestId)
             ->postJson('/api/v1/fsrs/review', $payload)->assertOk();
@@ -77,12 +74,15 @@ class FsrsApiTest extends TestCase
 
         $this->actingAs($user)->getJson('/api/v1/fsrs/due')
             ->assertOk()
-            ->assertJsonCount(1, 'data');
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.type', 'fsrs_card')
+            ->assertJsonPath('meta.total', 1);
         $this->actingAs($user)->getJson('/api/v1/fsrs/stats')
             ->assertOk()
-            ->assertJsonPath('data.total', 1);
+            ->assertJsonPath('data.type', 'fsrs_stats')
+            ->assertJsonPath('data.due_count', 1);
         $this->actingAs($other)->getJson('/api/v1/fsrs/stats')
-            ->assertJsonPath('data.total', 1);
+            ->assertJsonPath('data.due_count', 1);
         auth()->logout();
         $this->getJson('/api/v1/fsrs/due')->assertUnauthorized();
     }
@@ -95,11 +95,10 @@ class FsrsApiTest extends TestCase
         $this->actingAs($attacker)
             ->withHeader('X-Request-ID', (string) Str::uuid())
             ->postJson('/api/v1/fsrs/review', [
-            'user_vocabulary_id' => $state->id,
-            'rating' => 'good',
-            'base_revision' => 0,
-            'reviewed_at' => now('UTC')->startOfSecond()->toISOString(),
-        ])->assertForbidden();
+                'user_vocabulary_id' => $state->id,
+                'rating' => 'good',
+                'base_revision' => 0,
+            ])->assertForbidden();
         $this->assertDatabaseCount('vocabulary_reviews', 0);
         $this->assertNotNull($owner);
     }
@@ -115,7 +114,6 @@ class FsrsApiTest extends TestCase
                 'user_vocabulary_id' => $state->id,
                 'rating' => 'good',
                 'base_revision' => 0,
-                'reviewed_at' => now('UTC')->startOfSecond()->toISOString(),
             ])->assertConflict();
 
         $this->assertDatabaseHas('user_vocabularies', ['id' => $state->id, 'revision' => 0]);
@@ -133,7 +131,6 @@ class FsrsApiTest extends TestCase
                 'user_vocabulary_id' => $state->id,
                 'rating' => 'good',
                 'base_revision' => 0,
-                'reviewed_at' => now('UTC')->startOfSecond()->toISOString(),
             ])->assertServerError();
 
         $this->assertDatabaseHas('user_vocabularies', ['id' => $state->id, 'revision' => 0]);

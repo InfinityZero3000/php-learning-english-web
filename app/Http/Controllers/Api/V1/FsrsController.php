@@ -14,17 +14,18 @@ class FsrsController extends Controller
 {
     public function due(Request $request): JsonResponse
     {
-        $limit = min(100, max(1, $request->integer('limit', 20)));
-        $items = UserVocabulary::query()
+        $perPage = min(100, max(1, $request->integer('per_page', 20)));
+        $page = UserVocabulary::query()
             ->with('vocabulary')
             ->where('user_id', $request->user()->id)
             ->where(fn ($query) => $query->whereNull('due_at')->orWhere('due_at', '<=', now('UTC')))
             ->orderBy('due_at')
-            ->limit($limit)
-            ->get()
-            ->map(fn (UserVocabulary $state): array => $this->statePayload($state));
+            ->paginate($perPage);
 
-        return ApiResponse::success($items);
+        return ApiResponse::success(
+            collect($page->items())->map(fn (UserVocabulary $state): array => $this->statePayload($state)),
+            meta: ['page' => $page->currentPage(), 'per_page' => $page->perPage(), 'total' => $page->total()],
+        );
     }
 
     public function stats(Request $request): JsonResponse
@@ -32,8 +33,11 @@ class FsrsController extends Controller
         $query = UserVocabulary::query()->where('user_id', $request->user()->id);
 
         return ApiResponse::success([
-            'total' => (clone $query)->count(),
-            'due_now' => (clone $query)->where(fn ($q) => $q->whereNull('due_at')->orWhere('due_at', '<=', now('UTC')))->count(),
+            'type' => 'fsrs_stats',
+            'due_count' => (clone $query)->where(fn ($q) => $q->whereNull('due_at')->orWhere('due_at', '<=', now('UTC')))->count(),
+            'new_count' => (clone $query)->where('state', 'learning')->whereNull('last_reviewed_at')->count(),
+            'learning_count' => (clone $query)->whereIn('state', ['learning', 'relearning'])->count(),
+            'review_count' => (clone $query)->where('state', 'review')->count(),
             'average_stability' => round((float) ((clone $query)->avg('stability') ?? 0), 2),
             'average_difficulty' => round((float) ((clone $query)->avg('difficulty') ?? 0), 2),
         ]);
@@ -47,15 +51,15 @@ class FsrsController extends Controller
     private function statePayload(UserVocabulary $state): array
     {
         return [
-            'vocabulary' => [
-                'id' => $state->vocabulary->id,
-                'word' => $state->vocabulary->word,
-                'meaning' => $state->vocabulary->meaning,
-                'definition' => $state->vocabulary->definition,
-                'example' => $state->vocabulary->example,
-                'pronunciation' => $state->vocabulary->pronunciation,
-                'audio_url' => $state->vocabulary->external_audio_url,
-            ],
+            'type' => 'fsrs_card',
+            'id' => $state->id,
+            'vocabulary_id' => $state->vocabulary->id,
+            'word' => $state->vocabulary->word,
+            'meaning' => $state->vocabulary->meaning,
+            'definition' => $state->vocabulary->definition,
+            'example' => $state->vocabulary->example,
+            'pronunciation' => $state->vocabulary->pronunciation,
+            'audio_url' => $state->vocabulary->external_audio_url,
             'state' => $state->state,
             'step' => $state->step,
             'due_at' => $state->due_at?->toISOString(),
