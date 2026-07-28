@@ -69,18 +69,18 @@ export const operations = {
   contracts: () => request<{ data: ContractStatus }>('/api/v1/admin/operations/contracts').then(({ data }) => data),
   usage: () => request<{ data: OperationsUsage }>('/api/v1/admin/operations/usage').then(({ data }) => data),
   quota: () => request<{ data: QuotaPolicy }>('/api/v1/admin/operations/quota-policy').then(({ data }) => data),
-  updateQuota: (limits: Record<string, number>, password: string) =>
+  updateQuota: (limits: Record<string, number>) =>
     request<{ data: QuotaPolicy }>('/api/v1/admin/operations/quota-policy', {
       method: 'PUT',
       headers: { 'X-Request-ID': crypto.randomUUID() },
-      body: JSON.stringify({ limits, password }),
+      body: JSON.stringify({ limits }),
     }).then(({ data }) => data),
   rules: () => request<{ data: AlertRule[] }>('/api/v1/admin/operations/alert-rules').then(({ data }) => data),
-  updateRule: (id: number, enabled: boolean, parameters: Record<string, unknown>, password: string) =>
+  updateRule: (id: number, enabled: boolean, parameters: Record<string, unknown>) =>
     request<{ data: AlertRule }>(`/api/v1/admin/operations/alert-rules/${id}`, {
       method: 'PUT',
       headers: { 'X-Request-ID': crypto.randomUUID() },
-      body: JSON.stringify({ enabled, parameters, password }),
+      body: JSON.stringify({ enabled, parameters }),
     }).then(({ data }) => data),
   audits: () => request<{ data: AuditEvent[] }>('/api/v1/admin/operations/audit-events').then(({ data }) => data),
 };
@@ -243,21 +243,21 @@ export const adminUsers = {
     return request<{ data: AdminUser[]; meta: PageMeta }>(`/api/v1/admin/users?${q}`);
   },
   get: (id: number) => request<{ data: AdminUser }>(`/api/v1/admin/users/${id}`).then(({ data }) => data),
-  assignRole: (id: number, role: string, password: string) =>
+  assignRole: (id: number, role: string) =>
     request<{ data: AdminUser }>(`/api/v1/admin/users/${id}/role`, {
-      method: 'PUT', headers: { 'X-Request-ID': crypto.randomUUID() }, body: JSON.stringify({ role, password })
+      method: 'PUT', headers: { 'X-Request-ID': crypto.randomUUID() }, body: JSON.stringify({ role })
     }).then(({ data }) => data),
 };
 
 export const roleManagement = {
   roles: () => request<{ data: AdminRole[] }>('/api/v1/admin/roles').then(({ data }) => data),
   scopes: () => request<{ data: TeacherScope[] }>('/api/v1/admin/operations/teacher-assignments').then(({ data }) => data),
-  assign: (teacherId: number, learnerId: number, password: string) =>
+  assign: (teacherId: number, learnerId: number) =>
     request<{ data: TeacherScope }>('/api/v1/admin/operations/teacher-assignments', {
-      method: 'POST', headers: { 'X-Request-ID': crypto.randomUUID() }, body: JSON.stringify({ teacher_id: teacherId, learner_id: learnerId, password })
+      method: 'POST', headers: { 'X-Request-ID': crypto.randomUUID() }, body: JSON.stringify({ teacher_id: teacherId, learner_id: learnerId })
     }).then(({ data }) => data),
-  remove: (id: number, password: string) => request<void>(`/api/v1/admin/operations/teacher-assignments/${id}`, {
-    method: 'DELETE', headers: { 'X-Request-ID': crypto.randomUUID() }, body: JSON.stringify({ password })
+  remove: (id: number) => request<void>(`/api/v1/admin/operations/teacher-assignments/${id}`, {
+    method: 'DELETE', headers: { 'X-Request-ID': crypto.randomUUID() }
   }),
 };
 

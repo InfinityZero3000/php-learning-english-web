@@ -23,7 +23,6 @@ export default function OperationsPage() {
   const [rules, setRules] = useState<AlertRule[]>([]);
   const [audits, setAudits] = useState<AuditEvent[]>([]);
   const [probes, setProbes] = useState<Record<string, ServiceProbe>>({});
-  const [password, setPassword] = useState('');
   const [quotaJson, setQuotaJson] = useState('{"trace_cag_daily":100,"speech_daily":50}');
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState('');
@@ -64,8 +63,7 @@ export default function OperationsPage() {
     try {
       const limits = JSON.parse(quotaJson) as Record<string, number>;
       if (Object.values(limits).some((value) => !Number.isInteger(value) || value < 0)) throw new Error('Mỗi quota phải là số nguyên không âm.');
-      setQuota(await operations.updateQuota(limits, password));
-      setPassword('');
+      setQuota(await operations.updateQuota(limits));
       setMessage('Đã kích hoạt quota policy mới.');
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'Không thể cập nhật quota.');
@@ -73,14 +71,9 @@ export default function OperationsPage() {
   }
 
   async function toggleRule(rule: AlertRule) {
-    if (!password) {
-      setMessage('Nhập mật khẩu hiện tại trước khi thay đổi alert rule.');
-      return;
-    }
     try {
-      const updated = await operations.updateRule(rule.id, !rule.enabled, rule.parameters ?? {}, password);
+      const updated = await operations.updateRule(rule.id, !rule.enabled, rule.parameters ?? {});
       setRules((current) => [updated, ...current.filter((item) => item.rule_key !== updated.rule_key)]);
-      setPassword('');
       setMessage(`Đã tạo phiên bản ${updated.version} cho ${updated.rule_key}.`);
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'Không thể cập nhật alert rule.');
@@ -125,8 +118,7 @@ export default function OperationsPage() {
               <form onSubmit={saveQuota} className="space-y-4">
                 <label className="block font-bold" htmlFor="quota-json">Limits JSON</label>
                 <textarea id="quota-json" name="limits" value={quotaJson} onChange={(event) => setQuotaJson(event.target.value)} rows={7} spellCheck={false} className="w-full rounded-xl border-2 border-[#bdc8d2] p-3 font-mono text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#006590]" />
-                <label className="block font-bold" htmlFor="operations-password">Mật khẩu hiện tại</label>
-                <input id="operations-password" name="password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required className="w-full rounded-xl border-2 border-[#bdc8d2] p-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#006590]" />
+                <a href="/auth/admin/google/reauthenticate?return=/operations" className="block rounded-xl border-2 border-[#88ceff] px-5 py-3 text-center font-bold text-[#006590]">Verify with Google</a>
                 <button className="rounded-xl bg-[#006590] px-5 py-3 font-bold text-white hover:bg-[#004c6e] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">Kích hoạt policy mới</button>
               </form>
             </Panel>

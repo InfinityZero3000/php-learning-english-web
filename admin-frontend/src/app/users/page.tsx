@@ -16,7 +16,6 @@ export default function UsersPage() {
   const [message, setMessage] = useState('');
   const [editing, setEditing] = useState<AdminUser>();
   const [nextRole, setNextRole] = useState<AdminUser['role']>('learner');
-  const [password, setPassword] = useState('');
   const [canChangeRoles, setCanChangeRoles] = useState(false);
 
   const load = useCallback(async () => {
@@ -45,10 +44,9 @@ export default function UsersPage() {
     if (!editing) return;
     setMessage('');
     try {
-      const updated = await adminUsers.assignRole(editing.id, nextRole, password);
+      const updated = await adminUsers.assignRole(editing.id, nextRole);
       setUsers((items) => items.map((item) => item.id === updated.id ? updated : item));
       setEditing(undefined);
-      setPassword('');
       setMessage('Role updated.');
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'Could not update role.');
@@ -65,6 +63,6 @@ export default function UsersPage() {
         {meta && meta.last_page > 1 && <div className="mt-5 flex items-center justify-end gap-3"><button disabled={page <= 1} onClick={() => setPage((value) => value - 1)} className="rounded-xl px-4 py-2 font-bold disabled:opacity-40" style={{ border: '2px solid #bdc8d2' }}>Previous</button><span className="font-bold">{page}/{meta.last_page}</span><button disabled={page >= meta.last_page} onClick={() => setPage((value) => value + 1)} className="rounded-xl px-4 py-2 font-bold disabled:opacity-40" style={{ border: '2px solid #bdc8d2' }}>Next</button></div>}
       </section>
     </div>
-    {editing && <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"><form onSubmit={saveRole} className="w-full max-w-md rounded-3xl bg-white p-7 shadow-xl"><h3 className="text-2xl font-black">Change {editing.name}&apos;s role</h3><p className="mt-2 text-sm" style={{ color: '#3e4850' }}>Privileged role changes require your recent password.</p><label className="mt-5 block font-bold">Role<select value={nextRole} onChange={(event) => setNextRole(event.target.value as AdminUser['role'])} className="mt-2 w-full rounded-xl px-4 py-3" style={{ border: '2px solid #bdc8d2' }}>{roles.map((item) => <option key={item} value={item}>{item.replace('_', ' ')}</option>)}</select></label><label className="mt-4 block font-bold">Your password<input type="password" required value={password} onChange={(event) => setPassword(event.target.value)} className="mt-2 w-full rounded-xl px-4 py-3" style={{ border: '2px solid #bdc8d2' }} /></label><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => { setEditing(undefined); setPassword(''); }} className="rounded-xl px-5 py-3 font-bold">Cancel</button><button className="rounded-xl px-5 py-3 font-bold text-white" style={{ background: '#006590' }}>Save role</button></div></form></div>}
+    {editing && <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"><form onSubmit={saveRole} className="w-full max-w-md rounded-3xl bg-white p-7 shadow-xl"><h3 className="text-2xl font-black">Change {editing.name}&apos;s role</h3><p className="mt-2 text-sm" style={{ color: '#3e4850' }}>Privileged changes require a Google verification within 15 minutes.</p><label className="mt-5 block font-bold">Role<select value={nextRole} onChange={(event) => setNextRole(event.target.value as AdminUser['role'])} className="mt-2 w-full rounded-xl px-4 py-3" style={{ border: '2px solid #bdc8d2' }}>{roles.map((item) => <option key={item} value={item}>{item.replace('_', ' ')}</option>)}</select></label><a href="/auth/admin/google/reauthenticate?return=/users" className="mt-5 block rounded-xl border-2 border-[#88ceff] px-5 py-3 text-center font-bold text-[#006590]">Verify with Google</a><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setEditing(undefined)} className="rounded-xl px-5 py-3 font-bold">Cancel</button><button className="rounded-xl px-5 py-3 font-bold text-white" style={{ background: '#006590' }}>Save role</button></div></form></div>}
   </AdminLayout>;
 }
