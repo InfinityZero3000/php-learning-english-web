@@ -34,16 +34,35 @@ Super Admin inherits every Admin capability and additionally accesses:
 
 Super Admin can move between the Admin Dashboard and Super Admin Dashboard without a second login.
 
-## Navigation
+## Canonical Navigation Manifest
 
-The desktop sidebar remains fixed and scrollable. Mobile uses the existing drawer. All existing pages are retained and grouped as follows:
+The desktop sidebar remains fixed and scrollable. Mobile uses the existing drawer. Every row below is visible to the listed role. `google.admin` and the relevant capability remain mandatory on every supporting backend contract.
 
-1. Overview: Dashboard, Analytics.
-2. Content: Courses, Levels, Topics, Vocabulary, Decks, Flashcards, Import Jobs, Content Feed.
-3. Learning: Quizzes, Spaced Repetition, Learner Progress, Reports.
-4. People: Users, Notifications.
-5. Account: Settings.
-6. Super Admin: Super Dashboard, Roles and Teacher Scope, AI Services and Monitoring, Alerts and Quotas, Audit Trail.
+| Group | Label | Canonical href | Role | Primary contract or state |
+|---|---|---|---|---|
+| Overview | Dashboard | `/dashboard` | Admin+ | Admin users and catalog summaries |
+| Overview | Analytics | `/analytics` | Admin+ | Platform aggregate analytics; never the administrator's learner record |
+| Content | Courses | `/courses` | Admin+ | `/api/v1/admin/catalog/courses` |
+| Content | Levels | `/levels` | Admin+ | Admin catalog level contract; read-only unavailable until implemented |
+| Content | Topics | `/topics` | Admin+ | Admin catalog topic contract; mutations disabled until implemented |
+| Content | Vocabulary | `/flashcards` | Admin+ | Admin vocabulary contract; aliases `/vocabulary` redirect here |
+| Content | Decks | `/decks` | Admin+ | Admin vocabulary-set contract; alias `/vocabulary-sets` redirects here |
+| Content | Import Jobs | `/import` | Admin+ | Admin may start/resume normal imports; retry/reset requires Super Admin |
+| Content | Content Feed | `/content` | Admin+ | Authenticated provider feed; read-only if provider unavailable |
+| Learning | Quizzes | `/quizzes` | Admin+ | Platform aggregate quiz contract; alias `/quiz` redirects here |
+| Learning | Spaced Repetition | `/spaced-repetition` | Admin+ | Aggregate FSRS health/statistics, never admin's personal queue |
+| Learning | Learner Progress | `/user-progress` | Admin+ | Privacy-limited platform aggregates; alias `/progress` redirects here |
+| Learning | Reports | `/reports` | Admin+ | Real aggregate report/export contract; export disabled until implemented |
+| People | Users | `/users` | Admin+ | `/api/v1/admin/users`; role mutation is Super Admin + recent Google verification |
+| Account | Notifications | `/notifications` | Admin+ | Administrator's operational notifications only |
+| Account | Settings | `/settings` | Admin+ | Administrator preferences; platform settings remain Super Admin-only |
+| Super Admin | Super Dashboard | `/super-admin` | Super Admin | Operations overview, usage, contracts, service state |
+| Super Admin | Roles & Teacher Scope | `/roles` | Super Admin | `/api/v1/admin/roles` and teacher assignments |
+| Super Admin | AI & Monitoring | `/operations` | Super Admin | Existing operations overview, probes, usage, contracts |
+| Super Admin | Alerts & Quotas | `/operations#controls` | Super Admin | Existing alert-rule and quota contracts |
+| Super Admin | Audit Trail | `/audit-logs` | Super Admin | Existing audit-event contract; remove mock events |
+
+The retained `/vocabulary` and `/vocabulary-sets` pages may remain as compatibility redirects. `/levels`, `/topics`, `/flashcards`, `/decks`, `/import`, `/content`, `/quizzes`, `/spaced-repetition`, `/analytics`, `/user-progress`, `/reports`, `/notifications`, and `/settings` remain real pages, not deleted placeholders.
 
 Group labels and role badges make the current zone explicit. Active routes use the existing learner-inspired bordered blue state. No current page or route is deleted.
 
@@ -53,28 +72,46 @@ Group labels and role badges make the current zone explicit. Active routes use t
 
 Dashboard values must come from existing APIs. Unavailable metrics display a clear unavailable state rather than fabricated values.
 
-## API and Authorization Rules
+## API, Data Scope, and Authorization Matrix
 
-- All pages stay behind the Google admin session check.
-- Super Admin pages pass `requiredRole="super_admin"` and backend routes retain policy/middleware enforcement.
-- Existing non-admin API calls are audited before their menu entry is considered complete. A page may remain visible while showing a clear unsupported or unavailable state, but it must not silently fail.
+- All canonical pages use the shared Google session guard before protected child data is mounted. `AdminLayout` is only presentation; every backend contract independently enforces authentication, `google.admin`, and its capability policy.
+- Admin may read and mutate ordinary catalog content. Admin may read privacy-safe aggregate learning metrics, but cannot browse learner evidence, personal FSRS queues, answers, or recordings without an explicit teacher scope or Super Admin authorization.
+- Super Admin pages pass `requiredRole="super_admin"`. Backend policies, not menu visibility, enforce the same restriction.
+- Existing learner-era API calls are not valid admin contracts. Each page must either be connected to a working authorized admin contract or present an explicit read-only unavailable state with every action disabled. A primary mutation may not remain visible and fail on click.
+- Role changes, teacher-scope changes, quota versions, alert-rule changes, import retry/reset, and platform settings require recent Google verification. Mutations require CSRF protection; retryable/sensitive mutations require `X-Request-ID` idempotency and an audit event.
+- Normal import start/resume is available to Admin. Destructive retry/reset and checkpoint replacement are Super Admin-only.
 - Navigation visibility is presentation only; backend authorization remains authoritative.
 - No new backend abstraction is introduced unless an existing page lacks any endpoint required for its primary workflow.
+
+| Capability | Admin | Super Admin | Data scope / safeguards |
+|---|---|---|---|
+| Catalog read/write | Yes | Yes | Platform catalog; CSRF and validation on writes |
+| Aggregate analytics/reports | Read | Read | Aggregated or anonymized; no learner evidence |
+| User directory | Read | Read | Minimum identity fields |
+| User role mutation | No | Yes | Recent Google verification, idempotency, audit |
+| Teacher assignments | No | Yes | Recent Google verification, idempotency, audit |
+| Import start/resume | Yes | Yes | Idempotent checkpoint semantics |
+| Import retry/reset | No | Yes | Recent Google verification and audit |
+| AI/service monitoring | No | Yes | Redacted configuration; no credentials |
+| Quota/alert mutation | No | Yes | Recent Google verification, versioning, audit |
+| Learner evidence/recordings | No general access | Explicit operational access only | Minimize PII and audit access |
 
 ## Error and Loading Behavior
 
 - A missing session returns to `/login` without a misleading expiry message.
 - A forbidden Admin request returns to `/dashboard?forbidden=1`.
-- API failures render an in-page retry or unavailable state.
+- API failures render an in-page retry or unavailable state. Unsupported actions are disabled with an explanation.
 - Menu links never target placeholder aliases that immediately redirect to unrelated pages.
+- Existing mock audit events, static metrics presented as live data, and simulated export success are prohibited. Replace them with real contracts or honest unavailable states.
 
 ## Verification
 
 - Unit/build checks: ESLint, TypeScript, and Next production build.
 - Backend feature tests for any new or changed admin contract.
-- Role matrix check: Admin cannot access Super Admin routes; Super Admin can access both zones.
-- Route/menu audit: every sidebar link resolves to a retained page and its primary data request has a real endpoint.
-- Responsive check for desktop sidebar and mobile drawer.
+- Executable role matrix for every manifest row: Admin/Super Admin visibility, direct-route behavior, backend `200/403`, canonical destination, primary endpoint existence, and loading/error state.
+- Action tests cover read versus mutation permissions, data scope, CSRF, recent Google verification, idempotency, and audit creation where required.
+- Route/menu audit asserts that aliases resolve canonically and no navigation destination is a placeholder.
+- Responsive browser checks at 390×844 (mobile drawer), 768×1024 (tablet), and 1440×900 (fixed scrollable desktop sidebar).
 
 ## Non-goals
 
