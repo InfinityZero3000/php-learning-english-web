@@ -4,101 +4,56 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const navGroups = [
-  {
-    label: null,
-    items: [
-      { href: '/dashboard', icon: 'dashboard', label: 'Dashboard' },
-    ],
-  },
-  {
-    label: 'Content',
-    items: [
-      { href: '/courses', icon: 'auto_stories', label: 'Courses' },
-    ],
-  },
-  {
-    label: 'Users',
-    items: [
-      { href: '/users', icon: 'group', label: 'Users' },
-      { href: '/roles', icon: 'admin_panel_settings', label: 'Roles' },
-    ],
-  },
-  {
-    label: 'Platform',
-    items: [
-      { href: '/operations', icon: 'monitor_heart', label: 'AI & Operations' },
-    ],
-  },
+  { label: null, items: [{ href: '/dashboard', icon: 'dashboard', label: 'Dashboard' }] },
+  { label: 'Content', items: [{ href: '/courses', icon: 'auto_stories', label: 'Courses' }] },
+  { label: 'Users', items: [
+    { href: '/users', icon: 'group', label: 'Users' },
+    { href: '/roles', icon: 'admin_panel_settings', label: 'Roles' },
+  ] },
+  { label: 'Platform', items: [{ href: '/operations', icon: 'monitor_heart', label: 'AI & Operations' }] },
 ];
 
-export default function Sidebar({ role }: { role?: string | null }) {
+export default function Sidebar({ role, open, onClose }: { role?: string | null; open: boolean; onClose: () => void }) {
   const pathname = usePathname();
-  const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/');
 
   return (
-    <aside
-      className="fixed left-0 top-0 h-full z-40 flex flex-col w-72"
-      style={{ backgroundColor: '#f5f3f3', borderRight: '2px solid #bdc8d2' }}
-    >
-      {/* Logo */}
-      <div className="px-8 py-6 shrink-0">
-        <h1 className="text-3xl font-black" style={{ color: '#006590', letterSpacing: '-0.02em' }}>
-          Linguist
-        </h1>
-        <p className="text-[10px] font-black uppercase tracking-[0.2em] mt-1" style={{ color: '#3e4850', opacity: 0.6 }}>
-          Admin Dashboard
-        </p>
-      </div>
+    <>
+      {open && <button type="button" className="fixed inset-0 z-40 bg-black/30 lg:hidden" onClick={onClose} aria-label="Đóng menu" />}
+      <aside className={`admin-sidebar ${open ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
+        <div className="flex items-start justify-between px-6 pb-7 pt-6">
+          <Link href="/dashboard" onClick={onClose}>
+            <span className="font-display text-[30px] font-bold leading-none text-[#006590]">Linguist</span>
+            <span className="mt-2 block text-[10px] font-black uppercase tracking-[0.19em] text-[#56636d]">Admin control center</span>
+          </Link>
+          <button type="button" onClick={onClose} className="admin-icon-button lg:hidden" aria-label="Đóng menu quản trị">
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
 
-      {/* Nav */}
-      <nav className="flex-1 px-4 overflow-y-auto pb-2" style={{ scrollbarWidth: 'thin' }}>
-        {navGroups.map((group, gi) => (
-          <div key={gi} className={gi > 0 ? 'mt-3' : ''}>
-            {group.label && (
-              <p
-                className="px-5 pt-1 pb-1 text-[10px] font-black uppercase tracking-[0.2em]"
-                style={{ color: '#6e7881' }}
-              >
-                {group.label}
-              </p>
-            )}
-            <div className="space-y-0.5">
-              {group.items.filter((item) => !['/operations', '/roles'].includes(item.href) || role === 'super_admin').map((item) => {
-                const active = isActive(item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="flex items-center gap-3 px-4 py-2.5 mx-1 rounded-xl transition-all"
-                    style={
-                      active
-                        ? { backgroundColor: '#006590', color: '#ffffff', borderBottom: '3px solid #004c6e' }
-                        : { color: '#3e4850' }
-                    }
-                    onMouseEnter={(e) => {
-                      if (!active) {
-                        (e.currentTarget as HTMLElement).style.backgroundColor = '#e9e8e7';
-                        (e.currentTarget as HTMLElement).style.color = '#1b1c1c';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!active) {
-                        (e.currentTarget as HTMLElement).style.backgroundColor = '';
-                        (e.currentTarget as HTMLElement).style.color = '#3e4850';
-                      }
-                    }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                      {item.icon}
-                    </span>
-                    <span className="text-sm font-bold">{item.label}</span>
-                  </Link>
-                );
-              })}
+        <nav className="custom-scrollbar flex-1 overflow-y-auto px-4 pb-4">
+          {navGroups.map((group, index) => (
+            <div key={group.label ?? 'home'} className={index ? 'mt-5' : ''}>
+              {group.label && <p className="px-4 pb-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#6e7881]">{group.label}</p>}
+              <div className="space-y-1.5">
+                {group.items.filter((item) => !['/operations', '/roles'].includes(item.href) || role === 'super_admin').map((item) => {
+                  const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  return (
+                    <Link key={item.href} href={item.href} onClick={onClose} className={`admin-nav-item ${active ? 'admin-nav-item-active' : ''}`}>
+                      <span className="material-symbols-outlined text-[22px]">{item.icon}</span>
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
-      </nav>
-    </aside>
+          ))}
+        </nav>
+
+        <div className="m-4 rounded-xl border-2 border-[#bdc8d2] bg-[#f5f3f3] p-4">
+          <p className="text-[10px] font-black uppercase tracking-wider text-[#006590]">Protected access</p>
+          <p className="mt-1 text-xs font-semibold leading-relaxed text-[#56636d]">Google whitelist được kiểm tra trên mọi request.</p>
+        </div>
+      </aside>
+    </>
   );
 }
