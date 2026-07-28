@@ -74,7 +74,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 type Envelope<T> = { data: T; meta: Record<string, unknown> };
 
-function apiRequest<T>(path: string, init?: RequestInit) {
+export function apiRequest<T>(path: string, init?: RequestInit) {
   return request<Envelope<T>>(path, init).then((response) => response.data);
 }
 
@@ -147,8 +147,55 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload)
     }),
-  importJobs: () => request<ImportJob[]>("/api/import/jobs")
+  importJobs: () => request<ImportJob[]>("/api/import/jobs"),
+  learningPlan: () => apiRequest<LearningPlan>("/api/v1/learning/plan"),
+  catalogCourses: () => request<Envelope<CourseCard[]> & { meta: { total?: number } }>("/api/v1/catalog/courses"),
+  enrollments: () => apiRequest<Enrollment[]>("/api/v1/enrollments"),
+  enroll: (courseId: number) => apiRequest<Enrollment>("/api/v1/enrollments", {
+    method: "POST", body: JSON.stringify({ course_id: courseId })
+  }),
+  startSession: (enrollmentId: number) => apiRequest<LearningSession>("/api/v1/learning/sessions", {
+    method: "POST",
+    headers: { "X-Request-ID": crypto.randomUUID() },
+    body: JSON.stringify({ enrollment_id: enrollmentId })
+  }),
+  nextActivity: (sessionId: number) => apiRequest<LearningSession>(`/api/v1/learning/sessions/${sessionId}/next`),
+  submitAttempt: (sessionId: number, payload: LearningAttempt) => apiRequest<{ event_id: number; is_correct: boolean }>(
+    `/api/v1/learning/sessions/${sessionId}/attempts`,
+    { method: "POST", headers: { "X-Request-ID": crypto.randomUUID() }, body: JSON.stringify(payload) }
+  ),
+  traceCag: (payload: TraceCagInput) => apiRequest<{ assistance: Assistance }>("/api/v1/ai/trace-cag", {
+    method: "POST", headers: { "X-Request-ID": crypto.randomUUID() }, body: JSON.stringify(payload)
+  }),
+  completeSession: (sessionId: number) => apiRequest<LearningSession>(`/api/v1/learning/sessions/${sessionId}/complete`, {
+    method: "POST", headers: { "X-Request-ID": crypto.randomUUID() }
+  }),
+  fsrsDue: (perPage = 20) => request<Envelope<FsrsCard[]> & { meta: { total: number } }>(`/api/v1/fsrs/due?per_page=${perPage}`),
+  fsrsReview: (card: FsrsCard, rating: "again" | "hard" | "good" | "easy") => apiRequest<FsrsCard>("/api/v1/fsrs/review", {
+    method: "POST",
+    headers: { "X-Request-ID": crypto.randomUUID() },
+    body: JSON.stringify({ user_vocabulary_id: card.id, rating, base_revision: card.revision })
+  }),
+  teacherLearners: () => apiRequest<TeacherLearner[]>("/api/v1/teacher/learners"),
+  teacherAlerts: () => apiRequest<SupervisionAlert[]>("/api/v1/teacher/alerts"),
+  resolveAlert: (id: number, resolutionCode: string, note: string) => apiRequest<SupervisionAlert>(`/api/v1/teacher/alerts/${id}/resolve`, {
+    method: "POST", body: JSON.stringify({ resolution_code: resolutionCode, note })
+  }),
+  teacherAssignments: () => apiRequest<TeacherAssignment[]>("/api/v1/teacher/assignments")
 };
+
+export type LearningPlan = { type: "learning_plan"; items: Array<{ id: number; type: "teacher_lesson" | "fsrs_review" | "course_activity" | "remediation"; priority: number }> };
+export type CourseCard = { id: number; title: string; description?: string; level?: { name: string }; lessons_count?: number; estimated_duration?: number };
+export type Enrollment = { id: number; course_id: number; title: string; status: string };
+export type Activity = { id: string; type: string; vocabulary_id: number; word: string; meaning: string; practice_only: boolean };
+export type LearningSession = { id: number; course_id: number; lesson_id: number; status: string; completed_at?: string; activity?: Activity | null; summary?: Record<string, unknown> };
+export type LearningAttempt = { activity_id: string; answer: string; duration_ms: number; hint_count: number };
+export type TraceCagInput = { session_id: number; activity_id: string; input_type: "answer" | "hint_request" | "pronunciation" | "tutor_message"; text: string };
+export type Assistance = { diagnosis: { codes: string[]; summary: string }; hints: Array<{ level: number; text: string }>; feedback: string; recommended_action: string; message: string; degraded: boolean };
+export type FsrsCard = { type: "fsrs_card"; id: number; vocabulary_id: number; word: string; meaning: string; definition?: string; state: string; due_at?: string; revision: number; scheduled_days?: number };
+export type TeacherLearner = { id: number; name: string; email: string };
+export type SupervisionAlert = { id: number; rule_key: string; severity: string; state: string; evidence: Array<Record<string, unknown>>; detected_at: string; learner: TeacherLearner };
+export type TeacherAssignment = { id: number; status: string; due_at?: string; learner: TeacherLearner; lesson?: { title: string }; vocabulary?: { word: string } };
 
 export const auth = {
   register: (name: string, email: string, password: string, passwordConfirmation: string) =>

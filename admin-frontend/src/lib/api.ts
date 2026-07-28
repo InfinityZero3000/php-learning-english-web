@@ -60,6 +60,23 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.text() as unknown as T;
 }
 
+export const operations = {
+  overview: () => request<{ data: OperationsOverview }>('/api/v1/admin/operations').then(({ data }) => data),
+  probe: (service: string) => request<{ data: ServiceProbe }>('/api/v1/admin/operations/service-probes', {
+    method: 'POST',
+    body: JSON.stringify({ service }),
+  }).then(({ data }) => data),
+  quotas: () => request<{ data: QuotaPolicy[] }>('/api/v1/admin/operations/quotas').then(({ data }) => data),
+  rules: () => request<{ data: AlertRule[] }>('/api/v1/admin/operations/alert-rules').then(({ data }) => data),
+  audits: () => request<{ data: AuditEvent[] }>('/api/v1/admin/operations/audits').then(({ data }) => data),
+};
+
+export type OperationsOverview = { features: Record<string, boolean>; services: Record<string, boolean>; open_alerts: number };
+export type ServiceProbe = { service: string; healthy: boolean; status: number; latency_ms: number };
+export type QuotaPolicy = { id: number; version: number; limits: Record<string, number>; is_active: boolean };
+export type AlertRule = { id: number; rule_key: string; version: number; enabled: boolean };
+export type AuditEvent = { id: number; action: string; target_type?: string; target_id?: string; occurred_at: string };
+
 // Auth
 export const auth = {
   login: (email: string, password: string) =>

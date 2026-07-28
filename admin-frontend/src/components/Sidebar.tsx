@@ -36,6 +36,7 @@ const navGroups = [
       { href: '/reports', icon: 'assessment', label: 'Reports' },
       { href: '/analytics', icon: 'analytics', label: 'Analytics' },
       { href: '/audit-logs', icon: 'manage_history', label: 'Audit Logs' },
+      { href: '/operations', icon: 'monitor_heart', label: 'AI & Operations' },
     ],
   },
 ];

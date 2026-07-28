@@ -18,7 +18,9 @@ import { cn } from "@/lib/utils";
 import type { AppUser } from "@/types/api";
 
 const nav = [
-  { href: "/", label: "Home", icon: navigationIcons.home },
+  { href: "/", label: "Today", icon: navigationIcons.home },
+  { href: "/courses", label: "Courses", icon: navigationIcons.flashcards },
+  { href: "/review", label: "Review", icon: navigationIcons.words },
   { href: "/vocabulary", label: "Words", icon: navigationIcons.words },
   { href: "/flashcards", label: "Flashcards", icon: navigationIcons.flashcards },
   { href: "/quiz", label: "Quiz", icon: navigationIcons.quiz },
@@ -27,7 +29,9 @@ const nav = [
 ];
 
 const titles: Record<string, string> = {
-  "/": "Home",
+  "/": "Today",
+  "/courses": "Course Path",
+  "/review": "Smart Review",
   "/vocabulary": "Words",
   "/flashcards": "Flashcards",
   "/quiz": "Quiz",
@@ -47,6 +51,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const pageTitle = useMemo(() => titles[pathname] || "FSRSpring", [pathname]);
+  const visibleNav = useMemo(() => [
+    ...nav,
+    ...(user?.role === "teacher" || user?.role === "super_admin"
+      ? [{ href: "/teacher", label: "Teacher", icon: navigationIcons.progress }]
+      : [])
+  ], [user]);
 
   useEffect(() => {
     let cancelled = false;
@@ -97,7 +107,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <span className="font-display text-[32px] font-bold leading-tight tracking-normal text-primary">Linguist</span>
         </Link>
         <nav className="flex flex-1 flex-col gap-2">
-          {nav.map((item) => {
+          {visibleNav.map((item) => {
             const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
             const Icon = item.icon;
             return (
@@ -186,7 +196,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
         {isMobileMenuOpen && (
           <nav className="mt-4 flex flex-col gap-2 rounded-xl border-2 border-border bg-card p-4 shadow-sm lg:hidden">
-            {nav.map((item) => {
+            {visibleNav.map((item) => {
               const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
               const Icon = item.icon;
               return (
