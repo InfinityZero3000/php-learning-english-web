@@ -22,6 +22,8 @@ class AdminGoogleAuthController extends Controller
             return $this->loginRedirect('configuration');
         }
 
+        $request->session()->put('google_admin_oauth_mode', 'login');
+
         return Socialite::driver('google')->redirect();
     }
 
@@ -96,6 +98,7 @@ class AdminGoogleAuthController extends Controller
             'google_admin_reauth_return',
             in_array($return, ['/operations', '/roles', '/users'], true) ? $return : '/dashboard',
         );
+        $request->session()->put('google_admin_oauth_mode', 'reauthenticate');
 
         return Socialite::driver('google')->with([
             'prompt' => 'select_account',
@@ -134,7 +137,7 @@ class AdminGoogleAuthController extends Controller
     private function clearAdminState(Request $request): void
     {
         Auth::logout();
-        $request->session()->forget(['google_admin', 'google_admin_reauthenticated_at']);
+        $request->session()->forget(['google_admin', 'google_admin_reauthenticated_at', 'google_admin_oauth_mode']);
         $request->session()->invalidate();
         $request->session()->regenerateToken();
     }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Role;
 use App\Models\User;
+use App\Support\AdminGoogleAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -25,6 +26,14 @@ class SocialController extends Controller
 
     public function googleCallback(Request $request)
     {
+        $adminMode = $request->session()->pull('google_admin_oauth_mode');
+        if ($adminMode === 'login') {
+            return app(AdminGoogleAuthController::class)->callback($request, app(AdminGoogleAccess::class));
+        }
+        if ($adminMode === 'reauthenticate') {
+            return app(AdminGoogleAuthController::class)->reauthenticateCallback($request, app(AdminGoogleAccess::class));
+        }
+
         $googleUser = Socialite::driver('google')->user();
         $user = $this->loginSocialUser(
             $googleUser->getEmail(),

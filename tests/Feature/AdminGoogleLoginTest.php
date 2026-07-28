@@ -22,7 +22,7 @@ class AdminGoogleLoginTest extends TestCase
         config()->set('app.admin_frontend_url', 'http://admin.test');
         $this->mockGoogleUser('google-subject-1', 'owner@example.com', true);
 
-        $this->get('/auth/admin/google/callback')
+        $this->withSession(['google_admin_oauth_mode' => 'login'])->get('/auth/google/callback')
             ->assertRedirect('http://admin.test/dashboard')
             ->assertSessionHas('google_admin.email', 'owner@example.com');
 
@@ -42,7 +42,7 @@ class AdminGoogleLoginTest extends TestCase
         config()->set('app.admin_frontend_url', 'http://admin.test');
         $this->mockGoogleUser('google-subject-2', 'other@example.com', true);
 
-        $this->get('/auth/admin/google/callback')
+        $this->withSession(['google_admin_oauth_mode' => 'login'])->get('/auth/google/callback')
             ->assertRedirect('http://admin.test/login?error=denied')
             ->assertSessionMissing('google_admin');
         $this->assertGuest();
