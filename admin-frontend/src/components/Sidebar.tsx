@@ -2,11 +2,20 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useLayoutEffect, useRef } from 'react';
 import { navigationForRole } from '@/lib/admin-navigation.mjs';
+
+const SCROLL_KEY = 'admin-sidebar-scroll-top';
 
 export default function Sidebar({ role, open, onClose }: { role?: string | null; open: boolean; onClose: () => void }) {
   const pathname = usePathname();
   const navGroups = navigationForRole(role);
+  const navigationRef = useRef<HTMLElement>(null);
+
+  useLayoutEffect(() => {
+    const navigation = navigationRef.current;
+    if (navigation) navigation.scrollTop = Number(sessionStorage.getItem(SCROLL_KEY) ?? 0);
+  }, [role]);
 
   return (
     <>
@@ -22,7 +31,12 @@ export default function Sidebar({ role, open, onClose }: { role?: string | null;
           </button>
         </div>
 
-        <nav aria-label="Admin navigation" className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+        <nav
+          ref={navigationRef}
+          aria-label="Admin navigation"
+          className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-4 pb-4"
+          onScroll={(event) => sessionStorage.setItem(SCROLL_KEY, String(event.currentTarget.scrollTop))}
+        >
           {navGroups.map((group, index) => (
             <div key={group.label} className={index ? 'mt-5' : ''}>
               <p className="px-4 pb-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#6e7881]">{group.label}</p>
