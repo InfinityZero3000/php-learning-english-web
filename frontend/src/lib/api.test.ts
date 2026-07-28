@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "./api";
 
+// Prevent mock cross-contamination: when other test files mock "@​/lib/api",
+// vitest 4.x resolves "./api" to the same module, so we must declare our own
+// mock that returns the real module.
+vi.mock("./api", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("./api")>();
+  return mod;
+});
+
 type AuthType = typeof import("./api").auth;
 
 describe("session API client", () => {
@@ -9,9 +17,8 @@ describe("session API client", () => {
   beforeEach(async () => {
     document.cookie = "XSRF-TOKEN=token%20value";
     vi.restoreAllMocks();
-    // Use importActual to bypass mock cross-contamination from other test files
-    // that mock "@​/lib/api" (which vitest 4.x resolves to the same module as "./api")
-    const mod = (await vi.importActual("./api")) as typeof import("./api");
+    // Dynamic import gets the real (un-mocked) module thanks to our vi.mock above
+    const mod = await import("./api");
     auth = mod.auth;
   });
 
