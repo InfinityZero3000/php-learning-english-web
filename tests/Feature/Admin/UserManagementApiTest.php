@@ -192,6 +192,7 @@ class UserManagementApiTest extends TestCase
         $admin = $this->admin();
         $learner = $this->learner();
         AuditLog::creating(fn () => throw new \RuntimeException('audit unavailable'));
+        $this->withoutExceptionHandling();
 
         try {
             $this->actingAs($admin)->putJson("/api/admin/users/{$learner->id}/lock");
