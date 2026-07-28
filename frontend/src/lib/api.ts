@@ -471,3 +471,91 @@ export async function fetchCourseProgress(courseId: number): Promise<ProgressRes
 export async function markLessonCompleted(lessonId: number): Promise<ApiEnvelope<{ completed: boolean }>> {
   return apiRequest("POST", `/api/v1/progress/lesson/${lessonId}/complete`);
 }
+
+// --- Flashcards --------------------------------------------------------------
+
+export async function dueWords(count: number): Promise<unknown[]> {
+  const result = await apiRequest<ApiEnvelope<unknown[]>>("GET", `/api/v1/flashcards/due?count=${count}`);
+  return result.data;
+}
+
+export async function publicVocabulary(params: {
+  search?: string;
+  perPage?: number;
+}): Promise<{ words: unknown[]; meta: PaginationMeta }> {
+  const searchParams = new URLSearchParams();
+  if (params.search) searchParams.set("search", params.search);
+  if (params.perPage) searchParams.set("per_page", String(params.perPage));
+  const qs = searchParams.toString();
+  return apiRequest("GET", `/api/v1/vocabulary/public${qs ? `?${qs}` : ""}`);
+}
+
+export async function reviewWord(wordId: number, rating: number, timeSpent: number): Promise<void> {
+  await apiRequest("POST", `/api/v1/flashcards/review`, {
+    word_id: wordId,
+    rating,
+    time_spent: timeSpent,
+  });
+}
+
+export async function checkInStreak(): Promise<{ streak: number } | undefined> {
+  try {
+    return await apiRequest("POST", "/api/v1/flashcards/streak");
+  } catch {
+    return undefined;
+  }
+}
+
+export async function importFlashcards(source: string, query: string): Promise<unknown[]> {
+  const result = await apiRequest<ApiEnvelope<unknown[]>>("POST", "/api/v1/flashcards/import", {
+    source,
+    query,
+  });
+  return result.data;
+}
+
+export async function saveFlashcard(flashcardId: number): Promise<void> {
+  await apiRequest("POST", `/api/v1/flashcards/${flashcardId}/save`);
+}
+
+// --- Import ------------------------------------------------------------------
+
+export async function topics(): Promise<unknown[]> {
+  const result = await apiRequest<ApiEnvelope<unknown[]>>("GET", "/api/v1/import/topics");
+  return result.data;
+}
+
+export async function importJobs(): Promise<unknown[]> {
+  const result = await apiRequest<ApiEnvelope<unknown[]>>("GET", "/api/v1/import/jobs");
+  return result.data;
+}
+
+export async function translateRows(rows: unknown[]): Promise<{ rows: unknown[] }> {
+  const result = await apiRequest<ApiEnvelope<{ rows: unknown[] }>>("POST", "/api/v1/import/translate", { rows });
+  return result.data;
+}
+
+export async function lookupDictionary(word: string): Promise<unknown> {
+  const result = await apiRequest<ApiEnvelope<unknown>>("GET", `/api/v1/import/dictionary?word=${encodeURIComponent(word)}`);
+  return result.data;
+}
+
+export async function commitImport(payload: unknown): Promise<void> {
+  await apiRequest("POST", "/api/v1/import/commit", payload);
+}
+
+// --- Namespace object for convenience imports --------------------------------
+
+export const api = {
+  dueWords,
+  publicVocabulary,
+  reviewWord,
+  checkInStreak,
+  importFlashcards,
+  saveFlashcard,
+  topics,
+  importJobs,
+  translateRows,
+  lookupDictionary,
+  commitImport,
+};
