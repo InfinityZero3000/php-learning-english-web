@@ -62,15 +62,20 @@ class AdminGoogleAuthController extends Controller
             if ($expected['subject'] ?? null) {
                 abort_unless(hash_equals((string) $expected['subject'], $subject), 403);
             }
+            $roleId = Role::query()->where('slug', $role)->value('id');
+            if (! $roleId) {
+                Cache::forget("admin-google-challenge:{$challenge}");
+                $this->clearAdminState($request);
 
-            $user = DB::transaction(function () use ($email, $google, $subject, $role): User {
+                return $this->loginRedirect('configuration');
+            }
+
+            $user = DB::transaction(function () use ($email, $google, $subject, $roleId): User {
                 $user = User::query()->where('email', $email)->lockForUpdate()->first();
                 $subjectOwner = User::query()->where('google_id', $subject)->lockForUpdate()->first();
                 abort_if(($user?->google_id && $user->google_id !== $subject)
                     || ($subjectOwner && $subjectOwner->id !== $user?->id)
                     || ($user?->auth_provider && $user->auth_provider !== 'google'), 403);
-                $roleId = Role::query()->where('slug', $role)->value('id');
-                abort_unless($roleId, 503);
                 $user ??= new User(['email' => $email, 'password' => Str::password(40)]);
                 $user->fill([
                     'name' => $google->getName() ?: $email,

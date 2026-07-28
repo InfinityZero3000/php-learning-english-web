@@ -70,6 +70,25 @@ class AdminGoogleLoginTest extends TestCase
         $this->assertDatabaseMissing('users', ['email' => 'other@example.com']);
     }
 
+    public function test_missing_whitelisted_role_is_reported_as_configuration_error(): void
+    {
+        $this->seed();
+        Role::query()->where('slug', 'super_admin')->delete();
+        config()->set('admin_access.admin_emails', []);
+        config()->set('admin_access.super_admin_emails', ['owner@example.com']);
+        config()->set('app.admin_frontend_url', 'http://admin.test');
+        $this->mockGoogleUser('google-subject-3', 'owner@example.com', true);
+        $challenge = $this->challenge();
+
+        $this->withSession([
+            'google_admin_oauth_mode' => 'login',
+            'google_admin_challenge' => $challenge,
+        ])->get('/auth/google/callback')
+            ->assertRedirect('http://admin.test/login?error=configuration');
+
+        $this->assertDatabaseMissing('users', ['email' => 'owner@example.com']);
+    }
+
     private function challenge(): string
     {
         $challenge = (string) Str::uuid();
