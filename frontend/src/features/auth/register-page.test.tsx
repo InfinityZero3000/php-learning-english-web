@@ -52,9 +52,9 @@ describe("RegisterPage", () => {
   });
 
   it("shows ApiError field error and preserves input", async () => {
-    vi.mocked(auth.register).mockImplementation(() =>
-      Promise.reject(new ApiError(422, "Invalid", { email: ["Already registered"] }))
-    );
+    vi.mocked(auth.register).mockImplementation(async () => {
+      throw new ApiError(422, "Invalid", { email: ["Already registered"] });
+    });
     render(<RegisterPage />);
     fill();
     fireEvent.click(screen.getByRole("button", { name: "Create account" }));
@@ -64,9 +64,9 @@ describe("RegisterPage", () => {
   });
 
   it("shows generic error fallback on non-ApiError and preserves input", async () => {
-    vi.mocked(auth.register).mockImplementation(() =>
-      Promise.reject(new Error("offline"))
-    );
+    vi.mocked(auth.register).mockImplementation(async () => {
+      throw new Error("offline");
+    });
     render(<RegisterPage />);
     fill();
     fireEvent.click(screen.getByRole("button", { name: "Create account" }));

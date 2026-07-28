@@ -32,10 +32,9 @@ describe("ForgotPasswordPage", () => {
   });
 
   it("shows ApiError field error and preserves email", async () => {
-    // mockImplementation avoids vitest deep-cloning the ApiError instance
-    vi.mocked(auth.forgotPassword).mockImplementation(() =>
-      Promise.reject(new ApiError(422, "Invalid", { email: ["Invalid email"] }))
-    );
+    vi.mocked(auth.forgotPassword).mockImplementation(async () => {
+      throw new ApiError(422, "Invalid", { email: ["Invalid email"] });
+    });
     render(<ForgotPasswordPage />);
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.test" } });
     fireEvent.click(screen.getByRole("button", { name: "Send reset link" }));
@@ -44,9 +43,9 @@ describe("ForgotPasswordPage", () => {
   });
 
   it("shows generic error fallback on non-ApiError and preserves email", async () => {
-    vi.mocked(auth.forgotPassword).mockImplementation(() =>
-      Promise.reject(new Error("offline"))
-    );
+    vi.mocked(auth.forgotPassword).mockImplementation(async () => {
+      throw new Error("offline");
+    });
     render(<ForgotPasswordPage />);
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.test" } });
     fireEvent.click(screen.getByRole("button", { name: "Send reset link" }));

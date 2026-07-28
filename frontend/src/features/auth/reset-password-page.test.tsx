@@ -61,9 +61,9 @@ describe("ResetPasswordPage", () => {
   });
 
   it("shows ApiError field error and preserves passwords", async () => {
-    vi.mocked(auth.resetPassword).mockImplementation(() =>
-      Promise.reject(new ApiError(422, "Invalid", { password: ["Password is too short"] }))
-    );
+    vi.mocked(auth.resetPassword).mockImplementation(async () => {
+      throw new ApiError(422, "Invalid", { password: ["Password is too short"] });
+    });
     render(<ResetPasswordPage />);
     fill();
     fireEvent.click(screen.getByRole("button", { name: "Reset password" }));
@@ -72,9 +72,9 @@ describe("ResetPasswordPage", () => {
   });
 
   it("shows generic error fallback on non-ApiError and preserves passwords", async () => {
-    vi.mocked(auth.resetPassword).mockImplementation(() =>
-      Promise.reject(new Error("offline"))
-    );
+    vi.mocked(auth.resetPassword).mockImplementation(async () => {
+      throw new Error("offline");
+    });
     render(<ResetPasswordPage />);
     fill();
     fireEvent.click(screen.getByRole("button", { name: "Reset password" }));
