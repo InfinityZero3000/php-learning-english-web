@@ -206,12 +206,23 @@ class UserController extends Controller
         }
 
         $adminRoleId = Role::where('slug', 'admin')->value('id');
-        if ((int) $roleId !== (int) $adminRoleId
-            && (int) $target->role_id === (int) $adminRoleId
-            && ($target->is($request->user()) || User::where('role_id', $adminRoleId)->count() <= 1)) {
-            throw ValidationException::withMessages([
-                'role' => 'Không thể hạ quyền quản trị viên cuối cùng hoặc tự hạ quyền tài khoản này.',
-            ]);
+        if ((int) $roleId !== (int) $adminRoleId && (int) $target->role_id === (int) $adminRoleId) {
+            if ($target->is($request->user())) {
+                throw ValidationException::withMessages([
+                    'role' => 'Không thể hạ quyền quản trị viên cuối cùng hoặc tự hạ quyền tài khoản này.',
+                ]);
+            }
+
+            $remainingActiveAdmins = User::where('role_id', $adminRoleId)
+                ->whereNull('locked_at')
+                ->where('id', '!=', $target->id)
+                ->count();
+
+            if ($target->locked_at === null && $remainingActiveAdmins === 0) {
+                throw ValidationException::withMessages([
+                    'role' => 'Không thể hạ quyền quản trị viên cuối cùng hoặc tự hạ quyền tài khoản này.',
+                ]);
+            }
         }
 
         $target->update(['role_id' => $roleId]);
