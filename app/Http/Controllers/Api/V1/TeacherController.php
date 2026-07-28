@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class TeacherController extends Controller
 {
@@ -21,7 +22,8 @@ class TeacherController extends Controller
         $this->teacher($request);
         $learners = User::query()->whereIn('id', TeacherAssignment::query()
             ->where('teacher_id', $request->user()->id)->select('learner_id'))
-            ->with('role:id,slug')->get(['id', 'name', 'email', 'role_id']);
+            ->with('role:id,slug')->get(['id', 'name', 'email', 'role_id'])
+            ->map(fn (User $learner) => ['type' => 'user', ...$learner->toArray()]);
 
         return ApiResponse::success($learners);
     }
@@ -51,10 +53,12 @@ class TeacherController extends Controller
     {
         $this->assigned($request, $learner);
         $events = LearningEvent::query()->where('user_id', $learner->id)->latest('occurred_at')->limit(100)->get([
-            'id', 'event_type', 'is_correct', 'hint_level', 'pronunciation_score', 'duration_ms', 'occurred_at', 'metadata',
+            'id', 'event_type', 'response', 'is_correct', 'hint_level', 'pronunciation_score', 'duration_ms', 'occurred_at', 'metadata',
         ]);
 
-        return ApiResponse::success($events);
+        return ApiResponse::success($events->map(fn (LearningEvent $event) => [
+            'type' => 'learning_event', ...$event->toArray(),
+        ]));
     }
 
     public function alerts(Request $request): JsonResponse
@@ -63,14 +67,18 @@ class TeacherController extends Controller
         $learnerIds = TeacherAssignment::query()->where('teacher_id', $request->user()->id)->select('learner_id');
 
         return ApiResponse::success(SupervisionAlert::query()->with('learner:id,name,email')
-            ->whereIn('learner_id', $learnerIds)->latest('detected_at')->get());
+            ->whereIn('learner_id', $learnerIds)->latest('detected_at')->get()
+            ->map(fn (SupervisionAlert $alert) => ['type' => 'supervision_alert', ...$alert->toArray()]));
     }
 
     public function alert(Request $request, SupervisionAlert $alert): JsonResponse
     {
         $this->assigned($request, $alert->learner);
 
-        return ApiResponse::success($alert->load(['learner:id,name,email', 'assignments', 'interventionNotes']));
+        return ApiResponse::success([
+            'type' => 'supervision_alert',
+            ...$alert->load(['learner:id,name,email', 'assignments', 'interventionNotes'])->toArray(),
+        ]);
     }
 
     public function resolve(Request $request, SupervisionAlert $alert): JsonResponse
@@ -86,7 +94,7 @@ class TeacherController extends Controller
             'resolution_note' => $data['resolution_code'].(($data['note'] ?? null) ? ': '.$data['note'] : ''),
         ]);
 
-        return ApiResponse::success($alert->refresh());
+        return ApiResponse::success(['type' => 'supervision_alert', ...$alert->refresh()->toArray()]);
     }
 
     public function assignments(Request $request): JsonResponse
@@ -94,7 +102,8 @@ class TeacherController extends Controller
         $this->teacher($request);
 
         return ApiResponse::success(Assignment::query()->with(['learner:id,name', 'lesson:id,title', 'vocabulary:id,word'])
-            ->where('teacher_id', $request->user()->id)->latest()->get());
+            ->where('teacher_id', $request->user()->id)->latest()->get()
+            ->map(fn (Assignment $assignment) => ['type' => 'assignment', ...$assignment->toArray()]));
     }
 
     public function createAssignment(Request $request): JsonResponse
@@ -107,12 +116,17 @@ class TeacherController extends Controller
             'instructions' => ['nullable', 'string', 'max:2000'],
             'due_at' => ['nullable', 'date'],
         ]);
+        if (isset($data['lesson_id'], $data['vocabulary_id'])) {
+            throw ValidationException::withMessages(['lesson_id' => 'Choose either a lesson or vocabulary target, not both.']);
+        }
         $learner = User::findOrFail($data['learner_id']);
         $this->assigned($request, $learner);
 
-        return ApiResponse::success(Assignment::create([
+        $assignment = Assignment::create([
             ...$data, 'teacher_id' => $request->user()->id, 'status' => 'pending',
-        ]), status: 201);
+        ])->load(['learner:id,name', 'lesson:id,title', 'vocabulary:id,word']);
+
+        return ApiResponse::success(['type' => 'assignment', ...$assignment->toArray()], status: 201);
     }
 
     public function note(Request $request): JsonResponse
@@ -125,10 +139,20 @@ class TeacherController extends Controller
             'note' => ['required', 'string', 'max:4000'],
         ]);
         $this->assigned($request, User::findOrFail($data['learner_id']));
+        if (isset($data['supervision_alert_id'])) {
+            abort_unless(SupervisionAlert::query()->whereKey($data['supervision_alert_id'])
+                ->where('learner_id', $data['learner_id'])->exists(), 422);
+        }
+        if (isset($data['assignment_id'])) {
+            abort_unless(Assignment::query()->whereKey($data['assignment_id'])
+                ->where('learner_id', $data['learner_id'])
+                ->when(! $request->user()->hasRole('super_admin'), fn ($query) => $query->where('teacher_id', $request->user()->id))
+                ->exists(), 422);
+        }
 
-        return ApiResponse::success(InterventionNote::create([
-            ...$data, 'teacher_id' => $request->user()->id,
-        ]), status: 201);
+        $note = InterventionNote::create([...$data, 'teacher_id' => $request->user()->id]);
+
+        return ApiResponse::success(['type' => 'intervention_note', ...$note->toArray()], status: 201);
     }
 
     private function teacher(Request $request): void

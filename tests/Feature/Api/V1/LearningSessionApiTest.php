@@ -43,6 +43,7 @@ class LearningSessionApiTest extends TestCase
         LearningEvent::create([
             'learning_session_id' => $sessionId, 'user_id' => $user->id,
             'event_type' => 'answer', 'occurred_at' => now(), 'is_correct' => true,
+            'metadata' => ['vocabulary_id' => $word->id],
         ]);
         $this->withHeader('X-Request-ID', (string) Str::uuid())
             ->postJson("/api/v1/learning/sessions/{$sessionId}/complete")
@@ -108,6 +109,33 @@ class LearningSessionApiTest extends TestCase
             ])->assertConflict();
     }
 
+    public function test_course_lesson_requires_every_vocabulary_activity_before_completion(): void
+    {
+        [$user, $course, $lesson, $first] = $this->context();
+        $second = Vocabulary::create([
+            'lesson_id' => $lesson->id, 'word' => 'world'.Str::random(4), 'meaning' => 'thế giới',
+        ]);
+        $enrollment = Enrollment::create([
+            'user_id' => $user->id, 'course_id' => $course->id, 'status' => 'active', 'enrolled_at' => now(),
+        ]);
+        $sessionId = $this->actingAs($user)->withHeader('X-Request-ID', (string) Str::uuid())
+            ->postJson('/api/v1/learning/sessions', ['enrollment_id' => $enrollment->id])->json('data.id');
+
+        $this->withHeader('X-Request-ID', (string) Str::uuid())
+            ->postJson("/api/v1/learning/sessions/{$sessionId}/attempts", [
+                'activity_id' => "vocabulary:{$first->id}",
+                'answer' => $first->meaning,
+                'duration_ms' => 1000,
+                'hint_count' => 0,
+            ])->assertOk();
+        $this->withHeader('X-Request-ID', (string) Str::uuid())
+            ->postJson("/api/v1/learning/sessions/{$sessionId}/complete")->assertConflict();
+        $this->getJson("/api/v1/learning/sessions/{$sessionId}/next")
+            ->assertJsonPath('data.activity.vocabulary_id', $second->id)
+            ->assertJsonPath('data.progress.completed', 1)
+            ->assertJsonPath('data.progress.total', 2);
+    }
+
     public function test_teacher_vocabulary_assignment_is_practice_only_and_does_not_create_fsrs_state(): void
     {
         [$learner, , , $word] = $this->context();
@@ -130,6 +158,7 @@ class LearningSessionApiTest extends TestCase
         LearningEvent::create([
             'learning_session_id' => $sessionId, 'user_id' => $learner->id,
             'event_type' => 'answer', 'occurred_at' => now(), 'is_correct' => true,
+            'metadata' => ['vocabulary_id' => $word->id],
         ]);
         $this->withHeader('X-Request-ID', (string) Str::uuid())
             ->postJson("/api/v1/learning/sessions/{$sessionId}/complete")->assertOk();

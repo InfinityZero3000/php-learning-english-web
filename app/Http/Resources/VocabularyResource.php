@@ -10,6 +10,7 @@ class VocabularyResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
+            'type' => 'vocabulary',
             'id' => $this->id,
             'external_id' => $this->external_id,
             'word' => $this->word,

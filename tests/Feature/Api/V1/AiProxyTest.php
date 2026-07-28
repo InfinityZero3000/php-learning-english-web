@@ -2,7 +2,11 @@
 
 namespace Tests\Feature\Api\V1;
 
+use App\Models\Course;
+use App\Models\LearningSession;
+use App\Models\Lesson;
 use App\Models\User;
+use App\Models\Vocabulary;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\UploadedFile;
@@ -178,6 +182,43 @@ class AiProxyTest extends TestCase
             ->assertJsonValidationErrors(['audio']);
 
         Http::assertNothingSent();
+    }
+
+    public function test_pronunciation_for_an_active_session_persists_learning_evidence(): void
+    {
+        Http::fake([
+            'ai.lexilingo.test/*' => Http::response(['pronunciation_score' => 82]),
+        ]);
+        $user = $this->learner();
+        $course = Course::create(['title' => 'Pronunciation course', 'slug' => 'pronunciation-course']);
+        $lesson = Lesson::create(['course_id' => $course->id, 'title' => 'Pronunciation lesson', 'slug' => 'pronunciation-lesson']);
+        $vocabulary = Vocabulary::create(['lesson_id' => $lesson->id, 'word' => 'hello', 'meaning' => 'xin chào']);
+        $session = LearningSession::create([
+            'user_id' => $user->id,
+            'course_id' => $course->id,
+            'lesson_id' => $lesson->id,
+            'status' => 'active',
+            'started_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->withHeader('X-Request-ID', 'd91fd697-283d-473d-ab63-32e72b4ba1ac')
+            ->post('/api/v1/ai/pronunciation', [
+                'audio' => UploadedFile::fake()->create('word.wav', 100, 'audio/wav'),
+                'reference_text' => 'hello',
+                'session_id' => $session->id,
+                'activity_id' => "vocabulary:{$vocabulary->id}",
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.pronunciation_score', 82);
+
+        $this->assertDatabaseHas('learning_events', [
+            'learning_session_id' => $session->id,
+            'user_id' => $user->id,
+            'event_type' => 'pronunciation',
+            'pronunciation_score' => 82,
+            'request_id' => 'd91fd697-283d-473d-ab63-32e72b4ba1ac',
+        ]);
     }
 
     public function test_speech_to_text_success_passes_through_upstream_response(): void

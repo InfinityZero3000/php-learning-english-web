@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\LearningEvent;
+use App\Models\LearningSession;
+use App\Models\Vocabulary;
 use App\Support\ApiResponse;
 use App\Support\LexiLingoClient;
 use Illuminate\Http\Client\ConnectionException;
@@ -12,6 +15,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Throwable;
 
 class AiProxyController extends Controller
@@ -53,12 +57,44 @@ class AiProxyController extends Controller
         }
 
         $request->validate([
-            'audio' => ['required', 'file', 'mimes:mp3,wav,m4a,ogg', 'max:'.$this->maxAudioKb()],
+            'audio' => ['required', 'file', 'mimes:mp3,wav,m4a,ogg,webm', 'max:'.$this->maxAudioKb()],
             'reference_text' => ['required', 'string', 'max:500'],
             'language' => ['nullable', 'string', 'size:2'],
+            'session_id' => ['nullable', 'integer', 'required_with:activity_id'],
+            'activity_id' => ['nullable', 'string', 'max:128', 'required_with:session_id'],
         ]);
 
-        return $this->callUpstream('pronunciation', function () use ($request) {
+        $session = null;
+        $activityId = null;
+        $vocabularyId = null;
+        $requestId = null;
+        $fingerprint = null;
+        if ($request->filled('session_id')) {
+            $session = LearningSession::query()->whereKey($request->integer('session_id'))
+                ->where('user_id', $request->user()->id)->where('status', 'active')->firstOrFail();
+            $requestId = $request->header('X-Request-ID');
+            validator(['request_id' => $requestId], ['request_id' => ['required', 'uuid']])->validate();
+            $activityId = $request->string('activity_id')->toString();
+            $vocabularyId = str_starts_with($activityId, 'vocabulary:') ? (int) substr($activityId, 11) : 0;
+            Vocabulary::query()->whereKey($vocabularyId)->where('lesson_id', $session->lesson_id)->firstOrFail();
+            $fingerprint = hash('sha256', implode('|', [
+                $session->id, $activityId, $request->string('reference_text')->toString(),
+                hash_file('sha256', $request->file('audio')->getRealPath()),
+            ]));
+            if ($existing = LearningEvent::query()->where('request_id', $requestId)->first()) {
+                if ((int) $existing->user_id !== (int) $request->user()->id
+                    || $existing->event_type !== 'pronunciation'
+                    || data_get($existing->metadata, 'idempotency_fingerprint') !== $fingerprint) {
+                    throw new ConflictHttpException('X-Request-ID was already used for another operation.');
+                }
+
+                return ApiResponse::success(data_get($existing->metadata, 'upstream_result', []));
+            }
+        }
+
+        return $this->callUpstream('pronunciation', function () use (
+            $request, $session, $activityId, $vocabularyId, $requestId, $fingerprint
+        ) {
             $response = $this->retryable()
                 ->attach(
                     'audio',
@@ -71,7 +107,26 @@ class AiProxyController extends Controller
                     'language' => $request->input('language'),
                 ]);
 
-            return ApiResponse::success($response->json());
+            $payload = $response->json();
+            if ($session) {
+                $score = data_get($payload, 'pronunciation_score', data_get($payload, 'score'));
+                LearningEvent::create([
+                    'request_id' => $requestId,
+                    'learning_session_id' => $session->id,
+                    'user_id' => $request->user()->id,
+                    'event_type' => 'pronunciation',
+                    'pronunciation_score' => is_numeric($score) && $score >= 0 && $score <= 100 ? (float) $score : null,
+                    'occurred_at' => now('UTC'),
+                    'metadata' => [
+                        'activity_id' => $activityId,
+                        'vocabulary_id' => $vocabularyId,
+                        'idempotency_fingerprint' => $fingerprint,
+                        'upstream_result' => $payload,
+                    ],
+                ]);
+            }
+
+            return ApiResponse::success($payload);
         });
     }
 
@@ -82,8 +137,10 @@ class AiProxyController extends Controller
         }
 
         $request->validate([
-            'audio' => ['required', 'file', 'mimes:mp3,wav,m4a,ogg', 'max:'.$this->maxAudioKb()],
+            'audio' => ['required', 'file', 'mimes:mp3,wav,m4a,ogg,webm', 'max:'.$this->maxAudioKb()],
             'language' => ['nullable', 'string', 'size:2'],
+            'session_id' => ['nullable', 'integer', 'required_with:activity_id'],
+            'activity_id' => ['nullable', 'string', 'max:128', 'required_with:session_id'],
         ]);
 
         return $this->callUpstream('speech_to_text', function () use ($request) {
@@ -98,7 +155,27 @@ class AiProxyController extends Controller
                     'language' => $request->input('language'),
                 ]);
 
-            return ApiResponse::success($response->json());
+            $payload = $response->json();
+            if ($request->filled('session_id')) {
+                $session = LearningSession::query()->whereKey($request->integer('session_id'))
+                    ->where('user_id', $request->user()->id)->where('status', 'active')->firstOrFail();
+                $requestId = $request->header('X-Request-ID');
+                validator(['request_id' => $requestId], ['request_id' => ['required', 'uuid']])->validate();
+                $activityId = $request->string('activity_id')->toString();
+                $vocabularyId = str_starts_with($activityId, 'vocabulary:') ? (int) substr($activityId, 11) : 0;
+                Vocabulary::query()->whereKey($vocabularyId)->where('lesson_id', $session->lesson_id)->firstOrFail();
+                LearningEvent::create([
+                    'request_id' => $requestId,
+                    'learning_session_id' => $session->id,
+                    'user_id' => $request->user()->id,
+                    'event_type' => 'transcription',
+                    'response' => mb_substr((string) data_get($payload, 'transcript', data_get($payload, 'text', '')), 0, 2000),
+                    'occurred_at' => now('UTC'),
+                    'metadata' => ['activity_id' => $activityId, 'vocabulary_id' => $vocabularyId],
+                ]);
+            }
+
+            return ApiResponse::success($payload);
         });
     }
 
@@ -168,6 +245,8 @@ class AiProxyController extends Controller
             }
 
             return ApiResponse::error('UPSTREAM_REJECTED', 'AI service rejected the request.', 422);
+        } catch (ConflictHttpException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             $this->logFailure($action, $exception);
 

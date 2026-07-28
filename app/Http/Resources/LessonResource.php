@@ -10,6 +10,7 @@ class LessonResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
+            'type' => 'lesson',
             'id' => $this->id,
             'external_id' => $this->external_id,
             'title' => $this->title,
@@ -24,6 +25,7 @@ class LessonResource extends JsonResource
             'unit_id' => $this->unit_id,
             'quizzes_count' => $this->whenCounted('quizzes'),
             'vocabularies_count' => $this->whenCounted('vocabularies'),
+            'vocabularies' => VocabularyResource::collection($this->whenLoaded('vocabularies')),
             'content' => $this->when($this->content !== null, $this->content),
         ];
     }

@@ -361,32 +361,6 @@ paths:
         "419": { $ref: "#/components/responses/CsrfError" }
         "422": { $ref: "#/components/responses/ValidationError" }
         "503": { $ref: "#/components/responses/FeatureDisabled" }
-  /api/v1/learning/sessions/{session}/hints:
-    post:
-      summary: Request the next progressive hint
-      operationId: requestLearningHint
-      security: [{ session: [], csrf: [] }]
-      parameters:
-        - { $ref: "#/components/parameters/SessionId" }
-        - { $ref: "#/components/parameters/RequestId" }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [activity_id]
-              properties:
-                activity_id: { type: string, minLength: 1, maxLength: 128 }
-              additionalProperties: false
-      responses:
-        "200": { $ref: "#/components/responses/AssistanceResponse" }
-        "401": { $ref: "#/components/responses/Unauthenticated" }
-        "403": { $ref: "#/components/responses/Forbidden" }
-        "409": { $ref: "#/components/responses/Conflict" }
-        "419": { $ref: "#/components/responses/CsrfError" }
-        "422": { $ref: "#/components/responses/ValidationError" }
-        "503": { $ref: "#/components/responses/FeatureDisabled" }
   /api/v1/learning/sessions/{session}/complete:
     post:
       summary: Complete the learner-owned session and return its summary
@@ -578,7 +552,7 @@ paths:
       security: [{ session: [] }]
       parameters: [{ $ref: "#/components/parameters/Page" }, { $ref: "#/components/parameters/PerPage" }]
       responses:
-        "200": { $ref: "#/components/responses/CollectionResponse" }
+        "200": { $ref: "#/components/responses/DataResponse" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
   /api/v1/teacher/learners/{learner}:
@@ -615,7 +589,7 @@ paths:
         - { $ref: "#/components/parameters/Page" }
         - { $ref: "#/components/parameters/PerPage" }
       responses:
-        "200": { $ref: "#/components/responses/CollectionResponse" }
+        "200": { $ref: "#/components/responses/DataResponse" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
@@ -626,7 +600,7 @@ paths:
       security: [{ session: [] }]
       parameters: [{ $ref: "#/components/parameters/Page" }, { $ref: "#/components/parameters/PerPage" }]
       responses:
-        "200": { $ref: "#/components/responses/CollectionResponse" }
+        "200": { $ref: "#/components/responses/DataResponse" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
   /api/v1/teacher/alerts/{alert}:
@@ -674,7 +648,7 @@ paths:
       security: [{ session: [] }]
       parameters: [{ $ref: "#/components/parameters/Page" }, { $ref: "#/components/parameters/PerPage" }]
       responses:
-        "200": { $ref: "#/components/responses/CollectionResponse" }
+        "200": { $ref: "#/components/responses/DataResponse" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
     post:
@@ -941,18 +915,15 @@ paths:
       summary: Probe one allowlisted backend, AI, TraceCAG, STT, or TTS service
       operationId: createOperationsServiceProbe
       security: [{ session: [], csrf: [] }]
-      parameters:
-        - { $ref: "#/components/parameters/RequestId" }
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [service, password]
+              required: [service]
               properties:
                 service: { type: string, enum: [backend, ai, trace_cag, stt, tts] }
-                password: { type: string, minLength: 1 }
               additionalProperties: false
       responses:
         "200": { $ref: "#/components/responses/DataResponse" }
@@ -1304,9 +1275,11 @@ components:
               audio:
                 type: string
                 format: binary
-                description: mp3, wav, m4a, or ogg within the configured byte limit.
+                description: mp3, wav, m4a, ogg, or webm within the configured byte limit.
               reference_text: { type: string, maxLength: 500 }
               language: { type: string, minLength: 2, maxLength: 10 }
+              session_id: { type: integer }
+              activity_id: { type: string, maxLength: 128 }
             additionalProperties: false
   securitySchemes:
     session:
@@ -1414,6 +1387,9 @@ components:
             - learning_plan
             - learning_session
             - learning_attempt
+            - lesson
+            - learning_event
+            - intervention_note
             - fsrs_card
             - fsrs_stats
             - assignment
@@ -1430,6 +1406,9 @@ components:
             - pronunciation
         id: { type: [integer, string, "null"] }
         name: { type: string }
+        email: { type: string, format: email }
+        role_id: { type: ["integer", "null"] }
+        role: { type: [object, "null"] }
         title: { type: string }
         slug: { type: string }
         status: { type: string }
@@ -1477,6 +1456,7 @@ components:
         is_correct: { type: boolean }
         summary: { type: [object, "null"] }
         activity: { type: [object, "null"] }
+        progress: { type: object }
         course: { type: object }
         lesson: { type: [object, "null"] }
         progress_percent: { type: number, minimum: 0, maximum: 100 }
@@ -1485,6 +1465,26 @@ components:
         overview: { type: object }
         recent_activity: { type: array }
         recent_attempts: { type: array }
+        features: { type: object }
+        services: { type: object }
+        open_alerts: { type: integer, minimum: 0 }
+        trace_cag: { type: object }
+        last_24_hours: { type: integer, minimum: 0 }
+        last_30_days: { type: integer, minimum: 0 }
+        degraded_30_days: { type: integer, minimum: 0 }
+        limits: { type: object }
+        is_active: { type: boolean }
+        enabled: { type: boolean }
+        parameters: { type: object }
+        rule_key: { type: string }
+        target_type: { type: ["string", "null"] }
+        target_id: { type: ["string", "null"] }
+        occurred_at: { type: ["string", "null"], format: date-time }
+        evidence: { type: array }
+        learner: { type: object }
+        vocabulary: { type: [object, "null"] }
+        instructions: { type: ["string", "null"] }
+        resolution_note: { type: ["string", "null"] }
         items:
           type: array
           items:
@@ -1492,7 +1492,7 @@ components:
             required: [id, type, priority]
             properties:
               id: { type: [integer, string] }
-              type: { type: string, enum: [teacher_lesson, teacher_vocabulary_practice, fsrs_review, course_activity, remediation] }
+              type: { type: string, enum: [teacher_lesson, teacher_vocabulary_practice, fsrs_review, course_activity, pronunciation_task, remediation] }
               priority: { type: integer, minimum: 1 }
             additionalProperties: false
       additionalProperties: false

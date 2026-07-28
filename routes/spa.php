@@ -90,9 +90,12 @@ Route::prefix('api/v1')->group(function (): void {
         Route::post('/teacher/intervention-notes', [TeacherController::class, 'note']);
         Route::get('/admin/operations', [OperationsController::class, 'overview']);
         Route::post('/admin/operations/service-probes', [OperationsController::class, 'probe']);
-        Route::get('/admin/operations/quotas', [OperationsController::class, 'quotas']);
-        Route::post('/admin/operations/quotas', [OperationsController::class, 'createQuota']);
+        Route::get('/admin/operations/contracts', [OperationsController::class, 'contracts']);
+        Route::get('/admin/operations/usage', [OperationsController::class, 'usage']);
+        Route::get('/admin/operations/quota-policy', [OperationsController::class, 'quotaPolicy']);
+        Route::put('/admin/operations/quota-policy', [OperationsController::class, 'createQuota']);
         Route::get('/admin/operations/alert-rules', [OperationsController::class, 'rules']);
-        Route::get('/admin/operations/audits', [OperationsController::class, 'audits']);
+        Route::put('/admin/operations/alert-rules/{alertRule}', [OperationsController::class, 'updateRule']);
+        Route::get('/admin/operations/audit-events', [OperationsController::class, 'audits']);
     });
 });

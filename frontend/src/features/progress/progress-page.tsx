@@ -3,7 +3,7 @@
 import { IconAward, IconBooks, IconBrain, IconCircleCheck, IconCircleX, IconSchool, IconTarget, IconTrophy } from "@tabler/icons-react";
 import { useEffect, useMemo, useState } from "react";
 import { AppShellLoading } from "@/components/layout/app-shell";
-import { api } from "@/lib/api";
+import { api, type CourseProgress, type SupervisedDashboard } from "@/lib/api";
 import { formatDateTime, masteryLabel } from "@/lib/utils";
 import type { QuizSession, UserProgress } from "@/types/api";
 
@@ -51,6 +51,8 @@ export function ProgressPage() {
   const [visibleRows, setVisibleRows] = useState(ROWS_PER_PAGE);
   const [loading, setLoading] = useState(true);
   const [progressError, setProgressError] = useState<string | null>(null);
+  const [supervised, setSupervised] = useState<SupervisedDashboard>();
+  const [courseProgress, setCourseProgress] = useState<CourseProgress[]>([]);
 
   useEffect(() => {
     const loadAll = async () => {
@@ -75,6 +77,13 @@ export function ProgressPage() {
       }
 
       if (sessionsRes.status === "fulfilled") setSessions(sessionsRes.value as QuizSession[]);
+
+      const supervisedRes = await Promise.allSettled([api.supervisedDashboard(), api.enrollments()]);
+      if (supervisedRes[0].status === "fulfilled") setSupervised(supervisedRes[0].value);
+      if (supervisedRes[1].status === "fulfilled") {
+        const results = await Promise.allSettled(supervisedRes[1].value.map((item) => api.courseProgress(item.course_id)));
+        setCourseProgress(results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []));
+      }
 
       setLoading(false);
     };
@@ -117,6 +126,18 @@ export function ProgressPage() {
 
   return (
     <div className="space-y-8">
+        <section>
+          <h2 className="mb-6 font-display text-[24px] font-bold text-foreground">Supervised Course Progress</h2>
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="rounded-xl border-2 border-border bg-white p-6"><p className="text-sm font-bold text-muted-foreground">Completed lessons</p><p className="mt-2 text-3xl font-black tabular-nums text-primary">{supervised?.overview.completed_lessons ?? 0}</p></div>
+            <div className="rounded-xl border-2 border-border bg-white p-6"><p className="text-sm font-bold text-muted-foreground">Quiz attempts</p><p className="mt-2 text-3xl font-black tabular-nums text-primary">{supervised?.overview.quiz_attempts ?? 0}</p></div>
+            <div className="rounded-xl border-2 border-border bg-white p-6"><p className="text-sm font-bold text-muted-foreground">Average score</p><p className="mt-2 text-3xl font-black tabular-nums text-primary">{supervised?.overview.average_score ?? 0}%</p></div>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {courseProgress.map((item) => <article key={item.course.id} className="rounded-xl border-2 border-border bg-white p-5"><div className="flex items-center justify-between gap-4"><h3 className="truncate font-bold">{item.course.title}</h3><span className="font-bold tabular-nums text-primary">{item.progress_percent}%</span></div><div role="progressbar" aria-label={`Tiến độ ${item.course.title}`} aria-valuenow={item.progress_percent} aria-valuemin={0} aria-valuemax={100} className="mt-3 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary" style={{ width: `${item.progress_percent}%` }} /></div><p className="mt-2 text-xs text-muted-foreground">{item.completed_lessons}/{item.total_lessons} lesson</p></article>)}
+            {courseProgress.length === 0 && <p className="rounded-xl bg-muted p-5 text-muted-foreground">Chưa có khóa học đang theo học.</p>}
+          </div>
+        </section>
         {/* Overview Stats */}
         <section>
           <h2 className="mb-6 font-display text-[24px] font-bold text-foreground">Overview</h2>

@@ -39,7 +39,7 @@ export function TodayPage() {
         <Card>
           <CardHeader><CardTitle>Ưu tiên hôm nay</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            {plan?.items.map((item) => <PlanItem key={`${item.type}-${item.id}`} item={item} />)}
+            {plan?.items.map((item) => <PlanItem key={`${item.type}-${item.id}`} item={item} onError={setError} />)}
           </CardContent>
         </Card>
       )}
@@ -54,7 +54,7 @@ export function TodayPage() {
           ) : enrollments.map((item) => (
             <div key={item.id} className="flex flex-col gap-4 rounded-2xl border-2 border-border p-5 sm:flex-row sm:items-center sm:justify-between">
               <div><p className="text-xs font-bold uppercase tracking-wider text-primary">{item.status}</p><h3 className="font-display text-xl font-bold">{item.title}</h3></div>
-              <StartButton enrollment={item} />
+              <StartButton enrollment={item} onError={setError} />
             </div>
           ))}
         </CardContent>
@@ -63,22 +63,29 @@ export function TodayPage() {
   );
 }
 
-function PlanItem({ item }: { item: LearningPlan["items"][number] }) {
+function PlanItem({ item, onError }: { item: LearningPlan["items"][number]; onError: (message: string) => void }) {
   const [busy, setBusy] = useState(false);
   const labels = {
     teacher_lesson: "Bài học giáo viên giao",
     teacher_vocabulary_practice: "Luyện từ vựng giáo viên giao",
     fsrs_review: "Ôn tập FSRS",
     course_activity: "Bài tiếp theo trong khóa học",
+    pronunciation_task: "Luyện phát âm trong lesson tiếp theo",
     remediation: "Ôn lại nội dung đang yếu",
   };
   if (item.type === "fsrs_review" || item.type === "remediation") {
     return <div className="flex items-center justify-between rounded-2xl border-2 border-border p-4"><span className="font-bold">{labels[item.type]}</span><Button asChildCompat="a"><Link href="/review">Bắt đầu</Link></Button></div>;
   }
-  if (item.type === "course_activity") return null;
   async function start() {
     setBusy(true);
-    try { const session = await api.startAssignment(item.id); window.location.href = `/session/${session.id}`; }
+    try {
+      const session = item.type === "course_activity" || item.type === "pronunciation_task"
+        ? await api.startSession(item.id)
+        : await api.startAssignment(item.id);
+      window.location.href = `/session/${session.id}`;
+    } catch (reason) {
+      onError(reason instanceof Error ? reason.message : "Không thể mở hoạt động.");
+    }
     finally { setBusy(false); }
   }
   return <div className="flex items-center justify-between rounded-2xl border-2 border-border p-4"><span className="font-bold">{labels[item.type]}</span><Button onClick={start} disabled={busy}>{busy ? "Đang mở…" : "Bắt đầu"}</Button></div>;
@@ -88,11 +95,12 @@ function Metric({ icon: Icon, label, value, tone }: { icon: typeof IconBrain; la
   return <Card className="p-5"><div className="flex items-center gap-4"><span className={`rounded-2xl p-3 ${tone}`}><Icon className="h-7 w-7" /></span><div><p className="text-3xl font-bold">{value}</p><p className="text-sm text-muted-foreground">{label}</p></div></div></Card>;
 }
 
-function StartButton({ enrollment }: { enrollment: Enrollment }) {
+function StartButton({ enrollment, onError }: { enrollment: Enrollment; onError: (message: string) => void }) {
   const [busy, setBusy] = useState(false);
   async function start() {
     setBusy(true);
     try { const session = await api.startSession(enrollment.id); window.location.href = `/session/${session.id}`; }
+    catch (reason) { onError(reason instanceof Error ? reason.message : "Không thể mở phiên học."); }
     finally { setBusy(false); }
   }
   return <Button onClick={start} disabled={busy}>{busy ? "Đang mở…" : "Học tiếp"}<IconArrowRight className="h-5 w-5" /></Button>;

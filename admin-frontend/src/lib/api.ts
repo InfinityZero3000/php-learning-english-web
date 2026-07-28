@@ -66,16 +66,32 @@ export const operations = {
     method: 'POST',
     body: JSON.stringify({ service }),
   }).then(({ data }) => data),
-  quotas: () => request<{ data: QuotaPolicy[] }>('/api/v1/admin/operations/quotas').then(({ data }) => data),
+  contracts: () => request<{ data: ContractStatus }>('/api/v1/admin/operations/contracts').then(({ data }) => data),
+  usage: () => request<{ data: OperationsUsage }>('/api/v1/admin/operations/usage').then(({ data }) => data),
+  quota: () => request<{ data: QuotaPolicy }>('/api/v1/admin/operations/quota-policy').then(({ data }) => data),
+  updateQuota: (limits: Record<string, number>, password: string) =>
+    request<{ data: QuotaPolicy }>('/api/v1/admin/operations/quota-policy', {
+      method: 'PUT',
+      headers: { 'X-Request-ID': crypto.randomUUID() },
+      body: JSON.stringify({ limits, password }),
+    }).then(({ data }) => data),
   rules: () => request<{ data: AlertRule[] }>('/api/v1/admin/operations/alert-rules').then(({ data }) => data),
-  audits: () => request<{ data: AuditEvent[] }>('/api/v1/admin/operations/audits').then(({ data }) => data),
+  updateRule: (id: number, enabled: boolean, parameters: Record<string, unknown>, password: string) =>
+    request<{ data: AlertRule }>(`/api/v1/admin/operations/alert-rules/${id}`, {
+      method: 'PUT',
+      headers: { 'X-Request-ID': crypto.randomUUID() },
+      body: JSON.stringify({ enabled, parameters, password }),
+    }).then(({ data }) => data),
+  audits: () => request<{ data: AuditEvent[] }>('/api/v1/admin/operations/audit-events').then(({ data }) => data),
 };
 
 export type OperationsOverview = { features: Record<string, boolean>; services: Record<string, boolean>; open_alerts: number };
 export type ServiceProbe = { service: string; healthy: boolean; status: number; latency_ms: number };
 export type QuotaPolicy = { id: number; version: number; limits: Record<string, number>; is_active: boolean };
-export type AlertRule = { id: number; rule_key: string; version: number; enabled: boolean };
+export type AlertRule = { id: number; rule_key: string; version: number; enabled: boolean; parameters: Record<string, unknown> };
 export type AuditEvent = { id: number; action: string; target_type?: string; target_id?: string; occurred_at: string };
+export type ContractStatus = { trace_cag: { version: string; sha256: string | null } };
+export type OperationsUsage = { last_24_hours: number; last_30_days: number; degraded_30_days: number };
 
 // Auth
 export const auth = {

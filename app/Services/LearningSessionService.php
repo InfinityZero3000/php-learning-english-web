@@ -7,6 +7,7 @@ use App\Models\Enrollment;
 use App\Models\LearningEvent;
 use App\Models\LearningSession;
 use App\Models\Progress;
+use App\Models\SupervisionAlert;
 use App\Models\User;
 use App\Models\UserVocabulary;
 use Illuminate\Database\QueryException;
@@ -46,6 +47,12 @@ class LearningSessionService
             if ($lesson) {
                 $items[] = ['id' => $enrollment->id, 'type' => 'course_activity', 'priority' => $priority++];
             }
+        }
+
+        $pronunciationEnrollment = Enrollment::query()->where('user_id', $user->id)->where('status', 'active')->first();
+        if ($pronunciationEnrollment && SupervisionAlert::query()->where('learner_id', $user->id)
+            ->where('rule_key', 'weak_pronunciation')->where('state', 'open')->exists()) {
+            $items[] = ['id' => $pronunciationEnrollment->id, 'type' => 'pronunciation_task', 'priority' => $priority++];
         }
 
         $remediation = LearningEvent::query()->where('user_id', $user->id)->whereNotNull('is_correct')
@@ -115,25 +122,29 @@ class LearningSessionService
     {
         $this->ownedActive($user, $session);
         $assignedVocabularyId = $session->summary['vocabulary_id'] ?? null;
+        $answeredIds = $session->events()->where('event_type', 'answer')->get('metadata')
+            ->pluck('metadata')->map(fn ($metadata) => data_get($metadata, 'vocabulary_id'))
+            ->filter()->unique()->values();
         $vocabulary = $session->lesson->vocabularies()
             ->when($assignedVocabularyId, fn ($query) => $query->whereKey($assignedVocabularyId))
-            ->whereDoesntHave('userVocabularies.reviews', function ($query) use ($session): void {
-                $query->whereHas('vocabularyReviewEvent', fn ($event) => $event->where('learning_session_id', $session->id));
-            })
+            ->whereNotIn('id', $answeredIds)
             ->orderBy('id')
             ->first();
+        $total = $assignedVocabularyId ? 1 : $session->lesson->vocabularies()->count();
 
         return [
             'type' => 'learning_session',
             'id' => $session->id,
             'status' => $session->status,
             'lesson_id' => $session->lesson_id,
+            'progress' => ['completed' => $answeredIds->count(), 'total' => $total],
             'activity' => $vocabulary ? [
                 'id' => "vocabulary:{$vocabulary->id}",
                 'type' => 'vocabulary',
                 'vocabulary_id' => $vocabulary->id,
                 'word' => $vocabulary->word,
                 'meaning' => $vocabulary->meaning,
+                'audio_url' => $vocabulary->external_audio_url,
                 'practice_only' => $assignedVocabularyId !== null,
             ] : null,
         ];
@@ -157,12 +168,18 @@ class LearningSessionService
                     }
                     throw new ConflictHttpException('Learning session is not active.');
                 }
-                $activityCount = $session->events()->whereNotIn('event_type', ['session_started'])->count();
-                if ($activityCount === 0) {
-                    throw new ConflictHttpException('Complete at least one learning activity first.');
-                }
                 $assignmentId = $session->summary['assignment_id'] ?? null;
                 $practiceOnly = ($session->summary['vocabulary_id'] ?? null) !== null;
+                $expectedVocabularyIds = $practiceOnly
+                    ? collect([$session->summary['vocabulary_id']])
+                    : $session->lesson->vocabularies()->pluck('id');
+                $answeredVocabularyIds = $session->events()->where('event_type', 'answer')->get('metadata')
+                    ->pluck('metadata')->map(fn ($metadata) => data_get($metadata, 'vocabulary_id'))
+                    ->filter()->unique();
+                if ($expectedVocabularyIds->diff($answeredVocabularyIds)->isNotEmpty()) {
+                    throw new ConflictHttpException('Complete every learning activity before finishing the session.');
+                }
+                $activityCount = $answeredVocabularyIds->count();
                 if (! $practiceOnly) {
                     Progress::firstOrCreate(
                         ['user_id' => $user->id, 'lesson_id' => $session->lesson_id],

@@ -9,22 +9,29 @@ import { ApiError, auth, type User } from '@/lib/api';
 interface AdminLayoutProps {
   children: React.ReactNode;
   title?: string;
+  requiredRole?: 'admin' | 'super_admin';
 }
 
-export default function AdminLayout({ children, title }: AdminLayoutProps) {
+export default function AdminLayout({ children, title, requiredRole }: AdminLayoutProps) {
   const router = useRouter();
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState('');
+  const [user, setUser] = useState<User>();
 
   useEffect(() => {
     let cancelled = false;
     auth.me().then((user: User) => {
       if (cancelled) return;
-      if (user.role !== 'admin') {
+      if (!['admin', 'super_admin'].includes(user.role ?? '')) {
         setMessage('This area is restricted to administrators.');
         void auth.logout().finally(() => router.replace('/login?forbidden=1'));
         return;
       }
+      if (requiredRole && user.role !== requiredRole) {
+        router.replace('/dashboard?forbidden=1');
+        return;
+      }
+      setUser(user);
       setState('ready');
     }).catch((error) => {
       if (cancelled) return;
@@ -35,7 +42,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
       }
     });
     return () => { cancelled = true; };
-  }, [router]);
+  }, [requiredRole, router]);
 
   if (state !== 'ready') {
     return (
@@ -50,7 +57,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
 
   return (
     <div className="flex h-full min-h-screen" style={{ backgroundColor: '#fbf9f9' }}>
-      <Sidebar />
+      <Sidebar role={user?.role} />
       <main className="flex-1 flex flex-col" style={{ marginLeft: '18rem' }}>
         <TopBar title={title} />
         <div className="flex-1 mt-20 p-8 max-w-7xl mx-auto w-full">

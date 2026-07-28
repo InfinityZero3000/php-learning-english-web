@@ -10,6 +10,7 @@ class CourseCategoryResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
+            'type' => 'category',
             'id' => $this->id,
             'external_id' => $this->external_id,
             'name' => $this->name,

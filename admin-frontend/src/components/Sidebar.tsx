@@ -43,7 +43,7 @@ const navGroups = [
 
 const bottomItems = [{ href: '/settings', icon: 'settings', label: 'Settings' }];
 
-export default function Sidebar() {
+export default function Sidebar({ role }: { role?: string | null }) {
   const pathname = usePathname();
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/');
 
@@ -75,7 +75,7 @@ export default function Sidebar() {
               </p>
             )}
             <div className="space-y-0.5">
-              {group.items.map((item) => {
+              {group.items.filter((item) => item.href !== '/operations' || role === 'super_admin').map((item) => {
                 const active = isActive(item.href);
                 return (
                   <Link
