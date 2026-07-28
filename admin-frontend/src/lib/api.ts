@@ -94,15 +94,25 @@ export type ContractStatus = { trace_cag: { version: string; sha256: string | nu
 export type OperationsUsage = { last_24_hours: number; last_30_days: number; degraded_30_days: number };
 
 // Auth
+let adminSession: Promise<User> | undefined;
+
 export const auth = {
   me: () => request<{ data: User }>('/api/v1/auth/me').then(({ data }) => data),
-  adminMe: () => request<{ data: User }>('/api/v1/admin/session').then(({ data }) => data),
+  adminMe: () => {
+    adminSession ??= request<{ data: User }>('/api/v1/admin/session')
+      .then(({ data }) => data)
+      .catch((error) => {
+        adminSession = undefined;
+        throw error;
+      });
+    return adminSession;
+  },
   completeGoogleAdmin: (handoff: string) =>
     request<{ data: { user: User; return: string } }>('/api/v1/auth/oauth/google/admin/handoff', {
       method: 'POST',
       body: JSON.stringify({ handoff }),
     }).then(({ data }) => data),
-  logout: () => request<void>('/api/v1/auth/logout', { method: 'POST' }),
+  logout: () => request<void>('/api/v1/auth/logout', { method: 'POST' }).finally(() => { adminSession = undefined; }),
 };
 
 // Words

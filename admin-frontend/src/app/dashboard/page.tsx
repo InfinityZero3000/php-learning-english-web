@@ -29,7 +29,7 @@ export default function DashboardPage() {
 
     (async () => {
       try {
-        const user = await auth.me();
+        const user = await auth.adminMe();
         const [users, courses, platform] = await Promise.all([
           adminUsers.list({ perPage: 1 }),
           adminCourses.list(),

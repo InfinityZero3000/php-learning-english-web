@@ -24,7 +24,7 @@ export default function UsersPage() {
     try {
       const [response, currentUser] = await Promise.all([
         adminUsers.list({ search: search || undefined, role: role || undefined, page, perPage: 20 }),
-        auth.me(),
+        auth.adminMe(),
       ]);
       setUsers(response.data);
       setMeta(response.meta);

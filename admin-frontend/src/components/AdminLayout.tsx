@@ -36,7 +36,7 @@ export default function AdminLayout({ children, title, requiredRole }: AdminLayo
       setState('ready');
     }).catch((error) => {
       if (cancelled) return;
-      if (error instanceof ApiError && error.status === 401) router.replace('/login?error=expired');
+      if (error instanceof ApiError && error.status === 401) router.replace('/login');
       else {
         setMessage('Could not reach the server. Please retry.');
         setState('error');
