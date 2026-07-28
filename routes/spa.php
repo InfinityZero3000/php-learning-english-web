@@ -2,7 +2,9 @@
 
 use App\Http\Controllers\Api\V1\Admin\CategoryAdminController;
 use App\Http\Controllers\Api\V1\Admin\CourseAdminController;
+use App\Http\Controllers\Api\V1\Admin\CourseCategoryController;
 use App\Http\Controllers\Api\V1\Admin\LessonAdminController;
+use App\Http\Controllers\Api\V1\Admin\LevelController;
 use App\Http\Controllers\Api\V1\Admin\MediaController;
 use App\Http\Controllers\Api\V1\Admin\QuizAdminController;
 use App\Http\Controllers\Api\V1\Admin\TopicController;
@@ -104,8 +106,9 @@ Route::prefix('api/v1')->group(function (): void {
 
     // Authenticated admin routes
     Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function (): void {
-        Route::get('/levels', [CourseAdminController::class, 'levels']);
-        Route::apiResource('categories', CategoryAdminController::class);
+        Route::apiResource('topics', TopicController::class);
+        Route::apiResource('levels', LevelController::class);
+        Route::apiResource('categories', CourseCategoryController::class);
         Route::apiResource('courses', CourseAdminController::class);
         Route::apiResource('lessons', LessonAdminController::class);
         Route::apiResource('vocabulary', VocabularyAdminController::class);
@@ -114,7 +117,7 @@ Route::prefix('api/v1')->group(function (): void {
         Route::get('users/{user}', [UserAdminController::class, 'show']);
         Route::put('users/{user}/role', [UserAdminController::class, 'updateRole']);
 
-        Route::apiResource('topics', TopicController::class);
+        // Media
         Route::post('/media/upload', [MediaController::class, 'upload']);
         Route::delete('/media/{path?}', [MediaController::class, 'destroy'])->where('path', '.*');
     });
