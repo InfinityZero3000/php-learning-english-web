@@ -1,10 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError, auth } from "./api";
+import { ApiError } from "./api";
+
+type AuthType = typeof import("./api").auth;
 
 describe("session API client", () => {
-  beforeEach(() => {
+  let auth: AuthType;
+
+  beforeEach(async () => {
     document.cookie = "XSRF-TOKEN=token%20value";
     vi.restoreAllMocks();
+    // Use importActual to bypass mock cross-contamination from other test files
+    // that mock "@​/lib/api" (which vitest 4.x resolves to the same module as "./api")
+    const mod = (await vi.importActual("./api")) as typeof import("./api");
+    auth = mod.auth;
   });
 
   it("initializes CSRF and sends the decoded token with credentials", async () => {
@@ -32,11 +40,11 @@ describe("session API client", () => {
         headers: { "Content-Type": "application/json" }
       }));
 
-    await expect(auth.login("", "")).rejects.toMatchObject<ApiError>({
+    await expect(auth.login("", "")).rejects.toMatchObject({
       status: 422,
       message: "Invalid",
       errors: { email: ["Required"] }
-    });
+    } as Partial<ApiError>);
   });
 
   it("initializes CSRF before resending verification", async () => {
