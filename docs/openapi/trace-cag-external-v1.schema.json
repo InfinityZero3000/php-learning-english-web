@@ -164,7 +164,20 @@
           ]
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": { "degraded": { "const": false } },
+            "required": ["degraded"]
+          },
+          "then": {
+            "properties": {
+              "model": { "$ref": "#/$defs/ModelMetadata" }
+            }
+          }
+        }
+      ]
     }
   }
 }

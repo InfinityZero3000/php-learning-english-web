@@ -203,6 +203,8 @@ paths:
       summary: Delete the current account
       operationId: deleteProfile
       security: [{ session: [], csrf: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
       requestBody:
         required: true
         content:
@@ -215,6 +217,7 @@ paths:
       responses:
         "204": { description: Account deleted }
         "401": { $ref: "#/components/responses/Unauthenticated" }
+        "409": { $ref: "#/components/responses/Conflict" }
         "419": { $ref: "#/components/responses/CsrfError" }
         "422": { $ref: "#/components/responses/ValidationError" }
   /api/v1/profile/password:
@@ -477,10 +480,13 @@ paths:
       summary: Transcribe learner audio
       operationId: speechToText
       security: [{ session: [], csrf: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
       requestBody: { $ref: "#/components/requestBodies/AudioRequest" }
       responses:
         "200": { $ref: "#/components/responses/DataResponse" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
+        "409": { $ref: "#/components/responses/Conflict" }
         "419": { $ref: "#/components/responses/CsrfError" }
         "422": { $ref: "#/components/responses/ValidationError" }
         "429": { $ref: "#/components/responses/RateLimited" }
@@ -490,10 +496,13 @@ paths:
       summary: Assess learner pronunciation
       operationId: assessPronunciation
       security: [{ session: [], csrf: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
       requestBody: { $ref: "#/components/requestBodies/AudioRequest" }
       responses:
         "200": { $ref: "#/components/responses/DataResponse" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
+        "409": { $ref: "#/components/responses/Conflict" }
         "419": { $ref: "#/components/responses/CsrfError" }
         "422": { $ref: "#/components/responses/ValidationError" }
         "429": { $ref: "#/components/responses/RateLimited" }
@@ -503,6 +512,8 @@ paths:
       summary: Synthesize learner-safe speech
       operationId: textToSpeech
       security: [{ session: [], csrf: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
       requestBody:
         required: true
         content:
@@ -521,6 +532,7 @@ paths:
             audio/mpeg:
               schema: { type: string, format: binary }
         "401": { $ref: "#/components/responses/Unauthenticated" }
+        "409": { $ref: "#/components/responses/Conflict" }
         "419": { $ref: "#/components/responses/CsrfError" }
         "422": { $ref: "#/components/responses/ValidationError" }
         "429": { $ref: "#/components/responses/RateLimited" }
@@ -712,6 +724,7 @@ paths:
       security: [{ session: [], csrf: [] }]
       parameters:
         - { $ref: "#/components/parameters/UserId" }
+        - { $ref: "#/components/parameters/RequestId" }
       requestBody:
         required: true
         content:
@@ -728,6 +741,7 @@ paths:
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
         "419": { $ref: "#/components/responses/CsrfError" }
         "422": { $ref: "#/components/responses/ValidationError" }
     delete:
@@ -736,12 +750,25 @@ paths:
       security: [{ session: [], csrf: [] }]
       parameters:
         - { $ref: "#/components/parameters/UserId" }
+        - { $ref: "#/components/parameters/RequestId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: { type: string, minLength: 1 }
+              additionalProperties: false
       responses:
         "204": { description: User deleted and retained records anonymized }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
         "419": { $ref: "#/components/responses/CsrfError" }
+        "422": { $ref: "#/components/responses/ValidationError" }
   /api/v1/admin/catalog/{resource}:
     get:
       summary: List one local catalog resource
@@ -761,15 +788,17 @@ paths:
       security: [{ session: [], csrf: [] }]
       parameters:
         - { $ref: "#/components/parameters/CatalogResource" }
+        - { $ref: "#/components/parameters/RequestId" }
       requestBody:
         required: true
         content:
           application/json:
-            schema: { type: object }
+            schema: { $ref: "#/components/schemas/AdminCatalogWriteRequest" }
       responses:
         "201": { $ref: "#/components/responses/DataResponse" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
         "419": { $ref: "#/components/responses/CsrfError" }
         "422": { $ref: "#/components/responses/ValidationError" }
   /api/v1/admin/catalog/{resource}/{id}:
@@ -792,16 +821,18 @@ paths:
       parameters:
         - { $ref: "#/components/parameters/CatalogResource" }
         - { $ref: "#/components/parameters/ResourceId" }
+        - { $ref: "#/components/parameters/RequestId" }
       requestBody:
         required: true
         content:
           application/json:
-            schema: { type: object }
+            schema: { $ref: "#/components/schemas/AdminCatalogWriteRequest" }
       responses:
         "200": { $ref: "#/components/responses/DataResponse" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
         "419": { $ref: "#/components/responses/CsrfError" }
         "422": { $ref: "#/components/responses/ValidationError" }
   /api/v1/admin/catalog/{resource}/{id}/publish:
@@ -812,6 +843,7 @@ paths:
       parameters:
         - { $ref: "#/components/parameters/CatalogResource" }
         - { $ref: "#/components/parameters/ResourceId" }
+        - { $ref: "#/components/parameters/RequestId" }
       responses:
         "200": { $ref: "#/components/responses/DataResponse" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
@@ -827,6 +859,7 @@ paths:
       parameters:
         - { $ref: "#/components/parameters/CatalogResource" }
         - { $ref: "#/components/parameters/ResourceId" }
+        - { $ref: "#/components/parameters/RequestId" }
       responses:
         "200": { $ref: "#/components/responses/DataResponse" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
@@ -874,6 +907,8 @@ paths:
       summary: Probe one allowlisted backend, AI, TraceCAG, STT, or TTS service
       operationId: createOperationsServiceProbe
       security: [{ session: [], csrf: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
       requestBody:
         required: true
         content:
@@ -889,6 +924,7 @@ paths:
         "200": { $ref: "#/components/responses/DataResponse" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
         "419": { $ref: "#/components/responses/CsrfError" }
         "422": { $ref: "#/components/responses/ValidationError" }
         "503": { $ref: "#/components/responses/FeatureDisabled" }
@@ -923,6 +959,8 @@ paths:
       summary: Replace the active quota policy after recent password confirmation
       operationId: updateOperationsQuotaPolicy
       security: [{ session: [], csrf: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
       requestBody:
         required: true
         content:
@@ -932,6 +970,7 @@ paths:
         "200": { $ref: "#/components/responses/DataResponse" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
         "419": { $ref: "#/components/responses/CsrfError" }
         "422": { $ref: "#/components/responses/ValidationError" }
   /api/v1/admin/operations/alert-rules:
@@ -950,6 +989,7 @@ paths:
       security: [{ session: [], csrf: [] }]
       parameters:
         - { $ref: "#/components/parameters/AlertRuleId" }
+        - { $ref: "#/components/parameters/RequestId" }
       requestBody:
         required: true
         content:
@@ -967,6 +1007,7 @@ paths:
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
         "419": { $ref: "#/components/responses/CsrfError" }
         "422": { $ref: "#/components/responses/ValidationError" }
   /api/v1/admin/operations/audit-events:
@@ -1013,6 +1054,7 @@ paths:
       security: [{ session: [], csrf: [] }]
       parameters:
         - { $ref: "#/components/parameters/UserId" }
+        - { $ref: "#/components/parameters/RequestId" }
       requestBody:
         required: true
         content:
@@ -1048,6 +1090,8 @@ paths:
       summary: Assign a teacher to a learner after recent password confirmation
       operationId: createOperationsTeacherAssignment
       security: [{ session: [], csrf: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
       requestBody:
         required: true
         content:
@@ -1067,6 +1111,7 @@ paths:
       security: [{ session: [], csrf: [] }]
       parameters:
         - { $ref: "#/components/parameters/TeacherAssignmentId" }
+        - { $ref: "#/components/parameters/RequestId" }
       requestBody:
         required: true
         content:
@@ -1086,6 +1131,7 @@ paths:
       security: [{ session: [], csrf: [] }]
       parameters:
         - { $ref: "#/components/parameters/TeacherAssignmentId" }
+        - { $ref: "#/components/parameters/RequestId" }
       requestBody:
         required: true
         content:
@@ -1101,7 +1147,35 @@ paths:
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
         "419": { $ref: "#/components/responses/CsrfError" }
+  /api/v1/admin/operations/secrets/{secret}:
+    put:
+      summary: Replace one allowlisted integration secret after recent password confirmation
+      description: Secret values are write-only and are never returned by any operation.
+      operationId: replaceOperationsSecret
+      security: [{ session: [], csrf: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/SecretName" }
+        - { $ref: "#/components/parameters/RequestId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [value, password]
+              properties:
+                value: { type: string, minLength: 16, maxLength: 4096, writeOnly: true }
+                password: { type: string, minLength: 1, writeOnly: true }
+              additionalProperties: false
+      responses:
+        "204": { description: Secret replaced; no secret value is returned }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422": { $ref: "#/components/responses/ValidationError" }
 components:
   parameters:
     Page:
@@ -1173,6 +1247,17 @@ components:
       name: teacherAssignment
       required: true
       schema: { type: integer, minimum: 1 }
+    SecretName:
+      in: path
+      name: secret
+      required: true
+      schema:
+        type: string
+        enum:
+          - lexilingo_partner_api_key
+          - trace_cag_service_token
+          - trace_cag_subject_secret
+          - ai_service_key
   requestBodies:
     AudioRequest:
       required: true
@@ -1275,18 +1360,94 @@ components:
         difficulty_level: { type: [string, "null"] }
         tags: { type: [array, "null"] }
         external_audio_url: { type: [string, "null"] }
+    ResponseMeta:
+      type: object
+      properties:
+        request_id: { type: ["string", "null"], format: uuid }
+        generated_at: { type: string, format: date-time }
+      additionalProperties: false
+    ContractData:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum:
+            - category
+            - course
+            - vocabulary
+            - enrollment
+            - learning_plan
+            - learning_session
+            - fsrs_card
+            - fsrs_stats
+            - assignment
+            - progress
+            - user
+            - supervision_alert
+            - sync_run
+            - service_status
+            - quota_policy
+            - alert_rule
+            - audit_event
+            - teacher_assignment
+            - speech_to_text
+            - pronunciation
+        id: { type: [integer, string, "null"] }
+        name: { type: string }
+        title: { type: string }
+        slug: { type: string }
+        status: { type: string }
+        user_id: { type: integer, minimum: 1 }
+        learner_id: { type: integer, minimum: 1 }
+        teacher_id: { type: integer, minimum: 1 }
+        course_id: { type: integer, minimum: 1 }
+        lesson_id: { type: ["integer", "null"], minimum: 1 }
+        vocabulary_id: { type: ["integer", "null"], minimum: 1 }
+        assignment_id: { type: ["integer", "null"], minimum: 1 }
+        state: { type: string }
+        due_at: { type: ["string", "null"], format: date-time }
+        completed_at: { type: ["string", "null"], format: date-time }
+        revision: { type: integer, minimum: 0 }
+        due_count: { type: integer, minimum: 0 }
+        new_count: { type: integer, minimum: 0 }
+        learning_count: { type: integer, minimum: 0 }
+        review_count: { type: integer, minimum: 0 }
+        best_score: { type: ["integer", "null"], minimum: 0, maximum: 100 }
+        severity: { type: string }
+        rule_code: { type: string }
+        service: { type: string }
+        healthy: { type: boolean }
+        version: { type: [integer, string] }
+        action: { type: string }
+        transcript: { type: string, maxLength: 2000 }
+        pronunciation_score: { type: number, minimum: 0, maximum: 100 }
+        estimated_minutes: { type: integer, minimum: 0 }
+        items:
+          type: array
+          items:
+            type: object
+            required: [id, type, priority]
+            properties:
+              id: { type: [integer, string] }
+              type: { type: string, enum: [teacher_lesson, fsrs_review, course_activity, remediation] }
+              priority: { type: integer, minimum: 1 }
+            additionalProperties: false
+      additionalProperties: false
     DataEnvelope:
       type: object
       required: [data, meta]
       properties:
-        data: {}
-        meta: { type: object }
+        data: { $ref: "#/components/schemas/ContractData" }
+        meta: { $ref: "#/components/schemas/ResponseMeta" }
       additionalProperties: false
     CollectionEnvelope:
       type: object
       required: [data, meta]
       properties:
-        data: { type: array, items: {} }
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/ContractData" }
         meta:
           type: object
           required: [page, per_page, total]
@@ -1294,7 +1455,8 @@ components:
             page: { type: integer, minimum: 1 }
             per_page: { type: integer, minimum: 1, maximum: 100 }
             total: { type: integer, minimum: 0 }
-          additionalProperties: true
+            request_id: { type: ["string", "null"], format: uuid }
+          additionalProperties: false
       additionalProperties: false
     ErrorEnvelope:
       type: object
@@ -1368,8 +1530,64 @@ components:
                   type: string
                   enum: [continue, retry, review_prerequisite, practice_pronunciation, ask_teacher]
               additionalProperties: false
-          additionalProperties: true
-        meta: { type: object }
+          additionalProperties: false
+        meta: { $ref: "#/components/schemas/ResponseMeta" }
+      additionalProperties: false
+    AdminCatalogWriteRequest:
+      oneOf:
+        - { $ref: "#/components/schemas/AdminCourseWriteRequest" }
+        - { $ref: "#/components/schemas/AdminUnitWriteRequest" }
+        - { $ref: "#/components/schemas/AdminLessonWriteRequest" }
+        - { $ref: "#/components/schemas/AdminVocabularyWriteRequest" }
+        - { $ref: "#/components/schemas/AdminQuizWriteRequest" }
+    AdminCourseWriteRequest:
+      type: object
+      required: [title, slug, status]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 255 }
+        slug: { type: string, minLength: 1, maxLength: 255 }
+        description: { type: ["string", "null"], maxLength: 5000 }
+        level_id: { type: ["integer", "null"], minimum: 1 }
+        status: { type: string, enum: [draft, published, archived] }
+      additionalProperties: false
+    AdminUnitWriteRequest:
+      type: object
+      required: [course_id, title, sort_order]
+      properties:
+        course_id: { type: integer, minimum: 1 }
+        title: { type: string, minLength: 1, maxLength: 255 }
+        description: { type: ["string", "null"], maxLength: 5000 }
+        sort_order: { type: integer, minimum: 0 }
+      additionalProperties: false
+    AdminLessonWriteRequest:
+      type: object
+      required: [course_id, title, slug, status]
+      properties:
+        course_id: { type: integer, minimum: 1 }
+        unit_id: { type: ["integer", "null"], minimum: 1 }
+        title: { type: string, minLength: 1, maxLength: 255 }
+        slug: { type: string, minLength: 1, maxLength: 255 }
+        content: { type: ["string", "null"], maxLength: 50000 }
+        status: { type: string, enum: [draft, published, archived] }
+      additionalProperties: false
+    AdminVocabularyWriteRequest:
+      type: object
+      required: [word, meaning]
+      properties:
+        lesson_id: { type: ["integer", "null"], minimum: 1 }
+        word: { type: string, minLength: 1, maxLength: 255 }
+        meaning: { type: string, minLength: 1, maxLength: 5000 }
+        example: { type: ["string", "null"], maxLength: 5000 }
+        pronunciation: { type: ["string", "null"], maxLength: 255 }
+      additionalProperties: false
+    AdminQuizWriteRequest:
+      type: object
+      required: [lesson_id, title, passing_score, status]
+      properties:
+        lesson_id: { type: integer, minimum: 1 }
+        title: { type: string, minLength: 1, maxLength: 255 }
+        passing_score: { type: integer, minimum: 0, maximum: 100 }
+        status: { type: string, enum: [draft, published, archived] }
       additionalProperties: false
     AssignmentRequest:
       type: object
