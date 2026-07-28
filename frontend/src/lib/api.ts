@@ -133,9 +133,11 @@ export async function registerUser(
   });
 }
 
-export async function logout(): Promise<void> {
+export async function performLogout(): Promise<void> {
   await apiRequest("POST", "/api/v1/auth/logout");
 }
+
+export const logout = performLogout;
 
 export async function fetchMe(): Promise<AppUser> {
   const result = await apiRequest<ApiEnvelope<AppUser>>("GET", "/api/v1/auth/me");
@@ -188,6 +190,10 @@ export const auth = {
     return resetPassword(payload);
   },
   me: async () => fetchMe(),
+  logout: async () => {
+    await initializeCsrf();
+    return performLogout();
+  },
 };
 
 // --- Profile ----------------------------------------------------------------
