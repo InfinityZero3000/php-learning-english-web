@@ -215,7 +215,10 @@ final class FsrsScheduler
     {
         $decay = -FsrsConfig::PARAMETERS[20];
         $factor = 0.9 ** (1 / $decay) - 1;
-        $interval = round(($stability / $factor) * (FsrsConfig::DESIRED_RETENTION ** (1 / $decay) - 1));
+        $interval = round(
+            ($stability / $factor) * (FsrsConfig::DESIRED_RETENTION ** (1 / $decay) - 1),
+            mode: PHP_ROUND_HALF_EVEN,
+        );
 
         return (int) min(max($interval, 1), FsrsConfig::MAXIMUM_INTERVAL_DAYS);
     }

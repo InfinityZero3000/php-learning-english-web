@@ -32,18 +32,35 @@ class FsrsSchedulerTest extends TestCase
         $this->assertSame($expected['last_review'], $result->card->lastReview->format('c'));
         $this->assertEqualsWithDelta($expected['stability'], $result->card->stability, 1e-9);
         $this->assertEqualsWithDelta($expected['difficulty'], $result->card->difficulty, 1e-9);
+        $this->assertSame(
+            max(0, (int) (new DateTimeImmutable($case['at']))->diff(new DateTimeImmutable($expected['due']))->format('%r%a')),
+            $result->scheduledDays,
+        );
+        $this->assertSame($before['state'], $card->state);
+        $this->assertSame($before['due'], $card->due->format('c'));
     }
 
     public static function fixtureCases(): array
     {
-        $cases = json_decode(file_get_contents(__DIR__.'/../Fixtures/fsrs_v6_3_0.json'), true, flags: JSON_THROW_ON_ERROR);
+        $payload = json_decode(file_get_contents(__DIR__.'/../Fixtures/fsrs_v6_3_0.json'), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame('6.3.0', $payload['version']);
 
         $datasets = [];
-        foreach ($cases as $case) {
+        foreach ($payload['cases'] as $case) {
             $datasets[$case['name']] = [$case];
         }
 
         return $datasets;
+    }
+
+    public function test_uses_python_ties_to_even_interval_rounding(): void
+    {
+        $interval = (fn (float $stability): int => $this->nextInterval($stability))
+            ->call(new FsrsScheduler, 2.5);
+
+        $fixture = json_decode(file_get_contents(__DIR__.'/../Fixtures/fsrs_v6_3_0.json'), true, flags: JSON_THROW_ON_ERROR);
+        $this->assertSame($fixture['interval_cases'][0]['days'], $interval);
+        $this->assertSame(2, $interval);
     }
 
     public function test_rejects_non_utc_review_time(): void
