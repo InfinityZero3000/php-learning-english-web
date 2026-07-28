@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\UpdateProfileRequest;
+use App\Services\AnonymizeAccount;
+use App\Support\RecentPassword;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -42,20 +44,16 @@ class ProfileController extends Controller
     /**
      * Xóa tài khoản người dùng.
      */
-    public function destroy(Request $request)
-    {
-        $request->validate([
-            'password' => ['required', 'current_password'],
-        ], [
-            'password.required' => 'Vui lòng nhập mật khẩu hiện tại.',
-            'password.current_password' => 'Mật khẩu hiện tại không đúng.',
-        ]);
-
+    public function destroy(
+        Request $request,
+        RecentPassword $recentPassword,
+        AnonymizeAccount $anonymizeAccount,
+    ) {
+        $recentPassword->require($request);
         $user = Auth::user();
+        $anonymizeAccount->handle($user);
 
         Auth::logout();
-
-        $user->delete();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();

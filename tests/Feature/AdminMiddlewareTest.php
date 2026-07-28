@@ -32,7 +32,7 @@ class AdminMiddlewareTest extends TestCase
         $this->get('/admin/users')->assertRedirect('/login');
     }
 
-    public function test_admin_can_update_a_users_role(): void
+    public function test_admin_cannot_update_a_users_role(): void
     {
         $this->seed();
         $adminRole = Role::where('slug', 'admin')->value('id');
@@ -42,9 +42,9 @@ class AdminMiddlewareTest extends TestCase
 
         $this->actingAs($admin)
             ->patch("/admin/users/{$user->id}/role", ['role_id' => $adminRole])
-            ->assertRedirect(route('admin.users.index'));
+            ->assertForbidden();
 
-        $this->assertDatabaseHas('users', ['id' => $user->id, 'role_id' => $adminRole]);
+        $this->assertDatabaseHas('users', ['id' => $user->id, 'role_id' => $learnerRole]);
     }
 
     public function test_admin_cannot_demote_themselves(): void
@@ -56,6 +56,6 @@ class AdminMiddlewareTest extends TestCase
 
         $this->actingAs($admin)
             ->patch("/admin/users/{$admin->id}/role", ['role_id' => $learnerRole])
-            ->assertSessionHasErrors('role_id');
+            ->assertForbidden();
     }
 }

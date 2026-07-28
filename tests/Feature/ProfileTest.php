@@ -124,7 +124,8 @@ class ProfileTest extends TestCase
         $response->assertSessionHas('success');
 
         $this->assertGuest();
-        $this->assertModelMissing($user);
+        $this->assertSame('Deleted user', $user->fresh()->name);
+        $this->assertNull($user->fresh()->role_id);
     }
 
     public function test_account_deletion_requires_current_password(): void

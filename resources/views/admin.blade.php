@@ -15,19 +15,24 @@
             <div class="card-header">Quản lý người dùng</div>
             <div class="card-body">
                 @foreach ($users as $user)
-                    <form method="POST" action="{{ route('admin.users.updateRole', $user) }}" class="row g-2 align-items-center mb-2">
-                        @csrf
-                        @method('PATCH')
+                    <div class="row g-2 align-items-center mb-2">
                         <div class="col">{{ $user->name }} ({{ $user->email }})</div>
-                        <div class="col-auto">
-                            <select name="role_id" class="form-select">
-                                @foreach ($roles as $role)
-                                    <option value="{{ $role->id }}" @selected($user->role_id === $role->id)>{{ $role->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="col-auto"><button class="btn btn-primary">Lưu</button></div>
-                    </form>
+                        @if ($canUpdateRoles)
+                            <form method="POST" action="{{ route('admin.users.updateRole', $user) }}" class="col-auto d-flex gap-2">
+                                @csrf
+                                @method('PATCH')
+                                <select name="role_id" class="form-select">
+                                    @foreach ($roles as $role)
+                                        <option value="{{ $role->id }}" @selected($user->role_id === $role->id)>{{ $role->name }}</option>
+                                    @endforeach
+                                </select>
+                                <input name="password" type="password" class="form-control" placeholder="Mật khẩu gần đây">
+                                <button class="btn btn-primary">Lưu</button>
+                            </form>
+                        @else
+                            <div class="col-auto">{{ $user->role?->name ?? 'No role' }}</div>
+                        @endif
+                    </div>
                 @endforeach
                 {{ $users->links() }}
             </div>

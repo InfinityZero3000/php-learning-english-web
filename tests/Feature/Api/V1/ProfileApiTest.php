@@ -25,6 +25,6 @@ class ProfileApiTest extends TestCase
         $this->deleteJson('/api/v1/profile', ['password' => 'new-password'])
             ->assertNoContent();
 
-        $this->assertDatabaseMissing('users', ['id' => $user->id]);
+        $this->assertDatabaseHas('users', ['id' => $user->id, 'name' => 'Deleted user']);
     }
 }

@@ -24,6 +24,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->belongsTo(Role::class);
     }
 
+    public function hasRole(string ...$roles): bool
+    {
+        return in_array($this->role?->slug, $roles, true);
+    }
+
     public function attempts(): HasMany
     {
         return $this->hasMany(Attempt::class);

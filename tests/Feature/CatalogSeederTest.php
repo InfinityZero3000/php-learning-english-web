@@ -20,6 +20,8 @@ class CatalogSeederTest extends TestCase
         $this->assertSame([
             ['name' => 'Admin', 'slug' => 'admin'],
             ['name' => 'Learner', 'slug' => 'learner'],
+            ['name' => 'Teacher', 'slug' => 'teacher'],
+            ['name' => 'Super Admin', 'slug' => 'super_admin'],
         ], Role::query()->orderBy('id')->get(['name', 'slug'])->toArray());
 
         $this->assertEqualsCanonicalizing([
@@ -41,9 +43,6 @@ class CatalogSeederTest extends TestCase
             ['name' => 'Travel', 'slug' => 'travel'],
             ['name' => 'Business', 'slug' => 'business'],
         ], Topic::all(['name', 'slug'])->toArray());
-        $this->assertSame([
-            'admin@example.com',
-            'user@example.com',
-        ], User::query()->orderBy('email')->pluck('email')->all());
+        $this->assertSame([], User::query()->pluck('email')->all());
     }
 }
