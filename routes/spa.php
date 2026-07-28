@@ -2,9 +2,7 @@
 
 use App\Http\Controllers\Api\V1\Admin\CategoryAdminController;
 use App\Http\Controllers\Api\V1\Admin\CourseAdminController;
-use App\Http\Controllers\Api\V1\Admin\CourseCategoryController;
 use App\Http\Controllers\Api\V1\Admin\LessonAdminController;
-use App\Http\Controllers\Api\V1\Admin\LevelController;
 use App\Http\Controllers\Api\V1\Admin\MediaController;
 use App\Http\Controllers\Api\V1\Admin\QuizAdminController;
 use App\Http\Controllers\Api\V1\Admin\TopicController;
@@ -27,6 +25,7 @@ use App\Services\VocabularyEnrichmentService;
 use App\Support\HealthCheck;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
@@ -48,7 +47,7 @@ Route::prefix('api/v1')->group(function (): void {
     Route::get('/content/news', [LexiLingoContentController::class, 'news']);
     Route::get('/content/youtube', [LexiLingoContentController::class, 'youtube']);
     Route::post('/enrichment/words/{vocabulary}', function (Vocabulary $vocabulary, VocabularyEnrichmentService $service) {
-        abort_unless(auth()->check(), 401);
+        abort_unless(Auth::check(), 401);
 
         return response()->json(['data' => $service->enrich($vocabulary)]);
     })->middleware('auth');
@@ -114,17 +113,8 @@ Route::prefix('api/v1')->group(function (): void {
         Route::get('users', [UserAdminController::class, 'index']);
         Route::get('users/{user}', [UserAdminController::class, 'show']);
         Route::put('users/{user}/role', [UserAdminController::class, 'updateRole']);
-    });
 
-    // Admin taxonomy routes
-    Route::middleware('auth')->prefix('admin')->withoutMiddleware([
-        PreventRequestForgery::class,
-    ])->group(function (): void {
         Route::apiResource('topics', TopicController::class);
-        Route::apiResource('levels', LevelController::class);
-        Route::apiResource('categories', CourseCategoryController::class);
-
-        // Media
         Route::post('/media/upload', [MediaController::class, 'upload']);
         Route::delete('/media/{path?}', [MediaController::class, 'destroy'])->where('path', '.*');
     });
