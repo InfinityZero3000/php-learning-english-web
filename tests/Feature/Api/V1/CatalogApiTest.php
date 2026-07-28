@@ -34,7 +34,6 @@ class CatalogApiTest extends TestCase
         $this->beginnerLevelId = Level::where('slug', 'beginner')->value('id');
     }
 
-
     public function test_courses_listing_returns_paginated_published_courses(): void
     {
         $this->getJson('/api/v1/catalog/courses')

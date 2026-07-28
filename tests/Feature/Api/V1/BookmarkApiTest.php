@@ -34,7 +34,6 @@ class BookmarkApiTest extends TestCase
         $this->lesson1Id = Lesson::where('slug', 'dong-vat-hoang-da')->value('id');
     }
 
-
     public function test_guest_gets_401_on_bookmark_routes(): void
     {
         $this->getJson('/api/v1/bookmarks')->assertUnauthorized();
