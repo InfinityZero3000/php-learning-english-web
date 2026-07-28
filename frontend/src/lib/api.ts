@@ -187,6 +187,7 @@ export const auth = {
     await initializeCsrf();
     return resetPassword(payload);
   },
+  me: async () => fetchMe(),
 };
 
 // --- Profile ----------------------------------------------------------------
