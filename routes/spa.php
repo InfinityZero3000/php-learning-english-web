@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AiProxyController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\CatalogController;
 use App\Http\Controllers\Api\V1\EmailVerificationController;
@@ -9,6 +10,7 @@ use App\Http\Controllers\Api\V1\LearningSessionController;
 use App\Http\Controllers\Api\V1\PasswordController;
 use App\Http\Controllers\Api\V1\ProfileController;
 use App\Http\Controllers\Api\V1\ProgressController;
+use App\Http\Controllers\Api\V1\TraceCagController;
 use App\Http\Controllers\Api\V1\VocabularyController;
 use App\Support\HealthCheck;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
@@ -66,5 +68,12 @@ Route::prefix('api/v1')->group(function (): void {
         Route::get('/progress/dashboard', [ProgressController::class, 'dashboard']);
         Route::get('/progress/course/{course}', [ProgressController::class, 'courseProgress']);
         Route::post('/progress/lesson/{lesson}/complete', [ProgressController::class, 'markCompleted']);
+        Route::middleware('throttle:20,1')->group(function (): void {
+            Route::post('/ai/translate', [AiProxyController::class, 'translate']);
+            Route::post('/ai/pronunciation', [AiProxyController::class, 'pronunciation']);
+            Route::post('/ai/speech-to-text', [AiProxyController::class, 'speechToText']);
+            Route::post('/ai/text-to-speech', [AiProxyController::class, 'textToSpeech']);
+            Route::post('/ai/trace-cag', [TraceCagController::class, 'analyze']);
+        });
     });
 });

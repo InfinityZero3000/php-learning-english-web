@@ -42,6 +42,13 @@ class LexiLingoClient
         );
     }
 
+    public function traceCag(): PendingRequest
+    {
+        return $this->ai()
+            ->withHeader('X-LexiLingo-Service-Token', $this->credential('trace_cag_service_token'))
+            ->timeout(15);
+    }
+
     private function client(string $urlKey): PendingRequest
     {
         $url = config("services.lexilingo.{$urlKey}");
