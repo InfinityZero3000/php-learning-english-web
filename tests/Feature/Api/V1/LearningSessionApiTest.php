@@ -78,6 +78,26 @@ class LearningSessionApiTest extends TestCase
             ->assertJsonPath('data.items.2.type', 'course_activity');
     }
 
+    public function test_learner_only_lists_their_own_assignments(): void
+    {
+        [$learner, , $lesson] = $this->context();
+        $teacher = User::factory()->create();
+        $owned = Assignment::create([
+            'teacher_id' => $teacher->id, 'learner_id' => $learner->id,
+            'lesson_id' => $lesson->id, 'status' => 'pending',
+        ]);
+        Assignment::create([
+            'teacher_id' => $teacher->id, 'learner_id' => User::factory()->create()->id,
+            'lesson_id' => $lesson->id, 'status' => 'pending',
+        ]);
+
+        $this->actingAs($learner)->getJson('/api/v1/assignments')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $owned->id)
+            ->assertJsonPath('data.0.lesson.title', $lesson->title);
+    }
+
     public function test_session_ownership_is_enforced(): void
     {
         [$owner, $course, $lesson] = $this->context();
@@ -151,6 +171,12 @@ class LearningSessionApiTest extends TestCase
             ->postJson('/api/v1/learning/sessions', ['assignment_id' => $assignment->id])
             ->assertCreated()
             ->json('data.id');
+        $this->withHeader('X-Request-ID', (string) Str::uuid())
+            ->postJson('/api/v1/learning/sessions', ['assignment_id' => $assignment->id])
+            ->assertCreated()
+            ->assertJsonPath('data.id', $sessionId);
+        $this->assertDatabaseHas('assignments', ['id' => $assignment->id, 'status' => 'in_progress']);
+        $this->assertDatabaseCount('learning_sessions', 1);
 
         $this->getJson("/api/v1/learning/sessions/{$sessionId}/next")
             ->assertOk()

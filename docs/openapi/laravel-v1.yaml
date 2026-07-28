@@ -419,7 +419,7 @@ paths:
       security: [{ session: [] }]
       parameters: [{ $ref: "#/components/parameters/Page" }, { $ref: "#/components/parameters/PerPage" }]
       responses:
-        "200": { $ref: "#/components/responses/CollectionResponse" }
+        "200": { $ref: "#/components/responses/DataResponse" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
   /api/v1/progress:
     get:
@@ -681,7 +681,13 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/AssignmentRequest" }
+            schema:
+              type: object
+              properties:
+                status: { type: string, enum: [pending, in_progress, cancelled] }
+                due_at: { type: ["string", "null"], format: date-time }
+                instructions: { type: ["string", "null"], maxLength: 2000 }
+              additionalProperties: false
       responses:
         "200": { $ref: "#/components/responses/DataResponse" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
@@ -1052,10 +1058,19 @@ paths:
         "409": { $ref: "#/components/responses/Conflict" }
         "419": { $ref: "#/components/responses/CsrfError" }
         "422": { $ref: "#/components/responses/ValidationError" }
-  /api/v1/admin/operations/users/{user}/roles:
+  /api/v1/admin/roles:
+    get:
+      summary: List fixed roles and account counts
+      operationId: listAdminRoles
+      security: [{ session: [] }]
+      responses:
+        "200": { $ref: "#/components/responses/DataResponse" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /api/v1/admin/users/{user}/role:
     put:
-      summary: Grant or remove a privileged role after recent password confirmation
-      operationId: updateOperationsUserRoles
+      summary: Replace a user's fixed role after recent password confirmation
+      operationId: updateAdminUserRole
       security: [{ session: [], csrf: [] }]
       parameters:
         - { $ref: "#/components/parameters/UserId" }
@@ -1066,12 +1081,9 @@ paths:
           application/json:
             schema:
               type: object
-              required: [roles, password]
+              required: [role, password]
               properties:
-                roles:
-                  type: array
-                  uniqueItems: true
-                  items: { type: string, enum: [learner, teacher, admin, super_admin] }
+                role: { type: string, enum: [learner, teacher, admin, super_admin] }
                 password: { type: string, minLength: 1 }
               additionalProperties: false
       responses:
@@ -1088,7 +1100,7 @@ paths:
       security: [{ session: [] }]
       parameters: [{ $ref: "#/components/parameters/Page" }, { $ref: "#/components/parameters/PerPage" }]
       responses:
-        "200": { $ref: "#/components/responses/CollectionResponse" }
+        "200": { $ref: "#/components/responses/DataResponse" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
     post:
@@ -1231,7 +1243,7 @@ components:
       in: path
       name: resource
       required: true
-      schema: { type: string, enum: [courses, units, lessons, vocabulary, quizzes] }
+      schema: { type: string, enum: [courses] }
     ResourceId:
       in: path
       name: id

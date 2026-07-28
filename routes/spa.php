@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Admin\CatalogController as AdminCatalogController;
 use App\Http\Controllers\Api\V1\Admin\OperationsController;
+use App\Http\Controllers\Api\V1\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Api\V1\AiProxyController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\CatalogController;
@@ -63,6 +65,7 @@ Route::prefix('api/v1')->group(function (): void {
         Route::get('/enrollments', [EnrollmentController::class, 'index']);
         Route::post('/enrollments', [EnrollmentController::class, 'store']);
         Route::get('/learning/plan', [LearningSessionController::class, 'plan']);
+        Route::get('/assignments', [LearningSessionController::class, 'assignments']);
         Route::post('/learning/sessions', [LearningSessionController::class, 'store']);
         Route::get('/learning/sessions/{session}/next', [LearningSessionController::class, 'next']);
         Route::post('/learning/sessions/{session}/attempts', [LearningSessionController::class, 'attempt']);
@@ -87,6 +90,7 @@ Route::prefix('api/v1')->group(function (): void {
         Route::post('/teacher/alerts/{alert}/resolve', [TeacherController::class, 'resolve']);
         Route::get('/teacher/assignments', [TeacherController::class, 'assignments']);
         Route::post('/teacher/assignments', [TeacherController::class, 'createAssignment']);
+        Route::put('/teacher/assignments/{assignment}', [TeacherController::class, 'updateAssignment']);
         Route::post('/teacher/intervention-notes', [TeacherController::class, 'note']);
         Route::get('/admin/operations', [OperationsController::class, 'overview']);
         Route::post('/admin/operations/service-probes', [OperationsController::class, 'probe']);
@@ -97,5 +101,20 @@ Route::prefix('api/v1')->group(function (): void {
         Route::get('/admin/operations/alert-rules', [OperationsController::class, 'rules']);
         Route::put('/admin/operations/alert-rules/{alertRule}', [OperationsController::class, 'updateRule']);
         Route::get('/admin/operations/audit-events', [OperationsController::class, 'audits']);
+        Route::get('/admin/users', [AdminUserController::class, 'index']);
+        Route::get('/admin/users/{user}', [AdminUserController::class, 'show']);
+        Route::put('/admin/users/{user}/role', [AdminUserController::class, 'updateRole']);
+        Route::get('/admin/roles', [AdminUserController::class, 'roles']);
+        Route::get('/admin/operations/teacher-assignments', [AdminUserController::class, 'teacherAssignments']);
+        Route::post('/admin/operations/teacher-assignments', [AdminUserController::class, 'assignTeacher']);
+        Route::put('/admin/operations/teacher-assignments/{teacherAssignment}', [AdminUserController::class, 'updateTeacherAssignment']);
+        Route::delete('/admin/operations/teacher-assignments/{teacherAssignment}', [AdminUserController::class, 'unassignTeacher'])
+            ->whereNumber('teacherAssignment');
+        Route::get('/admin/catalog/courses', [AdminCatalogController::class, 'courses']);
+        Route::post('/admin/catalog/courses', [AdminCatalogController::class, 'createCourse']);
+        Route::get('/admin/catalog/courses/{course}', [AdminCatalogController::class, 'course']);
+        Route::put('/admin/catalog/courses/{course}', [AdminCatalogController::class, 'updateCourse']);
+        Route::post('/admin/catalog/courses/{course}/publish', [AdminCatalogController::class, 'publishCourse']);
+        Route::post('/admin/catalog/courses/{course}/archive', [AdminCatalogController::class, 'archiveCourse']);
     });
 });

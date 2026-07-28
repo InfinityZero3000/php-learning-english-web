@@ -134,6 +134,16 @@ export default function TeacherPage() {
     }
   }
 
+  async function updateAssignment(id: number, status: "pending" | "in_progress" | "cancelled") {
+    try {
+      const updated = await api.updateTeacherAssignment(id, { status });
+      setAssignments((items) => items.map((item) => item.id === id ? updated : item));
+      setMessage("Đã cập nhật assignment.");
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "Không thể cập nhật assignment.");
+    }
+  }
+
   if (state === "loading") return <Status text="Đang tải teacher workspace…" />;
   if (state === "error") return <Status text={message} action={<Button onClick={load}><IconRefresh className="h-5 w-5" />Thử lại</Button>} />;
 
@@ -186,7 +196,13 @@ export default function TeacherPage() {
     </div>}
 
     <Card><CardHeader><CardTitle>Assignments</CardTitle></CardHeader><CardContent className="grid gap-3 md:grid-cols-2">
-      {assignments.map((item) => <article key={item.id} className="rounded-2xl border-2 border-border p-4"><p className="font-bold">{item.learner.name}</p><p className="mt-1 text-sm">{item.lesson?.title ?? item.vocabulary?.word ?? "Không có target"}</p><span className="mt-3 inline-block rounded-full bg-muted px-3 py-1 text-xs font-bold uppercase">{item.status}</span></article>)}
+      {assignments.map((item) => <article key={item.id} className="rounded-2xl border-2 border-border p-4"><p className="font-bold">{item.learner.name}</p><p className="mt-1 text-sm">{item.lesson?.title ?? item.vocabulary?.word ?? "Không có target"}</p><span className="mt-3 inline-block rounded-full bg-muted px-3 py-1 text-xs font-bold uppercase">{item.status}</span>
+        {(item.status === "pending" || item.status === "in_progress" || item.status === "cancelled") && <div className="mt-4 flex flex-wrap gap-2">
+          {item.status !== "in_progress" && <Button size="sm" variant="outline" onClick={() => updateAssignment(item.id, "in_progress")}>Đang hỗ trợ</Button>}
+          {item.status !== "cancelled" && <Button size="sm" variant="ghost" onClick={() => updateAssignment(item.id, "cancelled")}>Hủy</Button>}
+          {item.status === "cancelled" && <Button size="sm" variant="outline" onClick={() => updateAssignment(item.id, "pending")}>Mở lại</Button>}
+        </div>}
+      </article>)}
       {assignments.length === 0 && <Empty text="Chưa có assignment." />}
     </CardContent></Card>
   </div>;

@@ -20,6 +20,7 @@ import type { AppUser } from "@/types/api";
 const nav = [
   { href: "/", label: "Today", icon: navigationIcons.home },
   { href: "/courses", label: "Courses", icon: navigationIcons.flashcards },
+  { href: "/assignments", label: "Assignments", icon: navigationIcons.quiz },
   { href: "/review", label: "Review", icon: navigationIcons.words },
   { href: "/vocabulary", label: "Words", icon: navigationIcons.words },
   { href: "/flashcards", label: "Flashcards", icon: navigationIcons.flashcards },
@@ -31,6 +32,7 @@ const nav = [
 const titles: Record<string, string> = {
   "/": "Today",
   "/courses": "Course Path",
+  "/assignments": "Assignments",
   "/review": "Smart Review",
   "/vocabulary": "Words",
   "/flashcards": "Flashcards",

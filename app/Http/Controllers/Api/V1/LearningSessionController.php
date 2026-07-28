@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\Assignment;
 use App\Models\LearningEvent;
 use App\Models\LearningSession;
 use App\Models\UserVocabulary;
@@ -18,6 +19,15 @@ use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class LearningSessionController extends Controller
 {
+    public function assignments(Request $request): JsonResponse
+    {
+        return ApiResponse::success(Assignment::query()
+            ->where('learner_id', $request->user()->id)
+            ->with(['teacher:id,name', 'lesson:id,title', 'vocabulary:id,word,meaning'])
+            ->latest()->get()
+            ->map(fn (Assignment $assignment) => ['type' => 'assignment', ...$assignment->toArray()]));
+    }
+
     public function plan(Request $request, LearningSessionService $sessions): JsonResponse
     {
         return ApiResponse::success($sessions->plan($request->user()));

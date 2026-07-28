@@ -234,23 +234,47 @@ export const flashcards = {
 
 // Admin – User Management
 export const adminUsers = {
-  list: (params?: { email?: string; status?: string; role?: string; from?: string; to?: string; page?: number; size?: number }) => {
+  list: (params?: { search?: string; role?: string; page?: number; perPage?: number }) => {
     const q = new URLSearchParams();
-    if (params?.email) q.set('email', params.email);
-    if (params?.status) q.set('status', params.status);
+    if (params?.search) q.set('search', params.search);
     if (params?.role) q.set('role', params.role);
-    if (params?.from) q.set('from', params.from);
-    if (params?.to) q.set('to', params.to);
     if (params?.page != null) q.set('page', String(params.page));
-    if (params?.size != null) q.set('size', String(params.size));
-    return request(`/api/admin/users?${q}`);
+    if (params?.perPage != null) q.set('per_page', String(params.perPage));
+    return request<{ data: AdminUser[]; meta: PageMeta }>(`/api/v1/admin/users?${q}`);
   },
-  get: (id: number) => request(`/api/admin/users/${id}`),
-  history: (id: number, limit = 20) => request(`/api/admin/users/${id}/history?limit=${limit}`),
-  lock: (id: number) => request(`/api/admin/users/${id}/lock`, { method: 'PUT' }),
-  unlock: (id: number) => request(`/api/admin/users/${id}/unlock`, { method: 'PUT' }),
-  resetPassword: (id: number) =>
-    request(`/api/admin/users/${id}/reset-password`, { method: 'POST' }),
-  assignRole: (id: number, role: string) =>
-    request(`/api/admin/users/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
+  get: (id: number) => request<{ data: AdminUser }>(`/api/v1/admin/users/${id}`).then(({ data }) => data),
+  assignRole: (id: number, role: string, password: string) =>
+    request<{ data: AdminUser }>(`/api/v1/admin/users/${id}/role`, {
+      method: 'PUT', headers: { 'X-Request-ID': crypto.randomUUID() }, body: JSON.stringify({ role, password })
+    }).then(({ data }) => data),
 };
+
+export const roleManagement = {
+  roles: () => request<{ data: AdminRole[] }>('/api/v1/admin/roles').then(({ data }) => data),
+  scopes: () => request<{ data: TeacherScope[] }>('/api/v1/admin/operations/teacher-assignments').then(({ data }) => data),
+  assign: (teacherId: number, learnerId: number, password: string) =>
+    request<{ data: TeacherScope }>('/api/v1/admin/operations/teacher-assignments', {
+      method: 'POST', headers: { 'X-Request-ID': crypto.randomUUID() }, body: JSON.stringify({ teacher_id: teacherId, learner_id: learnerId, password })
+    }).then(({ data }) => data),
+  remove: (id: number, password: string) => request<void>(`/api/v1/admin/operations/teacher-assignments/${id}`, {
+    method: 'DELETE', headers: { 'X-Request-ID': crypto.randomUUID() }, body: JSON.stringify({ password })
+  }),
+};
+
+export type PageMeta = { page: number; per_page: number; total: number; last_page: number };
+export type AdminUser = { id: number; name: string; email: string; role: 'learner' | 'teacher' | 'admin' | 'super_admin'; email_verified_at?: string; created_at?: string };
+export type AdminRole = { id: number; name: string; slug: AdminUser['role']; users_count: number };
+export type TeacherScope = { id: number; teacher: Pick<AdminUser, 'id' | 'name' | 'email'>; learner: Pick<AdminUser, 'id' | 'name' | 'email'>; assigned_at: string };
+
+export const adminCourses = {
+  list: (search = '') => request<{ data: AdminCourse[]; meta: PageMeta }>(`/api/v1/admin/catalog/courses?search=${encodeURIComponent(search)}&per_page=100`),
+  create: (payload: CourseWrite) => request<{ data: AdminCourse }>('/api/v1/admin/catalog/courses', {
+    method: 'POST', headers: { 'X-Request-ID': crypto.randomUUID() }, body: JSON.stringify(payload)
+  }).then(({ data }) => data),
+  update: (id: number, payload: CourseWrite) => request<{ data: AdminCourse }>(`/api/v1/admin/catalog/courses/${id}`, {
+    method: 'PUT', headers: { 'X-Request-ID': crypto.randomUUID() }, body: JSON.stringify(payload)
+  }).then(({ data }) => data),
+};
+
+export type AdminCourse = { id: number; title: string; slug: string; description?: string; status: 'draft' | 'published' | 'archived'; language?: string; estimated_duration?: number; units_count?: number; lessons_count?: number };
+export type CourseWrite = Pick<AdminCourse, 'title' | 'slug' | 'status'> & Partial<Pick<AdminCourse, 'description' | 'language' | 'estimated_duration'>>;

@@ -6,14 +6,18 @@ use App\Http\Controllers\Controller;
 use App\Models\Assignment;
 use App\Models\InterventionNote;
 use App\Models\LearningEvent;
+use App\Models\OperationsAudit;
 use App\Models\Progress;
 use App\Models\SupervisionAlert;
 use App\Models\TeacherAssignment;
 use App\Models\User;
 use App\Support\ApiResponse;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class TeacherController extends Controller
 {
@@ -102,7 +106,11 @@ class TeacherController extends Controller
         $this->teacher($request);
 
         return ApiResponse::success(Assignment::query()->with(['learner:id,name', 'lesson:id,title', 'vocabulary:id,word'])
-            ->where('teacher_id', $request->user()->id)->latest()->get()
+            ->when(! $request->user()->hasRole('super_admin'), fn ($query) => $query
+                ->where('teacher_id', $request->user()->id)
+                ->whereIn('learner_id', TeacherAssignment::query()
+                    ->where('teacher_id', $request->user()->id)->select('learner_id')))
+            ->latest()->get()
             ->map(fn (Assignment $assignment) => ['type' => 'assignment', ...$assignment->toArray()]));
     }
 
@@ -121,12 +129,67 @@ class TeacherController extends Controller
         }
         $learner = User::findOrFail($data['learner_id']);
         $this->assigned($request, $learner);
+        $fingerprint = $this->assignmentFingerprint(['create', $data]);
+        if ($audit = $this->assignmentReplay($request, 'assignment.created', $fingerprint)) {
+            return ApiResponse::success([
+                'type' => 'assignment',
+                ...Assignment::with(['learner:id,name', 'lesson:id,title', 'vocabulary:id,word'])
+                    ->findOrFail($audit->target_id)->toArray(),
+            ], status: 201);
+        }
 
-        $assignment = Assignment::create([
-            ...$data, 'teacher_id' => $request->user()->id, 'status' => 'pending',
-        ])->load(['learner:id,name', 'lesson:id,title', 'vocabulary:id,word']);
+        try {
+            $assignment = DB::transaction(function () use ($request, $data, $fingerprint): Assignment {
+                $assignment = Assignment::create([
+                    ...$data, 'teacher_id' => $request->user()->id, 'status' => 'pending',
+                ]);
+                $this->assignmentAudit($request, 'assignment.created', $assignment, $fingerprint);
+
+                return $assignment;
+            })->load(['learner:id,name', 'lesson:id,title', 'vocabulary:id,word']);
+        } catch (QueryException $exception) {
+            if ($audit = $this->assignmentReplay($request, 'assignment.created', $fingerprint)) {
+                $assignment = Assignment::with(['learner:id,name', 'lesson:id,title', 'vocabulary:id,word'])
+                    ->findOrFail($audit->target_id);
+            } else {
+                throw $exception;
+            }
+        }
 
         return ApiResponse::success(['type' => 'assignment', ...$assignment->toArray()], status: 201);
+    }
+
+    public function updateAssignment(Request $request, Assignment $assignment): JsonResponse
+    {
+        $this->assigned($request, $assignment->learner);
+        abort_unless($request->user()->hasRole('super_admin') || $assignment->teacher_id === $request->user()->id, 403);
+        $data = $request->validate([
+            'status' => ['sometimes', 'string', 'in:pending,in_progress,cancelled'],
+            'instructions' => ['sometimes', 'nullable', 'string', 'max:2000'],
+            'due_at' => ['sometimes', 'nullable', 'date'],
+        ]);
+        abort_if($assignment->status === 'completed', 409, 'Completed assignments cannot be changed.');
+        $fingerprint = $this->assignmentFingerprint(['update', $assignment->id, $data]);
+        if ($audit = $this->assignmentReplay($request, 'assignment.updated', $fingerprint)) {
+            $assignment = Assignment::findOrFail($audit->target_id);
+        } else {
+            try {
+                DB::transaction(function () use ($request, $assignment, $data, $fingerprint): void {
+                    $assignment->update($data);
+                    $this->assignmentAudit($request, 'assignment.updated', $assignment, $fingerprint);
+                });
+            } catch (QueryException $exception) {
+                if (! $this->assignmentReplay($request, 'assignment.updated', $fingerprint)) {
+                    throw $exception;
+                }
+                $assignment->refresh();
+            }
+        }
+
+        return ApiResponse::success([
+            'type' => 'assignment',
+            ...$assignment->load(['learner:id,name', 'lesson:id,title', 'vocabulary:id,word'])->toArray(),
+        ]);
     }
 
     public function note(Request $request): JsonResponse
@@ -163,7 +226,36 @@ class TeacherController extends Controller
     private function assigned(Request $request, User $learner): void
     {
         $this->teacher($request);
+        abort_unless($learner->hasRole('learner'), 403);
         abort_unless($request->user()->hasRole('super_admin') || TeacherAssignment::query()
             ->where('teacher_id', $request->user()->id)->where('learner_id', $learner->id)->exists(), 403);
+    }
+
+    private function assignmentReplay(Request $request, string $action, string $fingerprint): ?OperationsAudit
+    {
+        $requestId = $request->header('X-Request-ID');
+        validator(['request_id' => $requestId], ['request_id' => ['required', 'uuid']])->validate();
+        $audit = OperationsAudit::query()->where('request_id', $requestId)->first();
+        if ($audit && ($audit->action !== $action || data_get($audit->context, 'fingerprint') !== $fingerprint)) {
+            throw new ConflictHttpException('X-Request-ID was already used for another operation.');
+        }
+
+        return $audit;
+    }
+
+    private function assignmentAudit(Request $request, string $action, Assignment $assignment, string $fingerprint): void
+    {
+        OperationsAudit::create([
+            'actor_id' => $request->user()->id, 'action' => $action,
+            'target_type' => 'assignment', 'target_id' => (string) $assignment->id,
+            'request_id' => $request->header('X-Request-ID'),
+            'context' => ['fingerprint' => $fingerprint],
+            'after_state' => $assignment->toArray(), 'occurred_at' => now('UTC'),
+        ]);
+    }
+
+    private function assignmentFingerprint(array $payload): string
+    {
+        return hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR));
     }
 }

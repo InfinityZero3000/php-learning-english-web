@@ -76,24 +76,29 @@ class LearningSessionService
         }
 
         if (isset($input['assignment_id'])) {
-            $assignment = Assignment::query()
-                ->with(['lesson', 'vocabulary.lesson'])
-                ->whereKey($input['assignment_id'])
-                ->where('learner_id', $user->id)
-                ->whereIn('status', ['pending', 'in_progress'])
-                ->first();
-            if (! $assignment) {
-                throw new HttpException(403, 'Assignment is not available to this learner.');
-            }
-            $lesson = $assignment->lesson ?? $assignment->vocabulary?->lesson;
-            if (! $lesson) {
-                throw new ConflictHttpException('Assignment has no learnable lesson.');
-            }
+            return DB::transaction(function () use ($user, $input, $requestId, $fingerprint): LearningSession {
+                $assignment = Assignment::query()
+                    ->with(['lesson', 'vocabulary.lesson'])->lockForUpdate()
+                    ->whereKey($input['assignment_id'])->where('learner_id', $user->id)
+                    ->whereIn('status', ['pending', 'in_progress'])->first();
+                if (! $assignment) {
+                    throw new HttpException(403, 'Assignment is not available to this learner.');
+                }
+                if ($existing = LearningSession::query()->where('user_id', $user->id)->where('status', 'active')
+                    ->where('summary->assignment_id', $assignment->id)->latest()->first()) {
+                    return $existing;
+                }
+                $lesson = $assignment->lesson ?? $assignment->vocabulary?->lesson;
+                if (! $lesson) {
+                    throw new ConflictHttpException('Assignment has no learnable lesson.');
+                }
+                $assignment->update(['status' => 'in_progress']);
 
-            return $this->createSession($user, [
-                'course_id' => $lesson->course_id, 'lesson_id' => $lesson->id,
-                'summary' => ['assignment_id' => $assignment->id, 'vocabulary_id' => $assignment->vocabulary_id],
-            ], $requestId, $fingerprint);
+                return $this->createSession($user, [
+                    'course_id' => $lesson->course_id, 'lesson_id' => $lesson->id,
+                    'summary' => ['assignment_id' => $assignment->id, 'vocabulary_id' => $assignment->vocabulary_id],
+                ], $requestId, $fingerprint);
+            });
         }
 
         $enrollment = Enrollment::query()

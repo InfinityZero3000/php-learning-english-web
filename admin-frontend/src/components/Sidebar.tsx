@@ -25,8 +25,6 @@ const navGroups = [
     items: [
       { href: '/users', icon: 'group', label: 'Users' },
       { href: '/roles', icon: 'admin_panel_settings', label: 'Roles' },
-      { href: '/user-progress', icon: 'bar_chart', label: 'User Progress' },
-      { href: '/spaced-repetition', icon: 'repeat', label: 'Spaced Repetition' },
     ],
   },
   {
@@ -75,7 +73,7 @@ export default function Sidebar({ role }: { role?: string | null }) {
               </p>
             )}
             <div className="space-y-0.5">
-              {group.items.filter((item) => item.href !== '/operations' || role === 'super_admin').map((item) => {
+              {group.items.filter((item) => !['/operations', '/roles'].includes(item.href) || role === 'super_admin').map((item) => {
                 const active = isActive(item.href);
                 return (
                   <Link

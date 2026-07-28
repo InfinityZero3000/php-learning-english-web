@@ -191,6 +191,7 @@ export const api = {
     }),
   importJobs: () => request<ImportJob[]>("/api/import/jobs"),
   learningPlan: () => apiRequest<LearningPlan>("/api/v1/learning/plan"),
+  learningAssignments: () => apiRequest<LearnerAssignment[]>("/api/v1/assignments"),
   catalogCourses: () => request<Envelope<CourseCard[]> & { meta: { total?: number } }>("/api/v1/catalog/courses"),
   catalogCourse: (id: number) => apiRequest<CourseDetail>(`/api/v1/catalog/courses/${id}`),
   catalogCourseLessons: (id: number) => request<Envelope<LessonCard[]> & { meta: { total?: number } }>(`/api/v1/catalog/courses/${id}/lessons?per_page=100`),
@@ -237,8 +238,12 @@ export const api = {
   }),
   teacherAssignments: () => apiRequest<TeacherAssignment[]>("/api/v1/teacher/assignments"),
   createTeacherAssignment: (payload: TeacherAssignmentInput) => apiRequest<TeacherAssignment>("/api/v1/teacher/assignments", {
-    method: "POST", body: JSON.stringify(payload)
+    method: "POST", headers: { "X-Request-ID": crypto.randomUUID() }, body: JSON.stringify(payload)
   }),
+  updateTeacherAssignment: (id: number, payload: { status?: "pending" | "in_progress" | "cancelled"; instructions?: string; due_at?: string | null }) =>
+    apiRequest<TeacherAssignment>(`/api/v1/teacher/assignments/${id}`, {
+      method: "PUT", headers: { "X-Request-ID": crypto.randomUUID() }, body: JSON.stringify(payload)
+    }),
   createInterventionNote: (payload: { learner_id: number; supervision_alert_id?: number; assignment_id?: number; note: string }) =>
     apiRequest<Record<string, unknown>>("/api/v1/teacher/intervention-notes", {
       method: "POST", body: JSON.stringify(payload)
@@ -275,6 +280,7 @@ export type FsrsCard = { type: "fsrs_card"; id: number; vocabulary_id: number; w
 export type TeacherLearner = { id: number; name: string; email: string };
 export type SupervisionAlert = { id: number; rule_key: string; severity: string; state: string; evidence: Array<Record<string, unknown>>; detected_at: string; learner: TeacherLearner };
 export type TeacherAssignment = { id: number; status: string; due_at?: string; learner: TeacherLearner; lesson?: { title: string }; vocabulary?: { word: string } };
+export type LearnerAssignment = { id: number; status: string; instructions?: string; due_at?: string; teacher: { id: number; name: string }; lesson?: { id: number; title: string }; vocabulary?: { id: number; word: string; meaning: string } };
 export type TeacherAssignmentInput = { learner_id: number; lesson_id?: number; vocabulary_id?: number; instructions?: string; due_at?: string };
 export type TeacherLearnerProgress = { completed_lessons: number; recent_events: number };
 export type LearningEvidence = { id: number; event_type: string; is_correct?: boolean; hint_level?: number; pronunciation_score?: number; duration_ms?: number; occurred_at: string; metadata?: Record<string, unknown> };

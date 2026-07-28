@@ -3,6 +3,7 @@
 namespace Tests\Feature\Api\V1;
 
 use App\Models\AlertRule;
+use App\Models\Assignment;
 use App\Models\Course;
 use App\Models\Lesson;
 use App\Models\Role;
@@ -11,6 +12,7 @@ use App\Models\TeacherAssignment;
 use App\Models\User;
 use App\Models\Vocabulary;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class TeacherApiTest extends TestCase
@@ -56,11 +58,12 @@ class TeacherApiTest extends TestCase
         $lesson = Lesson::create(['course_id' => $course->id, 'title' => 'Lesson', 'slug' => 'teacher-lesson']);
         $word = Vocabulary::create(['lesson_id' => $lesson->id, 'word' => 'hello', 'meaning' => 'xin chào']);
 
-        $this->actingAs($teacher)->postJson('/api/v1/teacher/assignments', [
-            'learner_id' => $learner->id,
-            'lesson_id' => $lesson->id,
-            'vocabulary_id' => $word->id,
-        ])->assertUnprocessable();
+        $this->actingAs($teacher)->withHeader('X-Request-ID', (string) Str::uuid())
+            ->postJson('/api/v1/teacher/assignments', [
+                'learner_id' => $learner->id,
+                'lesson_id' => $lesson->id,
+                'vocabulary_id' => $word->id,
+            ])->assertUnprocessable();
     }
 
     public function test_teacher_cannot_attach_a_note_to_another_learners_alert(): void
@@ -83,6 +86,30 @@ class TeacherApiTest extends TestCase
             'note' => 'Cross-scope note',
         ])->assertUnprocessable();
         $this->assertDatabaseCount('intervention_notes', 0);
+    }
+
+    public function test_teacher_can_update_only_their_unfinished_assignment(): void
+    {
+        $this->seed();
+        $teacher = $this->user('teacher');
+        $otherTeacher = $this->user('teacher');
+        $learner = $this->user('learner');
+        TeacherAssignment::create(['teacher_id' => $teacher->id, 'learner_id' => $learner->id, 'assigned_at' => now()]);
+        $course = Course::create(['title' => 'Course', 'slug' => 'assignment-course']);
+        $lesson = Lesson::create(['course_id' => $course->id, 'title' => 'Lesson', 'slug' => 'assignment-lesson']);
+        $assignment = Assignment::create([
+            'teacher_id' => $teacher->id, 'learner_id' => $learner->id,
+            'lesson_id' => $lesson->id, 'status' => 'pending',
+        ]);
+
+        $this->actingAs($otherTeacher)->withHeader('X-Request-ID', (string) Str::uuid())
+            ->putJson("/api/v1/teacher/assignments/{$assignment->id}", [
+                'status' => 'cancelled',
+            ])->assertForbidden();
+        $this->actingAs($teacher)->withHeader('X-Request-ID', (string) Str::uuid())
+            ->putJson("/api/v1/teacher/assignments/{$assignment->id}", [
+                'status' => 'in_progress', 'instructions' => 'Focus on recall',
+            ])->assertOk()->assertJsonPath('data.status', 'in_progress');
     }
 
     private function user(string $role): User
