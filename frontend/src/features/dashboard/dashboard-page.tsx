@@ -2,189 +2,288 @@
 
 import Link from "next/link";
 import { IconChevronRight, IconPlayerPlayFilled, IconPresentation, IconTrophy } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AppFlameIcon, navigationIcons } from "@/components/icons/app-icons";
 import { AppShellLoading } from "@/components/layout/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { api } from "@/lib/api";
+import { fetchDashboard, fetchVocabulary } from "@/lib/api";
+import type { DashboardResource, VocabularyResource } from "@/lib/api";
+import { ApiError } from "@/lib/api";
 import { useAuth } from "@/features/auth/auth-context";
-import { formatPercent, masteryLabel } from "@/lib/utils";
-import type { NotificationItem, UserProgress, Word } from "@/types/api";
 
 export function DashboardPage() {
   const { status } = useAuth();
-  const [stats, setStats] = useState({ totalWords: 0, mastered: 0, learning: 0, dueNow: 0, retention: 0, streak: 0 });
-  const [wordOfDay, setWordOfDay] = useState<Word | null>(null);
-  const [review, setReview] = useState<UserProgress[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [dashboard, setDashboard] = useState<DashboardResource | null>(null);
+  const [vocabWords, setVocabWords] = useState<VocabularyResource[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function load() {
-      const catalog = await api.publicVocabulary({ perPage: 100 }).catch(() => ({
-        words: [] as Word[],
-        meta: {} as Record<string, unknown>
-      }));
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
       const authenticated = status === "authenticated";
-      const emptyStats: Record<string, number> = {};
-      const [progressStats, fsrsStats, streak, reviewQueue, notes] = authenticated
-        ? await Promise.all([
-            api.progressStats().catch(() => emptyStats),
-            api.fsrsStats().catch(() => emptyStats),
-            api.streak().catch(() => emptyStats),
-            api.reviewQueue().catch(() => []),
-            api.notifications().catch(() => [])
-          ])
-        : [emptyStats, emptyStats, emptyStats, [], []];
-      const cats = [...new Set(catalog.words.map((word) => word.category).filter((value): value is string => Boolean(value)))];
-      setStats({
-        totalWords: Number(catalog.meta.total ?? catalog.words.length),
-        mastered: progressStats.mastered ?? 0,
-        learning: progressStats.learning ?? 0,
-        dueNow: fsrsStats.dueNow ?? progressStats.dueNow ?? 0,
-        retention: fsrsStats.retentionEstimate ?? 0,
-        streak: streak.currentStreak ?? 0
-      });
-      setReview(reviewQueue.slice(0, 5));
-      setCategories(cats);
-      setNotifications(notes.slice(0, 4));
-      setWordOfDay(catalog.words[0] ?? null);
+      const [vocabResult, dash] = await Promise.all([
+        fetchVocabulary({ per_page: 100 }).catch(() => ({ data: [] as VocabularyResource[], meta: {} })),
+        authenticated
+          ? fetchDashboard().catch((err) => {
+              if (err instanceof ApiError && err.status === 401) return null;
+              throw err;
+            })
+          : null,
+      ]);
+      setVocabWords(vocabResult.data);
+      setDashboard(dash);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load dashboard");
+    } finally {
       setLoading(false);
     }
-    load().catch(() => setLoading(false));
   }, [status]);
 
-  const newWords = Math.max(stats.totalWords - stats.mastered - stats.learning, 0);
-  const masteryTotal = Math.max(stats.totalWords, 1);
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const totalWords = dashboard?.total_words ?? vocabWords.length;
+  const mastered = dashboard?.completed_lessons ?? 0;
+  const learning = Math.max((dashboard?.total_lessons ?? 0) - mastered, 0);
+  const newWords = Math.max(totalWords - mastered - learning, 0);
+  const masteryTotal = Math.max(totalWords, 1);
 
   if (loading) return <AppShellLoading label="Loading dashboard..." />;
 
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <p className="text-sm font-semibold text-destructive">{error}</p>
+        <button
+          type="button"
+          className="mt-4 rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-primary-foreground"
+          onClick={loadData}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-        <section className="relative min-h-[260px] overflow-hidden rounded-xl bg-primary p-6 text-primary-foreground md:p-8">
-          <div className="relative z-10 max-w-2xl">
-            <p className="font-display text-sm font-bold uppercase tracking-widest text-sky-100">Good day, learner!</p>
-            <h2 className="mt-2 font-display text-[28px] font-bold leading-tight">Ready to review?</h2>
-            <p className="mt-3 text-[17px] font-bold text-sky-100">You have <strong className="text-white">{stats.dueNow}</strong> cards due today.</p>
-            <Link
-              href="/flashcards"
-              className="mt-10 inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-white px-8 font-display text-sm font-bold uppercase tracking-[0.05em] text-primary btn-press transition hover:bg-sky-50"
-            >
-              <IconPlayerPlayFilled className="h-5 w-5" />
-              Start Review
-            </Link>
-          </div>
-          <div className="absolute -right-12 -top-20 h-56 w-56 rounded-full bg-sky-300/20" />
-          <div className="absolute right-14 top-12 flex h-40 w-40 items-center justify-center rounded-full bg-sky-200/20 text-white">
-            <IconPresentation className="h-20 w-20" stroke={1.6} />
-          </div>
-          <div className="absolute bottom-[-70px] right-20 h-36 w-36 rounded-full bg-sky-400/20" />
-        </section>
+      <section className="relative min-h-[260px] overflow-hidden rounded-xl bg-primary p-6 text-primary-foreground md:p-8">
+        <div className="relative z-10 max-w-2xl">
+          <p className="font-display text-sm font-bold uppercase tracking-widest text-sky-100">Good day, learner!</p>
+          <h2 className="mt-2 font-display text-[28px] font-bold leading-tight">Ready to learn?</h2>
+          <p className="mt-3 text-[17px] font-bold text-sky-100">
+            You have <strong className="text-white">{totalWords}</strong> words to explore.
+          </p>
+          <Link
+            href="/courses"
+            className="mt-10 inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-white px-8 font-display text-sm font-bold uppercase tracking-[0.05em] text-primary btn-press transition hover:bg-sky-50"
+          >
+            <IconPlayerPlayFilled className="h-5 w-5" />
+            Explore Courses
+          </Link>
+        </div>
+        <div className="absolute -right-12 -top-20 h-56 w-56 rounded-full bg-sky-300/20" />
+        <div className="absolute right-14 top-12 flex h-40 w-40 items-center justify-center rounded-full bg-sky-200/20 text-white">
+          <IconPresentation className="h-20 w-20" stroke={1.6} />
+        </div>
+        <div className="absolute bottom-[-70px] right-20 h-36 w-36 rounded-full bg-sky-400/20" />
+      </section>
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Metric href="/flashcards" icon={<navigationIcons.flashcards />} color="text-[#1cb0f6]" label="Due Today" value={stats.dueNow} sub="Cards to review" />
-          <Metric href="/progress" icon={<AppFlameIcon />} color="text-[#f4bf00]" label="Streak" value={stats.streak} sub="Days in a row" />
-          <Metric href="/progress" icon={<IconTrophy />} color="text-primary" label="Retention" value={formatPercent(stats.retention)} sub="Estimated recall" />
-          <Metric href="/vocabulary" icon={<navigationIcons.words />} color="text-primary" label="Words" value={stats.totalWords} sub="Total vocabulary" />
-        </section>
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Metric
+          href="/courses"
+          icon={<navigationIcons.flashcards />}
+          color="text-[#1cb0f6]"
+          label="Courses"
+          value={dashboard?.total_lessons ?? "-"}
+          sub="Total lessons available"
+        />
+        <Metric
+          href="/progress"
+          icon={<AppFlameIcon />}
+          color="text-[#f4bf00]"
+          label="Completed"
+          value={mastered}
+          sub="Lessons completed"
+        />
+        <Metric
+          href="/progress"
+          icon={<IconTrophy />}
+          color="text-primary"
+          label="Bookmarks"
+          value={dashboard?.total_bookmarks ?? "-"}
+          sub="Saved for later"
+        />
+        <Metric
+          href="/vocabulary"
+          icon={<navigationIcons.words />}
+          color="text-primary"
+          label="Words"
+          value={totalWords}
+          sub="Total vocabulary"
+        />
+      </section>
 
-        <section className="grid gap-5 xl:grid-cols-[1fr_0.8fr]">
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-3 sm:grid-cols-2">
-              <Action href="/flashcards" icon={<navigationIcons.flashcards />} iconBox="bg-accent text-primary" title="Flashcard Review" sub="FSRS-powered spaced repetition" />
-              <Action href="/quiz" icon={<navigationIcons.quiz />} iconBox="bg-secondary/40 text-secondary-foreground" title="Multiple Choice Quiz" sub="Test your knowledge" />
-              <Action href="/vocabulary" icon={<navigationIcons.words />} iconBox="bg-muted text-foreground" title="Browse Words" sub="Manage your vocabulary list" />
-              <Action href="/import" icon={<navigationIcons.import />} iconBox="bg-red-100 text-red-700" title="Import Words" sub="Add new vocabulary to study" />
-            </CardContent>
-          </Card>
+      <section className="grid gap-5 xl:grid-cols-[1fr_0.8fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Quick Actions</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-2">
+            <Action
+              href="/courses"
+              icon={<navigationIcons.flashcards />}
+              iconBox="bg-accent text-primary"
+              title="Browse Courses"
+              sub="Explore lessons by topic"
+            />
+            <Action
+              href="/quiz"
+              icon={<navigationIcons.quiz />}
+              iconBox="bg-secondary/40 text-secondary-foreground"
+              title="Multiple Choice Quiz"
+              sub="Test your knowledge"
+            />
+            <Action
+              href="/vocabulary"
+              icon={<navigationIcons.words />}
+              iconBox="bg-muted text-foreground"
+              title="Browse Words"
+              sub="Manage your vocabulary list"
+            />
+            <Action
+              href="/bookmarks"
+              icon={<navigationIcons.words />}
+              iconBox="bg-red-100 text-red-700"
+              title="Bookmarks"
+              sub="Your saved lessons & words"
+            />
+          </CardContent>
+        </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Mastery Progress</CardTitle>
-              <CardDescription>{stats.mastered} mastered, {stats.learning} learning</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <div>
-                <div className="mb-2 flex justify-between font-display text-sm font-bold uppercase tracking-[0.05em]"><span>Mastered</span><span className="text-primary">{stats.mastered}</span></div>
-                <Progress value={(stats.mastered / masteryTotal) * 100} />
+        <Card>
+          <CardHeader>
+            <CardTitle>Progress Overview</CardTitle>
+            <CardDescription>
+              {mastered} completed, {learning} remaining
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div>
+              <div className="mb-2 flex justify-between font-display text-sm font-bold uppercase tracking-[0.05em]">
+                <span>Completed</span>
+                <span className="text-primary">{mastered}</span>
               </div>
-              <div>
-                <div className="mb-2 flex justify-between font-display text-sm font-bold uppercase tracking-[0.05em]"><span>Learning</span><span className="text-secondary">{stats.learning}</span></div>
-                <Progress value={(stats.learning / masteryTotal) * 100} />
+              <Progress value={(mastered / masteryTotal) * 100} />
+            </div>
+            <div>
+              <div className="mb-2 flex justify-between font-display text-sm font-bold uppercase tracking-[0.05em]">
+                <span>Remaining</span>
+                <span className="text-secondary">{learning}</span>
               </div>
-              <div>
-                <div className="mb-2 flex justify-between font-display text-sm font-bold uppercase tracking-[0.05em]"><span>New</span><span className="text-muted-foreground">{newWords}</span></div>
-                <Progress value={(newWords / masteryTotal) * 100} />
+              <Progress value={(learning / masteryTotal) * 100} />
+            </div>
+            <div>
+              <div className="mb-2 flex justify-between font-display text-sm font-bold uppercase tracking-[0.05em]">
+                <span>New</span>
+                <span className="text-muted-foreground">{newWords}</span>
               </div>
-            </CardContent>
-          </Card>
-        </section>
+              <Progress value={(newWords / masteryTotal) * 100} />
+            </div>
+          </CardContent>
+        </Card>
+      </section>
 
-        <section className="grid gap-5 xl:grid-cols-3">
-          <Card>
-            <CardHeader>
-              <CardTitle>Word of the Day</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {wordOfDay ? (
-                <div className="space-y-2">
-                  <h3 className="font-display text-2xl font-bold text-primary">{wordOfDay.word}</h3>
-                  <p className="font-mono text-sm text-muted-foreground">{wordOfDay.pronunciation}</p>
-                  <p className="font-bold">{wordOfDay.translation}</p>
-                  {wordOfDay.example ? <p className="text-sm italic text-muted-foreground">&quot;{wordOfDay.example}&quot;</p> : null}
-                </div>
-              ) : <p className="text-sm font-semibold text-muted-foreground">No word available yet.</p>}
-            </CardContent>
-          </Card>
-          <Card className="flex flex-col">
-            <CardHeader className="shrink-0">
-              <CardTitle>Review Queue</CardTitle>
-            </CardHeader>
-            <CardContent className="min-h-0 flex-1 p-0 pb-4">
-              {review.length ? (
-                <div className="overflow-y-auto px-6" style={{ maxHeight: "calc(3 * 64px + 2 * 12px)" }}>
-                  <div className="space-y-3">
-                    {review.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl bg-muted p-3">
-                        <div>
-                          <p className="font-display font-bold">{item.word?.word}</p>
-                          <p className="text-sm font-semibold text-muted-foreground">{item.word?.translation}</p>
-                        </div>
-                        <Badge>{masteryLabel(item.mastery)}</Badge>
+      <section className="grid gap-5 xl:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle>Word of the Day</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {vocabWords[0] ? (
+              <div className="space-y-2">
+                <h3 className="font-display text-2xl font-bold text-primary">{vocabWords[0].word}</h3>
+                {vocabWords[0].pronunciation ? (
+                  <p className="font-mono text-sm text-muted-foreground">{vocabWords[0].pronunciation}</p>
+                ) : null}
+                <p className="font-bold">{vocabWords[0].meaning ?? vocabWords[0].definition}</p>
+              </div>
+            ) : (
+              <p className="text-sm font-semibold text-muted-foreground">No word available yet.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="flex flex-col">
+          <CardHeader className="shrink-0">
+            <CardTitle>Recent Attempts</CardTitle>
+          </CardHeader>
+          <CardContent className="min-h-0 flex-1 p-0 pb-4">
+            {dashboard?.recent_attempts && dashboard.recent_attempts.length > 0 ? (
+              <div className="overflow-y-auto px-6" style={{ maxHeight: "calc(3 * 64px + 2 * 12px)" }}>
+                <div className="space-y-3">
+                  {dashboard.recent_attempts.slice(0, 5).map((attempt) => (
+                    <div key={attempt.id} className="flex items-center justify-between gap-3 rounded-xl bg-muted p-3">
+                      <div>
+                        <p className="font-display font-bold">Score: {attempt.score}</p>
+                        <p className="text-sm font-semibold text-muted-foreground">
+                          {attempt.correct_answers}/{attempt.total_questions} correct
+                        </p>
                       </div>
-                    ))}
-                  </div>
+                      <Badge>{attempt.is_completed ? "Done" : "In Progress"}</Badge>
+                    </div>
+                  ))}
                 </div>
-              ) : (
-                <p className="px-6 text-sm font-semibold text-muted-foreground">No review due.</p>
-              )}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Categories</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              {categories.length ? categories.map((category) => (
-                <Link key={category} href={`/vocabulary?category=${encodeURIComponent(category)}`}>
-                  <Badge variant="muted">{category}</Badge>
+              </div>
+            ) : (
+              <p className="px-6 text-sm font-semibold text-muted-foreground">No quiz attempts yet.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Course Progress</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {dashboard?.course_progress && dashboard.course_progress.length > 0 ? (
+              dashboard.course_progress.map((cp) => (
+                <Link key={cp.id} href={`/courses/${cp.course?.id ?? cp.id}`}>
+                  <Badge variant="muted">
+                    {cp.course?.title ?? `Course ${cp.id}`}: {cp.progress_percent ?? 0}%
+                  </Badge>
                 </Link>
-              )) : <p className="text-sm font-semibold text-muted-foreground">No categories yet.</p>}
-              {notifications.length ? <div className="mt-4 w-full space-y-2">{notifications.map((n) => <p key={n.id} className="rounded-xl bg-accent p-3 text-sm font-bold text-primary">{n.title}</p>)}</div> : null}
-            </CardContent>
-          </Card>
-        </section>
+              ))
+            ) : (
+              <p className="text-sm font-semibold text-muted-foreground">No course progress yet.</p>
+            )}
+          </CardContent>
+        </Card>
+      </section>
     </div>
   );
 }
 
-function Metric({ href, icon, color, label, value, sub }: { href: string; icon: React.ReactNode; color: string; label: string; value: string | number; sub: string }) {
+function Metric({
+  href,
+  icon,
+  color,
+  label,
+  value,
+  sub,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  color: string;
+  label: string;
+  value: string | number;
+  sub: string;
+}) {
   return (
     <Link href={href} className="learning-card block p-6">
       <div className={`mb-7 flex items-center gap-3 ${color}`}>
@@ -197,11 +296,30 @@ function Metric({ href, icon, color, label, value, sub }: { href: string; icon: 
   );
 }
 
-function Action({ href, icon, iconBox, title, sub }: { href: string; icon: React.ReactNode; iconBox: string; title: string; sub: string }) {
+function Action({
+  href,
+  icon,
+  iconBox,
+  title,
+  sub,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  iconBox: string;
+  title: string;
+  sub: string;
+}) {
   return (
-    <Link href={href} className="flex min-h-[132px] flex-col justify-between rounded-xl border-2 border-transparent bg-muted/40 p-4 transition hover:border-primary hover:bg-muted">
+    <Link
+      href={href}
+      className="flex min-h-[132px] flex-col justify-between rounded-xl border-2 border-transparent bg-muted/40 p-4 transition hover:border-primary hover:bg-muted"
+    >
       <span className="flex items-start justify-between gap-3">
-        <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl [&>svg]:h-6 [&>svg]:w-6 [&>svg]:stroke-[2] ${iconBox}`}>{icon}</span>
+        <span
+          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl [&>svg]:h-6 [&>svg]:w-6 [&>svg]:stroke-[2] ${iconBox}`}
+        >
+          {icon}
+        </span>
         <IconChevronRight className="h-5 w-5 text-muted-foreground" />
       </span>
       <span className="mt-4 block">

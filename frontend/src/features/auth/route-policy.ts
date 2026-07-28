@@ -1,4 +1,4 @@
-const protectedPrefixes = ["/profile", "/progress", "/import"];
+const protectedPrefixes = ["/profile", "/progress", "/bookmarks", "/quiz"];
 const authPaths = ["/login", "/register", "/verify-email", "/forgot-password", "/reset-password", "/auth/callback"];
 
 export function isAuthPath(pathname: string) {
