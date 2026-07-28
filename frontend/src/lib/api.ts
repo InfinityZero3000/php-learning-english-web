@@ -5,15 +5,24 @@
 export class ApiError extends Error {
   status: number;
   body: unknown;
+  errors: Record<string, string[]>;
 
-  constructor(status: number, body: unknown) {
-    const message = typeof body === "object" && body !== null && "message" in body
-      ? String((body as Record<string, unknown>).message)
+  constructor(status: number, body: unknown, errors?: Record<string, string[]>) {
+    const bodyObject = typeof body === "object" && body !== null ? (body as Record<string, unknown>) : null;
+    const message = bodyObject && "message" in bodyObject
+      ? String(bodyObject.message)
       : String(body ?? `HTTP ${status}`);
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.body = body;
+    if (errors) {
+      this.errors = errors;
+    } else if (bodyObject && "errors" in bodyObject && typeof bodyObject.errors === "object" && bodyObject.errors !== null) {
+      this.errors = bodyObject.errors as Record<string, string[]>;
+    } else {
+      this.errors = {};
+    }
   }
 }
 
@@ -132,6 +141,53 @@ export async function fetchMe(): Promise<AppUser> {
   const result = await apiRequest<ApiEnvelope<AppUser>>("GET", "/api/v1/auth/me");
   return result.data;
 }
+
+export async function forgotPassword(email: string): Promise<ApiEnvelope<{ message: string }>> {
+  return apiRequest("POST", "/api/v1/auth/forgot-password", { email });
+}
+
+export async function resendVerification(): Promise<ApiEnvelope<{ message: string }>> {
+  return apiRequest("POST", "/api/v1/auth/email/resend");
+}
+
+export async function resetPassword(payload: {
+  token: string;
+  email: string;
+  password: string;
+  password_confirmation: string;
+}): Promise<ApiEnvelope<{ message: string }>> {
+  return apiRequest("POST", "/api/v1/auth/reset-password", payload);
+}
+
+// --- Convenience objects (auto-init CSRF for auth mutations) ----------------
+
+export const auth = {
+  login: async (email: string, password: string) => {
+    await initializeCsrf();
+    return login(email, password);
+  },
+  register: async (name: string, email: string, password: string, confirmation: string) => {
+    await initializeCsrf();
+    return registerUser(name, email, password, confirmation);
+  },
+  forgotPassword: async (email: string) => {
+    await initializeCsrf();
+    return forgotPassword(email);
+  },
+  resendVerification: async () => {
+    await initializeCsrf();
+    return resendVerification();
+  },
+  resetPassword: async (payload: {
+    token: string;
+    email: string;
+    password: string;
+    password_confirmation: string;
+  }) => {
+    await initializeCsrf();
+    return resetPassword(payload);
+  },
+};
 
 // --- Profile ----------------------------------------------------------------
 
