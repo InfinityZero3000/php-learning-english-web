@@ -45,6 +45,6 @@ Route::prefix('api/v1')->group(function (): void {
         Route::delete('/profile', [ProfileController::class, 'destroy']);
         Route::get('/fsrs/due', [FsrsController::class, 'due']);
         Route::get('/fsrs/stats', [FsrsController::class, 'stats']);
-        Route::post('/fsrs/reviews', [FsrsController::class, 'review']);
+        Route::post('/fsrs/review', [FsrsController::class, 'review']);
     });
 });

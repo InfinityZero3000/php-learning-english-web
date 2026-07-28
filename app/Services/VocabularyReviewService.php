@@ -6,7 +6,6 @@ use App\Domain\Fsrs\FsrsCard;
 use App\Domain\Fsrs\FsrsConfig;
 use App\Domain\Fsrs\FsrsScheduler;
 use App\Models\LearningEvent;
-use App\Models\LearningSession;
 use App\Models\User;
 use App\Models\UserVocabulary;
 use App\Models\VocabularyReview;
@@ -32,32 +31,35 @@ class VocabularyReviewService
                 return $this->reviewPayload($existing);
             }
 
-            $session = LearningSession::query()
-                ->whereKey($input['learning_session_id'])
+            $state = UserVocabulary::query()
+                ->whereKey($input['user_vocabulary_id'])
                 ->where('user_id', $user->id)
-                ->whereIn('status', ['planned', 'active'])
+                ->lockForUpdate()
                 ->first();
-            if (! $session) {
-                throw new HttpException(403, 'Learning session is not available to this user.');
+            if (! $state) {
+                throw new HttpException(403, 'Vocabulary review is not available to this user.');
             }
 
-            $state = UserVocabulary::query()
-                ->where('user_id', $user->id)
-                ->where('vocabulary_id', $input['vocabulary_id'])
-                ->lockForUpdate()
-                ->firstOrCreate([], [
-                    'state' => 'learning',
-                    'step' => 0,
-                    'due_at' => now('UTC'),
-                    'algorithm' => 'fsrs-6',
-                    'algorithm_version' => FsrsConfig::VERSION,
-                ]);
+            $existing = VocabularyReview::query()->where('request_id', $input['request_id'])->first();
+            if ($existing) {
+                if (! $this->sameRequest($existing, $user, $input)) {
+                    throw new ConflictHttpException('Request ID was already used with a different payload.');
+                }
+
+                return $this->reviewPayload($existing);
+            }
 
             if ((int) $state->revision !== (int) $input['base_revision']) {
                 throw new ConflictHttpException('Review state changed; refresh before rating again.');
             }
 
-            $reviewedAt = CarbonImmutable::now('UTC');
+            $reviewedAt = CarbonImmutable::parse($input['reviewed_at'])->utc();
+            if ($reviewedAt->isAfter(CarbonImmutable::now('UTC')->addMinute())) {
+                throw new ConflictHttpException('Review time cannot be in the future.');
+            }
+            if ($state->due_at && $state->due_at->isAfter($reviewedAt)) {
+                throw new ConflictHttpException('Vocabulary is not due; use unscheduled practice instead.');
+            }
             $before = $this->stateSnapshot($state);
             $card = new FsrsCard(
                 state: $state->state,
@@ -71,7 +73,7 @@ class VocabularyReviewService
             );
             $result = $this->scheduler->review(
                 $card,
-                (int) $input['rating'],
+                $this->ratingValue($input['rating']),
                 new DateTimeImmutable($reviewedAt->format('c')),
             );
             $nextRevision = (int) $state->revision + 1;
@@ -85,7 +87,7 @@ class VocabularyReviewService
                 'scheduled_days' => $result->scheduledDays,
                 'elapsed_days' => $result->elapsedDays,
                 'repetitions' => (int) $state->repetitions + 1,
-                'lapses' => (int) $state->lapses + ((int) $input['rating'] === 1 ? 1 : 0),
+                'lapses' => (int) $state->lapses + ($input['rating'] === 'again' ? 1 : 0),
                 'last_reviewed_at' => $reviewedAt,
                 'algorithm' => 'fsrs-6',
                 'algorithm_version' => FsrsConfig::VERSION,
@@ -96,8 +98,8 @@ class VocabularyReviewService
             $review = VocabularyReview::create([
                 'user_vocabulary_id' => $state->id,
                 'request_id' => $input['request_id'],
-                'rating' => $input['rating'],
-                'response_time_ms' => $input['response_time_ms'] ?? null,
+                'rating' => $this->ratingValue($input['rating']),
+                'response_time_ms' => null,
                 'stability' => $state->stability,
                 'difficulty' => $state->difficulty,
                 'scheduled_days' => $state->scheduled_days,
@@ -113,14 +115,13 @@ class VocabularyReviewService
             $review->refresh();
 
             LearningEvent::create([
-                'learning_session_id' => $session->id,
+                'learning_session_id' => null,
                 'user_id' => $user->id,
                 'vocabulary_review_id' => $review->id,
                 'event_type' => 'vocabulary_review',
                 'request_id' => $input['request_id'],
-                'duration_ms' => $input['response_time_ms'] ?? null,
                 'occurred_at' => $reviewedAt,
-                'metadata' => ['rating' => (int) $input['rating']],
+                'metadata' => ['rating' => $input['rating']],
             ]);
 
             return $this->reviewPayload($review);
@@ -130,13 +131,10 @@ class VocabularyReviewService
     private function sameRequest(VocabularyReview $review, User $user, array $input): bool
     {
         return $review->userVocabulary()->where('user_id', $user->id)->exists()
-            && (int) $review->userVocabulary->vocabulary_id === (int) $input['vocabulary_id']
-            && (int) $review->rating === (int) $input['rating']
+            && (int) $review->user_vocabulary_id === (int) $input['user_vocabulary_id']
+            && (int) $review->rating === $this->ratingValue($input['rating'])
             && (int) $review->base_revision === (int) $input['base_revision']
-            && (int) ($review->response_time_ms ?? 0) === (int) ($input['response_time_ms'] ?? 0)
-            && $review->vocabularyReviewEvent()
-                ->where('learning_session_id', $input['learning_session_id'])
-                ->exists();
+            && $review->reviewed_at->clone()->utc()->equalTo(CarbonImmutable::parse($input['reviewed_at'])->utc());
     }
 
     private function stateSnapshot(UserVocabulary $state): array
@@ -174,5 +172,10 @@ class VocabularyReviewService
             'revision' => $review->resulting_revision,
             'algorithm' => $review->algorithm_version,
         ];
+    }
+
+    private function ratingValue(string $rating): int
+    {
+        return ['again' => 1, 'hard' => 2, 'good' => 3, 'easy' => 4][$rating];
     }
 }

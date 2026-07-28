@@ -92,7 +92,7 @@ return new class extends Migration
 
         Schema::create('learning_events', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('learning_session_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('learning_session_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->foreignId('attempt_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignId('vocabulary_review_id')->nullable()->constrained()->nullOnDelete();

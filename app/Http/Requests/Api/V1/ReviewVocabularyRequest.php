@@ -15,11 +15,15 @@ class ReviewVocabularyRequest extends FormRequest
     {
         return [
             'request_id' => ['required', 'uuid'],
-            'learning_session_id' => ['required', 'integer', 'exists:learning_sessions,id'],
-            'vocabulary_id' => ['required', 'integer', 'exists:vocabularies,id'],
-            'rating' => ['required', 'integer', 'between:1,4'],
+            'user_vocabulary_id' => ['required', 'integer', 'exists:user_vocabularies,id'],
+            'rating' => ['required', 'string', 'in:again,hard,good,easy'],
             'base_revision' => ['required', 'integer', 'min:0'],
-            'response_time_ms' => ['nullable', 'integer', 'min:0', 'max:600000'],
+            'reviewed_at' => ['required', 'date'],
         ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $this->merge(['request_id' => $this->header('X-Request-ID')]);
     }
 }

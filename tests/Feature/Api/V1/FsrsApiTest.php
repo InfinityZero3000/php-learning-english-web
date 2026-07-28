@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\UserVocabulary;
 use App\Models\Vocabulary;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -18,18 +19,19 @@ class FsrsApiTest extends TestCase
 
     public function test_review_is_atomic_and_idempotent(): void
     {
-        [$user, $word, $session, $state] = $this->context();
+        [$user, , , $state] = $this->context();
         $requestId = (string) Str::uuid();
+        $reviewedAt = now('UTC')->startOfSecond()->toISOString();
         $payload = [
-            'request_id' => $requestId,
-            'learning_session_id' => $session->id,
-            'vocabulary_id' => $word->id,
-            'rating' => 3,
+            'user_vocabulary_id' => $state->id,
+            'rating' => 'good',
             'base_revision' => 0,
-            'response_time_ms' => 1200,
+            'reviewed_at' => $reviewedAt,
         ];
 
-        $first = $this->actingAs($user)->postJson('/api/v1/fsrs/reviews', $payload)
+        $first = $this->actingAs($user)
+            ->withHeader('X-Request-ID', $requestId)
+            ->postJson('/api/v1/fsrs/review', $payload)
             ->assertOk()
             ->assertJsonPath('data.revision', 1)
             ->assertJsonPath('data.algorithm', FsrsConfig::VERSION)
@@ -39,7 +41,9 @@ class FsrsApiTest extends TestCase
         $this->assertDatabaseCount('learning_events', 1);
         $this->assertDatabaseHas('user_vocabularies', ['id' => $state->id, 'revision' => 1]);
 
-        $this->actingAs($user)->postJson('/api/v1/fsrs/reviews', $payload)
+        $this->actingAs($user)
+            ->withHeader('X-Request-ID', $requestId)
+            ->postJson('/api/v1/fsrs/review', $payload)
             ->assertOk()
             ->assertExactJson(['data' => $first, 'meta' => []]);
         $this->assertDatabaseCount('vocabulary_reviews', 1);
@@ -48,23 +52,22 @@ class FsrsApiTest extends TestCase
 
     public function test_rejects_stale_revision_and_request_id_payload_conflict(): void
     {
-        [$user, $word, $session] = $this->context();
+        [$user, , , $state] = $this->context();
         $requestId = (string) Str::uuid();
         $payload = [
-            'request_id' => $requestId,
-            'learning_session_id' => $session->id,
-            'vocabulary_id' => $word->id,
-            'rating' => 3,
+            'user_vocabulary_id' => $state->id,
+            'rating' => 'good',
             'base_revision' => 0,
+            'reviewed_at' => now('UTC')->startOfSecond()->toISOString(),
         ];
-        $this->actingAs($user)->postJson('/api/v1/fsrs/reviews', $payload)->assertOk();
+        $this->actingAs($user)->withHeader('X-Request-ID', $requestId)
+            ->postJson('/api/v1/fsrs/review', $payload)->assertOk();
 
-        $this->actingAs($user)->postJson('/api/v1/fsrs/reviews', [...$payload, 'rating' => 4])
+        $this->actingAs($user)->withHeader('X-Request-ID', $requestId)
+            ->postJson('/api/v1/fsrs/review', [...$payload, 'rating' => 'easy'])
             ->assertConflict();
-        $this->actingAs($user)->postJson('/api/v1/fsrs/reviews', [
-            ...$payload,
-            'request_id' => (string) Str::uuid(),
-        ])->assertConflict();
+        $this->actingAs($user)->withHeader('X-Request-ID', (string) Str::uuid())
+            ->postJson('/api/v1/fsrs/review', $payload)->assertConflict();
     }
 
     public function test_due_and_stats_are_scoped_to_authenticated_user(): void
@@ -84,20 +87,58 @@ class FsrsApiTest extends TestCase
         $this->getJson('/api/v1/fsrs/due')->assertUnauthorized();
     }
 
-    public function test_cannot_review_inside_another_users_session(): void
+    public function test_cannot_review_another_users_vocabulary(): void
     {
-        [$owner, $word, $session] = $this->context();
+        [$owner, , , $state] = $this->context();
         $attacker = User::factory()->create();
 
-        $this->actingAs($attacker)->postJson('/api/v1/fsrs/reviews', [
-            'request_id' => (string) Str::uuid(),
-            'learning_session_id' => $session->id,
-            'vocabulary_id' => $word->id,
-            'rating' => 3,
+        $this->actingAs($attacker)
+            ->withHeader('X-Request-ID', (string) Str::uuid())
+            ->postJson('/api/v1/fsrs/review', [
+            'user_vocabulary_id' => $state->id,
+            'rating' => 'good',
             'base_revision' => 0,
+            'reviewed_at' => now('UTC')->startOfSecond()->toISOString(),
         ])->assertForbidden();
         $this->assertDatabaseCount('vocabulary_reviews', 0);
         $this->assertNotNull($owner);
+    }
+
+    public function test_not_due_review_is_rejected_without_mutating_state(): void
+    {
+        [$user, , , $state] = $this->context();
+        $state->update(['due_at' => now('UTC')->addHour()]);
+
+        $this->actingAs($user)
+            ->withHeader('X-Request-ID', (string) Str::uuid())
+            ->postJson('/api/v1/fsrs/review', [
+                'user_vocabulary_id' => $state->id,
+                'rating' => 'good',
+                'base_revision' => 0,
+                'reviewed_at' => now('UTC')->startOfSecond()->toISOString(),
+            ])->assertConflict();
+
+        $this->assertDatabaseHas('user_vocabularies', ['id' => $state->id, 'revision' => 0]);
+        $this->assertDatabaseCount('vocabulary_reviews', 0);
+    }
+
+    public function test_event_failure_rolls_back_review_and_fsrs_state(): void
+    {
+        [$user, , , $state] = $this->context();
+        DB::statement("CREATE TRIGGER fail_learning_event BEFORE INSERT ON learning_events BEGIN SELECT RAISE(ABORT, 'forced'); END");
+
+        $this->actingAs($user)
+            ->withHeader('X-Request-ID', (string) Str::uuid())
+            ->postJson('/api/v1/fsrs/review', [
+                'user_vocabulary_id' => $state->id,
+                'rating' => 'good',
+                'base_revision' => 0,
+                'reviewed_at' => now('UTC')->startOfSecond()->toISOString(),
+            ])->assertServerError();
+
+        $this->assertDatabaseHas('user_vocabularies', ['id' => $state->id, 'revision' => 0]);
+        $this->assertDatabaseCount('vocabulary_reviews', 0);
+        $this->assertDatabaseCount('learning_events', 0);
     }
 
     private function context(string $suffix = ''): array
