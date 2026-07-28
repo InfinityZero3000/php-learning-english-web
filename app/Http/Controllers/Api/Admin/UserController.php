@@ -66,17 +66,17 @@ class UserController extends Controller
         ]);
     }
 
-    public function show(User $user): JsonResponse
+    public function show(int $user): JsonResponse
     {
         Gate::authorize('manage', User::class);
 
-        $user->load('role');
+        $target = User::with('role')->findOrFail($user);
 
-        $totalWords = UserVocabulary::where('user_id', $user->id)->count();
-        $mastered = UserVocabulary::where('user_id', $user->id)->where('state', 'review')->count();
-        $learning = UserVocabulary::where('user_id', $user->id)->where('state', 'learning')->count();
+        $totalWords = UserVocabulary::where('user_id', $target->id)->count();
+        $mastered = UserVocabulary::where('user_id', $target->id)->where('state', 'review')->count();
+        $learning = UserVocabulary::where('user_id', $target->id)->where('state', 'learning')->count();
 
-        $reviewCounts = VocabularyReview::whereHas('userVocabulary', fn ($q) => $q->where('user_id', $user->id))
+        $reviewCounts = VocabularyReview::whereHas('userVocabulary', fn ($q) => $q->where('user_id', $target->id))
             ->selectRaw('SUM(CASE WHEN rating >= 3 THEN 1 ELSE 0 END) as correct, SUM(CASE WHEN rating < 3 THEN 1 ELSE 0 END) as incorrect')
             ->first();
 
@@ -85,7 +85,7 @@ class UserController extends Controller
         $total = $correct + $incorrect;
 
         return response()->json([
-            'user' => $this->mapUser($user),
+            'user' => $this->mapUser($target),
             'stats' => [
                 'totalWords' => $totalWords,
                 'mastered' => $mastered,
@@ -104,15 +104,17 @@ class UserController extends Controller
         ]);
     }
 
-    public function history(Request $request, User $user): JsonResponse
+    public function history(Request $request, int $user): JsonResponse
     {
         Gate::authorize('manage', User::class);
+
+        $target = User::findOrFail($user);
 
         $limit = (int) $request->query('limit', 20);
         $limit = max(1, min(100, $limit));
 
         $reviews = VocabularyReview::query()
-            ->whereHas('userVocabulary', fn ($q) => $q->where('user_id', $user->id))
+            ->whereHas('userVocabulary', fn ($q) => $q->where('user_id', $target->id))
             ->with('userVocabulary.vocabulary')
             ->orderByDesc('reviewed_at')
             ->limit($limit)
@@ -127,21 +129,23 @@ class UserController extends Controller
         ])->all());
     }
 
-    public function lock(Request $request, User $user): JsonResponse
+    public function lock(Request $request, int $user): JsonResponse
     {
         Gate::authorize('manage', User::class);
 
-        if ($user->locked_at === null) {
+        $target = User::findOrFail($user);
+
+        if ($target->locked_at === null) {
             $adminRoleId = Role::where('slug', 'admin')->value('id');
 
-            if ((int) $user->role_id === (int) $adminRoleId) {
-                if ($user->is($request->user())) {
+            if ((int) $target->role_id === (int) $adminRoleId) {
+                if ($target->is($request->user())) {
                     throw ValidationException::withMessages(['user' => 'Không thể tự khóa tài khoản của chính bạn.']);
                 }
 
                 $remainingActiveAdmins = User::where('role_id', $adminRoleId)
                     ->whereNull('locked_at')
-                    ->where('id', '!=', $user->id)
+                    ->where('id', '!=', $target->id)
                     ->count();
 
                 if ($remainingActiveAdmins === 0) {
@@ -149,40 +153,46 @@ class UserController extends Controller
                 }
             }
 
-            $user->forceFill(['locked_at' => now()])->save();
-            AuditLog::record($request->user(), 'USER_LOCKED', "User #{$user->id}", "Locked account {$user->email}");
+            $target->forceFill(['locked_at' => now()])->save();
+            AuditLog::record($request->user(), 'USER_LOCKED', "User #{$target->id}", "Locked account {$target->email}");
         }
 
-        return response()->json($this->mapUser($user->fresh('role')));
+        return response()->json($this->mapUser($target->fresh('role')));
     }
 
-    public function unlock(Request $request, User $user): JsonResponse
+    public function unlock(Request $request, int $user): JsonResponse
     {
         Gate::authorize('manage', User::class);
 
-        if ($user->locked_at !== null) {
-            $user->forceFill(['locked_at' => null])->save();
-            AuditLog::record($request->user(), 'USER_UNLOCKED', "User #{$user->id}", "Unlocked account {$user->email}");
+        $target = User::findOrFail($user);
+
+        if ($target->locked_at !== null) {
+            $target->forceFill(['locked_at' => null])->save();
+            AuditLog::record($request->user(), 'USER_UNLOCKED', "User #{$target->id}", "Unlocked account {$target->email}");
         }
 
-        return response()->json($this->mapUser($user->fresh('role')));
+        return response()->json($this->mapUser($target->fresh('role')));
     }
 
-    public function resetPassword(Request $request, User $user): JsonResponse
+    public function resetPassword(Request $request, int $user): JsonResponse
     {
         Gate::authorize('manage', User::class);
+
+        $target = User::findOrFail($user);
 
         $plain = Str::password(16);
-        $user->forceFill(['password' => Hash::make($plain)])->save();
+        $target->forceFill(['password' => Hash::make($plain)])->save();
 
-        AuditLog::record($request->user(), 'PASSWORD_RESET', "User #{$user->id}", "Password reset for {$user->email}");
+        AuditLog::record($request->user(), 'PASSWORD_RESET', "User #{$target->id}", "Password reset for {$target->email}");
 
         return response()->json(['temporaryPassword' => $plain]);
     }
 
-    public function updateRole(Request $request, User $user): JsonResponse
+    public function updateRole(Request $request, int $user): JsonResponse
     {
         Gate::authorize('manage', User::class);
+
+        $target = User::findOrFail($user);
 
         $validated = $request->validate([
             'role' => ['required', Rule::in(['USER', 'ADMIN'])],
@@ -197,18 +207,18 @@ class UserController extends Controller
 
         $adminRoleId = Role::where('slug', 'admin')->value('id');
         if ((int) $roleId !== (int) $adminRoleId
-            && (int) $user->role_id === (int) $adminRoleId
-            && ($user->is($request->user()) || User::where('role_id', $adminRoleId)->count() <= 1)) {
+            && (int) $target->role_id === (int) $adminRoleId
+            && ($target->is($request->user()) || User::where('role_id', $adminRoleId)->count() <= 1)) {
             throw ValidationException::withMessages([
                 'role' => 'Không thể hạ quyền quản trị viên cuối cùng hoặc tự hạ quyền tài khoản này.',
             ]);
         }
 
-        $user->update(['role_id' => $roleId]);
+        $target->update(['role_id' => $roleId]);
 
-        AuditLog::record($request->user(), 'ROLE_CHANGED', "User #{$user->id}", "Changed role to {$validated['role']}");
+        AuditLog::record($request->user(), 'ROLE_CHANGED', "User #{$target->id}", "Changed role to {$validated['role']}");
 
-        return response()->json($this->mapUser($user->fresh('role')));
+        return response()->json($this->mapUser($target->fresh('role')));
     }
 
     private function mapUser(User $user): array
