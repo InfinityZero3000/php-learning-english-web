@@ -139,7 +139,7 @@
 - Create: `app/Console/Commands/BackfillFsrsState.php`
 - Test: `tests/Feature/BackfillFsrsStateTest.php`
 
-- [ ] Check in a deterministic generator and document: `python3 -m venv /tmp/php-learning-fsrs-fixture && /tmp/php-learning-fsrs-fixture/bin/pip install py-fsrs==6.3.0 && /tmp/php-learning-fsrs-fixture/bin/python tests/Fixtures/generate_fsrs_v6_3_0.py`.
+- [ ] Check in a deterministic generator and document: `python3 -m venv /tmp/php-learning-fsrs-fixture && /tmp/php-learning-fsrs-fixture/bin/pip install fsrs==6.3.0 && /tmp/php-learning-fsrs-fixture/bin/python tests/Fixtures/generate_fsrs_v6_3_0.py`.
 - [ ] Generate reference fixtures for new, learning, review, lapse, same-day, and maximum-interval cases with desired retention `0.90`, approved steps, maximum interval, UTC times, and fuzzing disabled.
 - [ ] Write a failing PHPUnit fixture parity test.
 - [ ] Implement only the published FSRS-6 formula with the approved 21 parameters, no fuzzing, UTC clock injection, and no package dependency.
