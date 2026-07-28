@@ -1,7 +1,6 @@
 <?php
-
+use App\Http\Controllers\Api\V1\Admin\CategoryAdminController;
 use App\Http\Controllers\Api\V1\Admin\CourseAdminController;
-use App\Http\Controllers\Api\V1\Admin\CourseCategoryController;
 use App\Http\Controllers\Api\V1\Admin\LessonAdminController;
 use App\Http\Controllers\Api\V1\Admin\LevelController;
 use App\Http\Controllers\Api\V1\Admin\MediaController;
@@ -29,7 +28,6 @@ use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
-
 Route::prefix('api/v1')->group(function (): void {
     Route::get('/', fn () => response()->json([
         'name' => config('app.name'),
@@ -49,7 +47,6 @@ Route::prefix('api/v1')->group(function (): void {
     Route::get('/content/youtube', [LexiLingoContentController::class, 'youtube']);
     Route::post('/enrichment/words/{vocabulary}', function (Vocabulary $vocabulary, VocabularyEnrichmentService $service) {
         abort_unless(Auth::check(), 401);
-
         return response()->json(['data' => $service->enrich($vocabulary)]);
     })->middleware('auth');
     Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
@@ -99,7 +96,7 @@ Route::prefix('api/v1')->group(function (): void {
     Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function (): void {
         Route::apiResource('topics', TopicController::class);
         Route::apiResource('levels', LevelController::class);
-        Route::apiResource('categories', CourseCategoryController::class);
+        Route::apiResource('categories', CategoryAdminController::class);
         Route::apiResource('courses', CourseAdminController::class);
         Route::apiResource('lessons', LessonAdminController::class);
         Route::apiResource('vocabulary', VocabularyAdminController::class);
