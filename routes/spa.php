@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\EmailVerificationController;
+use App\Http\Controllers\Api\V1\FsrsController;
 use App\Http\Controllers\Api\V1\PasswordController;
 use App\Http\Controllers\Api\V1\ProfileController;
 use App\Http\Controllers\Api\V1\VocabularyController;
@@ -42,5 +43,8 @@ Route::prefix('api/v1')->group(function (): void {
         Route::put('/profile', [ProfileController::class, 'update']);
         Route::put('/profile/password', [ProfileController::class, 'password']);
         Route::delete('/profile', [ProfileController::class, 'destroy']);
+        Route::get('/fsrs/due', [FsrsController::class, 'due']);
+        Route::get('/fsrs/stats', [FsrsController::class, 'stats']);
+        Route::post('/fsrs/reviews', [FsrsController::class, 'review']);
     });
 });
