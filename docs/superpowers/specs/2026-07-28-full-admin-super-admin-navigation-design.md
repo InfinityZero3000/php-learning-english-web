@@ -58,8 +58,7 @@ The desktop sidebar remains fixed and scrollable. Mobile uses the existing drawe
 | Account | Settings | `/settings` | Admin+ | Administrator preferences; platform settings remain Super Admin-only |
 | Super Admin | Super Dashboard | `/super-admin` | Super Admin | Operations overview, usage, contracts, service state |
 | Super Admin | Roles & Teacher Scope | `/roles` | Super Admin | `/api/v1/admin/roles` and teacher assignments |
-| Super Admin | AI & Monitoring | `/operations` | Super Admin | Existing operations overview, probes, usage, contracts |
-| Super Admin | Alerts & Quotas | `/operations#controls` | Super Admin | Existing alert-rule and quota contracts |
+| Super Admin | AI, Monitoring & Controls | `/operations` | Super Admin | Existing operations overview, probes, usage, contracts, alerts, and quotas as in-page sections |
 | Super Admin | Audit Trail | `/audit-logs` | Super Admin | Existing audit-event contract; remove mock events |
 
 The retained `/vocabulary` and `/vocabulary-sets` pages may remain as compatibility redirects. `/levels`, `/topics`, `/flashcards`, `/decks`, `/import`, `/content`, `/quizzes`, `/spaced-repetition`, `/analytics`, `/user-progress`, `/reports`, `/notifications`, and `/settings` remain real pages, not deleted placeholders.
@@ -83,18 +82,22 @@ Dashboard values must come from existing APIs. Unavailable metrics display a cle
 - Navigation visibility is presentation only; backend authorization remains authoritative.
 - No new backend abstraction is introduced unless an existing page lacks any endpoint required for its primary workflow.
 
+Existing gates are assigned as follows: `manage-content` protects Dashboard catalog data, Analytics, Courses, Levels, Topics, Vocabulary, Decks, Import start/resume, Content Feed, Quizzes, aggregate Spaced Repetition, aggregate Learner Progress, Reports, Notifications, and administrator preferences. `manage-users` protects the user directory. `manage-roles` and `assign-teachers` protect their named mutations. `manage-operations` protects Super Dashboard, AI/monitoring, alerts, quotas, platform settings, and Audit Trail. `start-content-sync` protects normal imports; `retry-content-sync` protects retry/reset/checkpoint replacement. `view-learning-evidence` protects any learner-specific evidence request in addition to the explicit learner target and audit reason described below.
+
 | Capability | Admin | Super Admin | Data scope / safeguards |
 |---|---|---|---|
 | Catalog read/write | Yes | Yes | Platform catalog; CSRF and validation on writes |
-| Aggregate analytics/reports | Read | Read | Aggregated or anonymized; no learner evidence |
-| User directory | Read | Read | Minimum identity fields |
+| Aggregate analytics/reports | Read | Read | Only counts, rates, durations, score/mastery bands, course/content identifiers and titles, and day/week/month buckets |
+| User directory | Read | Read | User id, display name, email, role, account status, enrollment/completion counts, and last-active timestamp only |
 | User role mutation | No | Yes | Recent Google verification, idempotency, audit |
 | Teacher assignments | No | Yes | Recent Google verification, idempotency, audit |
 | Import start/resume | Yes | Yes | Idempotent checkpoint semantics |
 | Import retry/reset | No | Yes | Recent Google verification and audit |
 | AI/service monitoring | No | Yes | Redacted configuration; no credentials |
 | Quota/alert mutation | No | Yes | Recent Google verification, versioning, audit |
-| Learner evidence/recordings | No general access | Explicit operational access only | Minimize PII and audit access |
+| Learner evidence/recordings | No general access | Explicit operational access only | Named learner, `view-learning-evidence`, non-empty reason, and audit event |
+
+Aggregate progress, FSRS, analytics, and report responses must not contain learner/user ids, names, emails, OAuth identifiers, IP addresses, answers, prompts containing user text, transcripts, recordings, free-text feedback, or per-review histories. Learner-specific evidence is a separate request: it names one learner, requires `view-learning-evidence`, requires a non-empty operational reason, and records actor, learner, reason, fields accessed, and timestamp in the audit log. No aggregate endpoint may silently expand into this evidence scope.
 
 ## Error and Loading Behavior
 
@@ -108,7 +111,7 @@ Dashboard values must come from existing APIs. Unavailable metrics display a cle
 
 - Unit/build checks: ESLint, TypeScript, and Next production build.
 - Backend feature tests for any new or changed admin contract.
-- Executable role matrix for every manifest row: Admin/Super Admin visibility, direct-route behavior, backend `200/403`, canonical destination, primary endpoint existence, and loading/error state.
+- Executable role matrix for every manifest row: Admin/Super Admin visibility, direct-route behavior, backend `200/403`, canonical destination, and loading/error state. Each row must prove either a real authorized primary endpoint or an explicitly tested unavailable state with all actions disabled.
 - Action tests cover read versus mutation permissions, data scope, CSRF, recent Google verification, idempotency, and audit creation where required.
 - Route/menu audit asserts that aliases resolve canonically and no navigation destination is a placeholder.
 - Responsive browser checks at 390×844 (mobile drawer), 768×1024 (tablet), and 1440×900 (fixed scrollable desktop sidebar).
