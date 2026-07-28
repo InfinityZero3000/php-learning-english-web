@@ -5,8 +5,13 @@ namespace App\Http\Controllers\Api\V1\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\CourseResource;
 use App\Models\Course;
+use App\Models\Level;
 use App\Models\OperationsAudit;
+use App\Models\Topic;
+use App\Models\Vocabulary;
+use App\Models\VocabularyDeck;
 use App\Support\ApiResponse;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,6 +21,118 @@ use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class CatalogController extends Controller
 {
+    public function summary(Request $request): JsonResponse
+    {
+        $this->authorizeCatalog($request);
+
+        return ApiResponse::success([
+            'courses' => Course::count(), 'levels' => Level::count(), 'topics' => Topic::count(),
+            'vocabularies' => Vocabulary::count(), 'decks' => VocabularyDeck::count(),
+        ]);
+    }
+
+    public function levels(Request $request): JsonResponse
+    {
+        return $this->paginated($request, Level::query()->withCount('courses'), ['name', 'slug']);
+    }
+
+    public function topics(Request $request): JsonResponse
+    {
+        return $this->paginated($request, Topic::query()->withCount(['courses', 'vocabularies']), ['name', 'slug']);
+    }
+
+    public function vocabularies(Request $request): JsonResponse
+    {
+        return $this->paginated($request, Vocabulary::query()->with(['topic:id,name'])->withCount('decks'), ['word', 'meaning', 'definition']);
+    }
+
+    public function decks(Request $request): JsonResponse
+    {
+        return $this->paginated($request, VocabularyDeck::query()->withCount('vocabularies'), ['name', 'slug']);
+    }
+
+    public function createLevel(Request $request): JsonResponse
+    {
+        if ($response = $this->replayCreate($request, 'level', $request->only(['name', 'slug', 'sort_order']))) {
+            return $response;
+        }
+
+        return $this->create($request, Level::class, 'level', $this->levelData($request), 201);
+    }
+
+    public function updateLevel(Request $request, Level $level): JsonResponse
+    {
+        return $this->update($request, $level, 'level', $this->levelData($request, $level));
+    }
+
+    public function deleteLevel(Request $request, int $level): JsonResponse
+    {
+        return $this->delete($request, Level::class, $level, 'level', fn (Level $model) => $model->courses()->exists());
+    }
+
+    public function createTopic(Request $request): JsonResponse
+    {
+        if ($response = $this->replayCreate($request, 'topic', $request->only(['name', 'slug']))) {
+            return $response;
+        }
+
+        return $this->create($request, Topic::class, 'topic', $this->topicData($request), 201);
+    }
+
+    public function updateTopic(Request $request, Topic $topic): JsonResponse
+    {
+        return $this->update($request, $topic, 'topic', $this->topicData($request, $topic));
+    }
+
+    public function deleteTopic(Request $request, int $topic): JsonResponse
+    {
+        return $this->delete($request, Topic::class, $topic, 'topic', fn (Topic $model) => $model->courses()->exists() || $model->vocabularies()->exists());
+    }
+
+    public function createVocabulary(Request $request): JsonResponse
+    {
+        return $this->create($request, Vocabulary::class, 'vocabulary', $this->vocabularyData($request), 201);
+    }
+
+    public function updateVocabulary(Request $request, Vocabulary $vocabulary): JsonResponse
+    {
+        return $this->update($request, $vocabulary, 'vocabulary', $this->vocabularyData($request, $vocabulary));
+    }
+
+    public function deleteVocabulary(Request $request, int $vocabulary): JsonResponse
+    {
+        return $this->delete($request, Vocabulary::class, $vocabulary, 'vocabulary');
+    }
+
+    public function createDeck(Request $request): JsonResponse
+    {
+        $this->authorizeCatalog($request);
+        $raw = $request->only(['name', 'slug', 'description', 'is_public', 'vocabulary_ids']);
+        $fingerprint = $this->fingerprint(['create', 'deck', array_diff_key($raw, ['vocabulary_ids' => true]), $raw['vocabulary_ids'] ?? []]);
+        if ($audit = $this->replayAudit($request, 'deck.created', $fingerprint)) {
+            return ApiResponse::success($audit->after_state, status: 201);
+        }
+        $data = $this->deckData($request);
+        $vocabularyIds = $data['vocabulary_ids'] ?? [];
+        unset($data['vocabulary_ids']);
+
+        return $this->create($request, VocabularyDeck::class, 'deck', $data, 201, $vocabularyIds);
+    }
+
+    public function updateDeck(Request $request, VocabularyDeck $deck): JsonResponse
+    {
+        $data = $this->deckData($request, $deck);
+        $vocabularyIds = $data['vocabulary_ids'] ?? null;
+        unset($data['vocabulary_ids']);
+
+        return $this->update($request, $deck, 'deck', $data, $vocabularyIds);
+    }
+
+    public function deleteDeck(Request $request, int $deck): JsonResponse
+    {
+        return $this->delete($request, VocabularyDeck::class, $deck, 'deck');
+    }
+
     public function courses(Request $request): JsonResponse
     {
         abort_unless($request->user()->can('manage-content'), 403);
@@ -162,5 +279,203 @@ class CatalogController extends Controller
     private function fingerprint(array $payload): string
     {
         return hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR));
+    }
+
+    private function authorizeCatalog(Request $request): void
+    {
+        abort_unless($request->user()->can('manage-content'), 403);
+    }
+
+    private function paginated(Request $request, $query, array $searchColumns): JsonResponse
+    {
+        $this->authorizeCatalog($request);
+        $search = trim($request->string('search')->toString());
+        $query->when($search, function ($query) use ($searchColumns, $search): void {
+            $query->where(function ($query) use ($searchColumns, $search): void {
+                foreach ($searchColumns as $index => $column) {
+                    $query->{$index === 0 ? 'where' : 'orWhere'}($column, 'like', "%{$search}%");
+                }
+            });
+        });
+        $page = $query->latest()->paginate(min(100, max(1, $request->integer('per_page', 20))));
+
+        return ApiResponse::success($page->items(), meta: [
+            'page' => $page->currentPage(), 'per_page' => $page->perPage(), 'total' => $page->total(),
+            'last_page' => $page->lastPage(),
+        ]);
+    }
+
+    private function create(Request $request, string $modelClass, string $type, array $data, int $status, array $vocabularyIds = []): JsonResponse
+    {
+        $this->authorizeCatalog($request);
+        $action = "{$type}.created";
+        $fingerprint = $this->fingerprint(['create', $type, $data, $vocabularyIds]);
+        if ($audit = $this->replayAudit($request, $action, $fingerprint)) {
+            return ApiResponse::success($audit->after_state, status: $status);
+        }
+
+        try {
+            $model = DB::transaction(function () use ($request, $modelClass, $type, $data, $action, $fingerprint, $vocabularyIds): Model {
+                $model = $modelClass::create($data);
+                if ($model instanceof VocabularyDeck && $vocabularyIds) {
+                    $model->vocabularies()->sync($this->orderedPivot($vocabularyIds));
+                }
+                $model->loadCount($model instanceof VocabularyDeck ? 'vocabularies' : []);
+                $this->auditModel($request, $action, $type, $model, $fingerprint);
+
+                return $model;
+            });
+        } catch (QueryException $exception) {
+            $audit = $this->replayAudit($request, $action, $fingerprint);
+            if (! $audit) {
+                throw $exception;
+            }
+
+            return ApiResponse::success($audit->after_state, status: $status);
+        }
+
+        return ApiResponse::success($model->toArray(), status: $status);
+    }
+
+    private function update(Request $request, Model $model, string $type, array $data, ?array $vocabularyIds = null): JsonResponse
+    {
+        $this->authorizeCatalog($request);
+        $action = "{$type}.updated";
+        $fingerprint = $this->fingerprint(['update', $type, $model->getKey(), $data, $vocabularyIds]);
+        if ($audit = $this->replayAudit($request, $action, $fingerprint)) {
+            return ApiResponse::success($audit->after_state);
+        }
+        try {
+            DB::transaction(function () use ($request, $model, $type, $data, $action, $fingerprint, $vocabularyIds): void {
+                $before = $model->toArray();
+                $model->update($data);
+                if ($model instanceof VocabularyDeck && $vocabularyIds !== null) {
+                    $model->vocabularies()->sync($this->orderedPivot($vocabularyIds));
+                    $model->loadCount('vocabularies');
+                }
+                $this->auditModel($request, $action, $type, $model, $fingerprint, $before);
+            });
+        } catch (QueryException $exception) {
+            $audit = $this->replayAudit($request, $action, $fingerprint);
+            if (! $audit) {
+                throw $exception;
+            }
+
+            return ApiResponse::success($audit->after_state);
+        }
+
+        return ApiResponse::success($model->toArray());
+    }
+
+    private function delete(Request $request, string $modelClass, int $id, string $type, ?callable $hasDependencies = null): JsonResponse
+    {
+        $this->authorizeCatalog($request);
+        $action = "{$type}.deleted";
+        $fingerprint = $this->fingerprint(['delete', $type, $id]);
+        if ($this->replayAudit($request, $action, $fingerprint)) {
+            return response()->json(null, 204);
+        }
+        $model = $modelClass::findOrFail($id);
+        if ($hasDependencies && $hasDependencies($model)) {
+            throw new ConflictHttpException('The record is still referenced by protected content.');
+        }
+        try {
+            DB::transaction(function () use ($request, $model, $type, $action, $fingerprint): void {
+                $before = $model->toArray();
+                $id = $model->getKey();
+                $model->delete();
+                OperationsAudit::create([
+                    'actor_id' => $request->user()->id, 'action' => $action, 'target_type' => $type,
+                    'target_id' => (string) $id, 'request_id' => $request->header('X-Request-ID'),
+                    'context' => ['fingerprint' => $fingerprint], 'before_state' => $before,
+                    'after_state' => null, 'occurred_at' => now('UTC'),
+                ]);
+            });
+        } catch (QueryException $exception) {
+            if (! $this->replayAudit($request, $action, $fingerprint)) {
+                throw $exception;
+            }
+        }
+
+        return response()->json(null, 204);
+    }
+
+    private function replayAudit(Request $request, string $action, string $fingerprint): ?OperationsAudit
+    {
+        $requestId = $request->header('X-Request-ID');
+        validator(['request_id' => $requestId], ['request_id' => ['required', 'uuid']])->validate();
+        $audit = OperationsAudit::query()->where('request_id', $requestId)->first();
+        if ($audit && ($audit->action !== $action || data_get($audit->context, 'fingerprint') !== $fingerprint)) {
+            throw new ConflictHttpException('X-Request-ID was already used for another operation.');
+        }
+
+        return $audit;
+    }
+
+    private function auditModel(Request $request, string $action, string $type, Model $model, string $fingerprint, ?array $before = null): void
+    {
+        OperationsAudit::create([
+            'actor_id' => $request->user()->id, 'action' => $action, 'target_type' => $type,
+            'target_id' => (string) $model->getKey(), 'request_id' => $request->header('X-Request-ID'),
+            'context' => ['fingerprint' => $fingerprint], 'before_state' => $before,
+            'after_state' => $model->toArray(), 'occurred_at' => now('UTC'),
+        ]);
+    }
+
+    private function levelData(Request $request, ?Level $level = null): array
+    {
+        return $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'slug' => ['required', 'string', 'max:255', Rule::unique('levels')->ignore($level)],
+            'sort_order' => ['sometimes', 'integer', 'min:0'],
+        ]);
+    }
+
+    private function topicData(Request $request, ?Topic $topic = null): array
+    {
+        return $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'slug' => ['required', 'string', 'max:255', Rule::unique('topics')->ignore($topic)],
+        ]);
+    }
+
+    private function vocabularyData(Request $request, ?Vocabulary $vocabulary = null): array
+    {
+        return $request->validate([
+            'word' => ['required', 'string', 'max:255'], 'meaning' => ['required', 'string', 'max:5000'],
+            'definition' => ['nullable', 'string', 'max:5000'], 'example' => ['nullable', 'string', 'max:5000'],
+            'topic_id' => ['nullable', 'integer', 'exists:topics,id'],
+            'pronunciation' => ['nullable', 'string', 'max:255'], 'part_of_speech' => ['nullable', 'string', 'max:100'],
+            'difficulty_level' => ['nullable', 'string', 'max:100'], 'tags' => ['nullable', 'array'],
+            'translation' => ['nullable', 'array'],
+        ]);
+    }
+
+    private function deckData(Request $request, ?VocabularyDeck $deck = null): array
+    {
+        return $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'slug' => ['required', 'string', 'max:255', Rule::unique('vocabulary_decks')->ignore($deck)],
+            'description' => ['nullable', 'string', 'max:5000'], 'is_public' => ['sometimes', 'boolean'],
+            'vocabulary_ids' => ['sometimes', 'array', 'max:1000'],
+            'vocabulary_ids.*' => ['integer', 'distinct', 'exists:vocabularies,id'],
+        ]);
+    }
+
+    private function orderedPivot(array $ids): array
+    {
+        return collect($ids)->mapWithKeys(fn (int $id, int $index) => [$id => ['sort_order' => $index]])->all();
+    }
+
+    private function replayCreate(Request $request, string $type, array $data, array $relatedIds = []): ?JsonResponse
+    {
+        $this->authorizeCatalog($request);
+        $audit = $this->replayAudit(
+            $request,
+            "{$type}.created",
+            $this->fingerprint(['create', $type, $data, $relatedIds]),
+        );
+
+        return $audit ? ApiResponse::success($audit->after_state, status: 201) : null;
     }
 }

@@ -5,7 +5,9 @@ namespace Tests\Feature\Api\V1;
 use App\Models\AlertRule;
 use App\Models\Assignment;
 use App\Models\Course;
+use App\Models\LearningEvent;
 use App\Models\Lesson;
+use App\Models\OperationsAudit;
 use App\Models\Role;
 use App\Models\SupervisionAlert;
 use App\Models\TeacherAssignment;
@@ -46,6 +48,37 @@ class TeacherApiTest extends TestCase
     {
         $this->seed();
         $this->actingAs($this->user('learner'))->getJson('/api/v1/teacher/learners')->assertForbidden();
+    }
+
+    public function test_super_admin_evidence_access_requires_reason_fresh_id_and_audit(): void
+    {
+        $this->seed();
+        $learner = $this->user('learner');
+        $admin = $this->user('admin');
+        $superAdmin = $this->user('super_admin');
+        LearningEvent::create([
+            'user_id' => $learner->id,
+            'event_type' => 'answer_submitted',
+            'response' => 'hello',
+            'occurred_at' => now('UTC'),
+        ]);
+        $uri = "/api/v1/admin/users/{$learner->id}/evidence";
+
+        $this->actingAs($admin)->postJson($uri, ['reason' => 'Support review'])->assertForbidden();
+        $this->actingAs($superAdmin)->withHeader('X-Request-ID', (string) Str::uuid())
+            ->postJson($uri, [])->assertUnprocessable();
+
+        $requestId = (string) Str::uuid();
+        $this->withHeader('X-Request-ID', $requestId)->postJson($uri, ['reason' => 'Investigate learning alert'])
+            ->assertOk()->assertJsonPath('data.0.response', 'hello');
+        $audit = OperationsAudit::query()->where('request_id', $requestId)->firstOrFail();
+        $this->assertSame('learning_evidence.viewed', $audit->action);
+        $this->assertSame((string) $learner->id, $audit->target_id);
+        $this->assertSame('Investigate learning alert', $audit->context['reason']);
+
+        $this->withHeader('X-Request-ID', $requestId)->postJson($uri, ['reason' => 'Investigate learning alert'])
+            ->assertConflict();
+        $this->assertSame(1, OperationsAudit::query()->where('request_id', $requestId)->count());
     }
 
     public function test_assignment_requires_exactly_one_target(): void

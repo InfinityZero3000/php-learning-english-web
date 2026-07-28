@@ -24,7 +24,7 @@ abstract class AbstractLexiLingoImporter
      * Fetch, validate and (unless dry-run) persist one page starting at the
      * current checkpoint (or offset 0 when $reset is true).
      */
-    abstract public function import(int $limit, bool $dryRun = false, bool $reset = false): ImportResult;
+    abstract public function import(int $limit, bool $dryRun = false, bool $reset = false, ?int $cursor = null): ImportResult;
 
     protected function items(mixed $payload): array
     {
@@ -37,8 +37,12 @@ abstract class AbstractLexiLingoImporter
             : (array_is_list($payload) ? $payload : []);
     }
 
-    protected function startingCursor(bool $reset): int
+    protected function startingCursor(bool $reset, ?int $cursor = null): int
     {
+        if ($cursor !== null) {
+            return max(0, $cursor);
+        }
+
         if ($reset) {
             return 0;
         }
@@ -56,22 +60,28 @@ abstract class AbstractLexiLingoImporter
         );
     }
 
-    protected function advanceCheckpoint(int $cursor): void
+    protected function advanceCheckpoint(int $cursor, bool $replace = false): void
     {
         $checkpoint = $this->checkpoint();
-        $checkpoint->cursor = $cursor;
+        $checkpoint->cursor = $replace ? $cursor : max((int) $checkpoint->cursor, $cursor);
         $checkpoint->last_synced_at = now();
         $checkpoint->save();
     }
 
     protected function archiveFailure(?string $externalId, array $payload, array $errors): void
     {
-        LexiLingoImportFailure::create([
-            'entity' => $this->entity(),
-            'external_id' => $externalId,
-            'payload' => $payload,
-            'errors' => $errors,
-        ]);
+        $safePayload = array_intersect_key($payload, array_flip([
+            'id', 'slug', 'name', 'title', 'word', 'language', 'level', 'part_of_speech',
+        ]));
+        $safeErrors = array_map(
+            fn (mixed $error): string => mb_substr(is_scalar($error) ? (string) $error : 'Invalid provider payload.', 0, 500),
+            array_slice($errors, 0, 20),
+        );
+
+        LexiLingoImportFailure::updateOrCreate(
+            ['entity' => $this->entity(), 'external_id' => $externalId],
+            ['payload' => $safePayload, 'errors' => $safeErrors],
+        );
     }
 
     protected function logWarning(string $message, array $context = []): void

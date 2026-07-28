@@ -17,7 +17,8 @@ primary_region = "sin"
   SESSION_SECURE_COOKIE = "true"
   SESSION_SAME_SITE = "lax"
   CACHE_STORE = "redis"
-  QUEUE_CONNECTION = "sync"
+  QUEUE_CONNECTION = "database"
+  DB_QUEUE_RETRY_AFTER = "360"
   REDIS_CLIENT = "phpredis"
 
 [http_service]

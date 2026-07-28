@@ -8,7 +8,9 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -47,6 +49,21 @@ class User extends Authenticatable implements MustVerifyEmail
     public function userVocabularies(): HasMany
     {
         return $this->hasMany(UserVocabulary::class);
+    }
+
+    public function adminPreference(): HasOne
+    {
+        return $this->hasOne(AdminPreference::class);
+    }
+
+    public function readOperationalNotifications(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            SupervisionAlert::class,
+            'admin_notification_reads',
+            'user_id',
+            'supervision_alert_id',
+        )->withPivot('read_at');
     }
 
     /**

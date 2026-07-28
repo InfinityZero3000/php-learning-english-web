@@ -39,7 +39,8 @@ Region:  sin
 | `DB_PASSWORD` | Có | Mật khẩu database |
 | `REDIS_HOST` hoặc `REDIS_URL` | Có | Kết nối Redis production |
 | `CACHE_STORE` | Không | `redis` |
-| `QUEUE_CONNECTION` | Không | `sync`; chuyển sang `redis` chỉ khi đã deploy và giám sát queue worker |
+| `QUEUE_CONNECTION` | Không | `database`; worker được Supervisor quản lý cùng Fly machine |
+| `DB_QUEUE_RETRY_AFTER` | Không | `360`; phải lớn hơn worker timeout 300 giây |
 | `SESSION_DRIVER` | Không | `database` |
 | `SESSION_SECURE_COOKIE` | Không | `true` |
 | `SESSION_SAME_SITE` | Không | `lax` |
@@ -105,9 +106,10 @@ LEXILINGO_TIMEOUT=30
 
 `Dockerfile.fly` đã cài extension `phpredis`.
 
-Hiện tại web machine không chạy queue worker, vì vậy `QUEUE_CONNECTION=sync`
-là cấu hình bắt buộc. Khi ứng dụng có job `ShouldQueue`, deploy worker riêng
-trước rồi mới chuyển sang `redis`.
+Supervisor chạy một database queue worker với `--tries=1 --timeout=300` và
+graceful shutdown 330 giây. Kiểm tra log worker và trạng thái durable import
+run sau mỗi deploy. Không chuyển về `sync`, vì HTTP import không được giữ mở
+trong lúc gọi nhiều trang dữ liệu LexiLingo.
 
 ### Ví dụ thiết lập Fly secrets
 
@@ -189,6 +191,7 @@ GET  learner /api/v1/health
 GET  admin /api/v1/health
 POST login → GET /api/v1/auth/me → POST logout
 php artisan lexilingo:sync-vocabulary --limit=1
+php artisan queue:monitor database:default --max=100
 GET  /api/v1/vocabulary?per_page=1
 ```
 

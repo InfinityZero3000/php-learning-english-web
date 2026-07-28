@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/components/AdminLayout';
-import { sets } from '@/lib/api';
+import { adminCatalog, type VocabularyDeck } from '@/lib/api';
 
 interface Deck {
   id: number;
@@ -73,17 +73,26 @@ function DeckModal({ deck, onClose, onSave }: {
 }
 
 export default function DecksPage() {
+  return <AdminLayout title="Decks"><PageContent /></AdminLayout>;
+}
+
+function PageContent() {
   const [decks, setDecks] = useState<Deck[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState<{ open: boolean; deck: Partial<Deck> | null }>({ open: false, deck: null });
   const [deleting, setDeleting] = useState<number | null>(null);
+  const [error, setError] = useState('');
 
   const load = async () => {
     setLoading(true);
     try {
-      const res = await sets.list();
-      setDecks((Array.isArray(res) ? res : []) as Deck[]);
+      setError('');
+      const res = await adminCatalog.decks({ perPage: 100 });
+      setDecks(res.data.map(toDeck));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not load decks.');
+      setDecks([]);
     } finally {
       setLoading(false);
     }
@@ -95,23 +104,22 @@ export default function DecksPage() {
 
   const handleSave = async (data: Partial<Deck>) => {
     if (data.id) {
-      // update not in current API, recreate
+      await adminCatalog.updateDeck(data.id, { name: data.name ?? '', slug: slugify(data.name ?? ''), description: data.description, is_public: data.isPublic });
     } else {
-      await sets.create(data);
+      await adminCatalog.createDeck({ name: data.name ?? '', slug: slugify(data.name ?? ''), description: data.description, is_public: data.isPublic });
     }
-    load();
+    await load();
   };
 
   const handleDelete = async (id: number) => {
     if (!confirm('Delete this deck? This cannot be undone.')) return;
     setDeleting(id);
-    try { await sets.delete(id); load(); } finally { setDeleting(null); }
+    try { await adminCatalog.deleteDeck(id); await load(); } finally { setDeleting(null); }
   };
 
   const filtered = decks.filter(d => !search || d.name?.toLowerCase().includes(search.toLowerCase()));
 
-  return (
-    <AdminLayout title="Decks">
+  return <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
@@ -134,7 +142,7 @@ export default function DecksPage() {
         {/* Grid */}
         {loading ? (
           <div className="py-20 text-center text-sm" style={{ color: '#3e4850' }}>Loading decks...</div>
-        ) : filtered.length === 0 ? (
+        ) : error ? (<div role="alert" className="rounded-2xl p-5 font-bold" style={{ backgroundColor: '#ffdad6', color: '#93000a' }}>{error}</div>) : filtered.length === 0 ? (
           <div className="py-20 text-center rounded-3xl" style={{ backgroundColor: '#ffffff', border: '2px solid #bdc8d2' }}>
             <span className="material-symbols-outlined text-5xl block mb-3" style={{ color: '#bdc8d2' }}>collections_bookmark</span>
             <p className="text-sm font-bold" style={{ color: '#3e4850' }}>No decks yet. Create your first vocabulary deck!</p>
@@ -176,6 +184,13 @@ export default function DecksPage() {
       </div>
 
       {modal.open && <DeckModal deck={modal.deck} onClose={() => setModal({ open: false, deck: null })} onSave={handleSave} />}
-    </AdminLayout>
-  );
+    </>;
+}
+
+function toDeck(deck: VocabularyDeck): Deck {
+  return { id: deck.id, name: deck.name, description: deck.description ?? undefined, wordCount: deck.vocabularies_count, isPublic: deck.is_public };
+}
+
+function slugify(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }

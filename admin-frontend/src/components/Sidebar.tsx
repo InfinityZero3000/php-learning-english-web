@@ -2,19 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-
-const navGroups = [
-  { label: null, items: [{ href: '/dashboard', icon: 'dashboard', label: 'Dashboard' }] },
-  { label: 'Content', items: [{ href: '/courses', icon: 'auto_stories', label: 'Courses' }] },
-  { label: 'Users', items: [
-    { href: '/users', icon: 'group', label: 'Users' },
-    { href: '/roles', icon: 'admin_panel_settings', label: 'Roles' },
-  ] },
-  { label: 'Platform', items: [{ href: '/operations', icon: 'monitor_heart', label: 'AI & Operations' }] },
-];
+import { navigationForRole } from '@/lib/admin-navigation.mjs';
 
 export default function Sidebar({ role, open, onClose }: { role?: string | null; open: boolean; onClose: () => void }) {
   const pathname = usePathname();
+  const navGroups = navigationForRole(role);
 
   return (
     <>
@@ -30,12 +22,12 @@ export default function Sidebar({ role, open, onClose }: { role?: string | null;
           </button>
         </div>
 
-        <nav className="custom-scrollbar flex-1 overflow-y-auto px-4 pb-4">
+        <nav aria-label="Admin navigation" className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-4 pb-4">
           {navGroups.map((group, index) => (
-            <div key={group.label ?? 'home'} className={index ? 'mt-5' : ''}>
-              {group.label && <p className="px-4 pb-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#6e7881]">{group.label}</p>}
+            <div key={group.label} className={index ? 'mt-5' : ''}>
+              <p className="px-4 pb-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#6e7881]">{group.label}</p>
               <div className="space-y-1.5">
-                {group.items.filter((item) => !['/operations', '/roles'].includes(item.href) || role === 'super_admin').map((item) => {
+                {group.items.map((item) => {
                   const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
                   return (
                     <Link key={item.href} href={item.href} onClick={onClose} className={`admin-nav-item ${active ? 'admin-nav-item-active' : ''}`}>
@@ -49,9 +41,9 @@ export default function Sidebar({ role, open, onClose }: { role?: string | null;
           ))}
         </nav>
 
-        <div className="m-4 rounded-xl border-2 border-[#bdc8d2] bg-[#f5f3f3] p-4">
+        <div className="mx-4 mb-4 rounded-xl border-2 border-[#bdc8d2] bg-[#f5f3f3] px-4 py-3">
           <p className="text-[10px] font-black uppercase tracking-wider text-[#006590]">Protected access</p>
-          <p className="mt-1 text-xs font-semibold leading-relaxed text-[#56636d]">Google whitelist được kiểm tra trên mọi request.</p>
+          <p className="mt-1 text-xs font-semibold text-[#56636d]">{role === 'super_admin' ? 'Super Admin' : 'Admin'} · Google whitelist</p>
         </div>
       </aside>
     </>

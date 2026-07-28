@@ -55,14 +55,49 @@ class TeacherController extends Controller
 
     public function evidence(Request $request, User $learner): JsonResponse
     {
+        abort_if($request->user()->hasRole('super_admin'), 403, 'Use the audited operational evidence endpoint.');
         $this->assigned($request, $learner);
+
+        return ApiResponse::success($this->evidenceData($learner));
+    }
+
+    public function operationalEvidence(Request $request, User $learner): JsonResponse
+    {
+        abort_unless($request->user()->hasRole('super_admin'), 403);
+        abort_unless($learner->hasRole('learner'), 403);
+        abort_unless($request->user()->can('view-learning-evidence', $learner), 403);
+        $data = $request->validate(['reason' => ['required', 'string', 'min:3', 'max:500']]);
+        $requestId = $request->header('X-Request-ID');
+        validator(['request_id' => $requestId], ['request_id' => ['required', 'uuid']])->validate();
+        if (OperationsAudit::query()->where('request_id', $requestId)->exists()) {
+            throw new ConflictHttpException('X-Request-ID was already used. Use a fresh id for each evidence access.');
+        }
+        $events = $this->evidenceData($learner);
+        OperationsAudit::create([
+            'actor_id' => $request->user()->id,
+            'action' => 'learning_evidence.viewed',
+            'target_type' => 'user',
+            'target_id' => (string) $learner->id,
+            'request_id' => $requestId,
+            'context' => [
+                'reason' => $data['reason'],
+                'fields' => ['id', 'event_type', 'response', 'is_correct', 'hint_level', 'pronunciation_score', 'duration_ms', 'occurred_at', 'metadata'],
+            ],
+            'occurred_at' => now('UTC'),
+        ]);
+
+        return ApiResponse::success($events);
+    }
+
+    private function evidenceData(User $learner): array
+    {
         $events = LearningEvent::query()->where('user_id', $learner->id)->latest('occurred_at')->limit(100)->get([
             'id', 'event_type', 'response', 'is_correct', 'hint_level', 'pronunciation_score', 'duration_ms', 'occurred_at', 'metadata',
         ]);
 
-        return ApiResponse::success($events->map(fn (LearningEvent $event) => [
+        return $events->map(fn (LearningEvent $event) => [
             'type' => 'learning_event', ...$event->toArray(),
-        ]));
+        ])->all();
     }
 
     public function alerts(Request $request): JsonResponse

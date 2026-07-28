@@ -9,8 +9,8 @@ class LearningPolicy
 {
     public function viewEvidence(User $actor, User $learner): bool
     {
-        return $actor->is($learner) || (
-            $actor->hasRole('teacher', 'super_admin')
+        return $actor->is($learner) || $actor->hasRole('super_admin') || (
+            $actor->hasRole('teacher')
             && TeacherAssignment::query()
                 ->where('teacher_id', $actor->id)
                 ->where('learner_id', $learner->id)

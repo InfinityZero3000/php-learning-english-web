@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/components/AdminLayout';
-import { topics } from '@/lib/api';
+import { adminCatalog } from '@/lib/api';
 
 interface Topic {
   id: number;
@@ -246,6 +246,10 @@ const TOPIC_COLORS = [
 ];
 
 export default function TopicsPage() {
+  return <AdminLayout title="Topics"><PageContent /></AdminLayout>;
+}
+
+function PageContent() {
   const [topicList, setTopicList] = useState<Topic[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -256,8 +260,8 @@ export default function TopicsPage() {
 
   const load = () => {
     setLoading(true);
-    topics.list()
-      .then(res => setTopicList((Array.isArray(res) ? res : []) as Topic[]))
+    adminCatalog.topics({ perPage: 100 })
+      .then(res => setTopicList(res.data.map(topic => ({ ...topic, wordCount: topic.vocabularies_count }))))
       .catch(() => setTopicList([]))
       .finally(() => setLoading(false));
   };
@@ -271,9 +275,9 @@ export default function TopicsPage() {
 
   const handleSave = async (form: TopicForm) => {
     if (editTarget) {
-      await topics.update(editTarget.id, form);
+      await adminCatalog.updateTopic(editTarget.id, { name: form.name, slug: form.slug });
     } else {
-      await topics.create(form);
+      await adminCatalog.createTopic({ name: form.name, slug: form.slug });
     }
     load();
   };
@@ -282,7 +286,7 @@ export default function TopicsPage() {
     if (!deleteConfirm) return;
     setDeleting(true);
     try {
-      await topics.delete(deleteConfirm.id);
+      await adminCatalog.deleteTopic(deleteConfirm.id);
       setDeleteConfirm(null);
       load();
     } finally {
@@ -290,8 +294,7 @@ export default function TopicsPage() {
     }
   };
 
-  return (
-    <AdminLayout title="Topics">
+  return <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
@@ -444,6 +447,5 @@ export default function TopicsPage() {
           </div>
         </div>
       )}
-    </AdminLayout>
-  );
+    </>;
 }

@@ -93,6 +93,7 @@ body {
   border-right: 2px solid #bdc8d2;
   background: rgba(255, 255, 255, 0.97);
   transition: transform 180ms ease;
+  overscroll-behavior: contain;
 }
 
 .admin-topbar {
@@ -198,6 +199,10 @@ body {
 .custom-scrollbar::-webkit-scrollbar { width: 6px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #bdc8d2; border-radius: 10px; }
+
+@media (max-width: 1023px) {
+  .admin-sidebar { width: min(20rem, calc(100vw - 3rem)); }
+}
 
 .btn-tactile {
   transition: transform 0.1s ease, border-bottom-width 0.1s ease;

@@ -6,11 +6,87 @@ use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class AdminCatalogApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    #[DataProvider('adminReadRoutes')]
+    public function test_admin_and_super_admin_can_read_catalog_contracts(string $role, string $uri): void
+    {
+        $this->seed();
+        $this->actingAs($this->user($role))->getJson($uri)->assertOk();
+    }
+
+    public static function adminReadRoutes(): array
+    {
+        $routes = ['summary', 'courses', 'levels', 'topics', 'vocabularies', 'decks'];
+
+        return array_merge(...array_map(
+            fn (string $role) => array_map(fn (string $route) => [$role, "/api/v1/admin/catalog/{$route}"], $routes),
+            ['admin', 'super_admin'],
+        ));
+    }
+
+    public function test_catalog_requires_authentication_role_and_google_marker(): void
+    {
+        $this->seed();
+        $this->getJson('/api/v1/admin/catalog/summary')->assertUnauthorized();
+        $this->actingAs($this->user('learner'))->getJson('/api/v1/admin/catalog/summary')->assertForbidden();
+
+        $admin = $this->user('admin');
+        parent::actingAs($admin);
+        $this->withSession(['google_admin' => null])->getJson('/api/v1/admin/catalog/summary')->assertUnauthorized();
+    }
+
+    public function test_deck_mutations_are_idempotent_and_audited(): void
+    {
+        $this->seed();
+        $requestId = (string) Str::uuid();
+        $request = $this->actingAs($this->user('admin'))->withHeader('X-Request-ID', $requestId);
+        $payload = ['name' => 'Admin Travel', 'slug' => 'admin-travel-deck', 'description' => 'Useful words', 'is_public' => true];
+
+        $id = $request->postJson('/api/v1/admin/catalog/decks', $payload)
+            ->assertCreated()->json('data.id');
+        $this->withHeader('X-Request-ID', $requestId)->postJson('/api/v1/admin/catalog/decks', $payload)
+            ->assertCreated()->assertJsonPath('data.id', $id);
+        $this->withHeader('X-Request-ID', $requestId)->postJson('/api/v1/admin/catalog/decks', [...$payload, 'name' => 'Other'])
+            ->assertConflict();
+        $this->assertDatabaseCount('operations_audits', 1);
+
+        $deleteId = (string) Str::uuid();
+        $this->withHeader('X-Request-ID', $deleteId)->deleteJson("/api/v1/admin/catalog/decks/{$id}")->assertNoContent();
+        $this->withHeader('X-Request-ID', $deleteId)->deleteJson("/api/v1/admin/catalog/decks/{$id}")->assertNoContent();
+        $this->assertDatabaseCount('operations_audits', 2);
+    }
+
+    public function test_admin_can_manage_level_topic_and_vocabulary_contracts(): void
+    {
+        $this->seed();
+        $this->actingAs($this->user('admin'));
+
+        $level = $this->withHeader('X-Request-ID', (string) Str::uuid())
+            ->postJson('/api/v1/admin/catalog/levels', ['name' => 'C3', 'slug' => 'admin-c3', 'sort_order' => 7])
+            ->assertCreated()->json('data.id');
+        $this->withHeader('X-Request-ID', (string) Str::uuid())
+            ->putJson("/api/v1/admin/catalog/levels/{$level}", ['name' => 'C3+', 'slug' => 'admin-c3', 'sort_order' => 8])
+            ->assertOk()->assertJsonPath('data.name', 'C3+');
+
+        $topic = $this->withHeader('X-Request-ID', (string) Str::uuid())
+            ->postJson('/api/v1/admin/catalog/topics', ['name' => 'Admin Topic', 'slug' => 'admin-topic'])
+            ->assertCreated()->json('data.id');
+        $vocabulary = $this->withHeader('X-Request-ID', (string) Str::uuid())
+            ->postJson('/api/v1/admin/catalog/vocabularies', ['word' => 'deploy', 'meaning' => 'triển khai', 'topic_id' => $topic])
+            ->assertCreated()->json('data.id');
+        $this->withHeader('X-Request-ID', (string) Str::uuid())
+            ->deleteJson("/api/v1/admin/catalog/vocabularies/{$vocabulary}")->assertNoContent();
+        $this->withHeader('X-Request-ID', (string) Str::uuid())
+            ->deleteJson("/api/v1/admin/catalog/topics/{$topic}")->assertNoContent();
+        $this->withHeader('X-Request-ID', (string) Str::uuid())
+            ->deleteJson("/api/v1/admin/catalog/levels/{$level}")->assertNoContent();
+    }
 
     public function test_admin_can_manage_courses_and_learner_cannot(): void
     {

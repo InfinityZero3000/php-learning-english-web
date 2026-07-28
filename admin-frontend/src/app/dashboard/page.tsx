@@ -5,6 +5,7 @@ import Link from 'next/link';
 import AdminLayout from '@/components/AdminLayout';
 import StatsCard from '@/components/StatsCard';
 import {
+  adminCatalog,
   adminCourses,
   adminUsers,
   auth,
@@ -18,9 +19,14 @@ type DashboardData = {
   users: number;
   courses: AdminCourse[];
   operations: OperationsOverview | null;
+  summary: Awaited<ReturnType<typeof adminCatalog.summary>>;
 };
 
 export default function DashboardPage() {
+  return <AdminLayout title="Dashboard"><PageContent /></AdminLayout>;
+}
+
+function PageContent() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState('');
 
@@ -30,12 +36,13 @@ export default function DashboardPage() {
     (async () => {
       try {
         const user = await auth.adminMe();
-        const [users, courses, platform] = await Promise.all([
+        const [users, courses, summary, platform] = await Promise.all([
           adminUsers.list({ perPage: 1 }),
           adminCourses.list(),
+          adminCatalog.summary(),
           user.role === 'super_admin' ? operations.overview() : Promise.resolve(null),
         ]);
-        if (active) setData({ role: user.role ?? 'admin', users: users.meta.total, courses: courses.data, operations: platform });
+        if (active) setData({ role: user.role ?? 'admin', users: users.meta.total, courses: courses.data, summary, operations: platform });
       } catch (reason) {
         if (active) setError(reason instanceof Error ? reason.message : 'Không thể tải dashboard.');
       }
@@ -49,9 +56,7 @@ export default function DashboardPage() {
   const published = data?.courses.filter((course) => course.status === 'published').length ?? 0;
   const lessons = data?.courses.reduce((total, course) => total + (course.lessons_count ?? 0), 0) ?? 0;
 
-  return (
-    <AdminLayout title="Dashboard">
-      <div className="space-y-8">
+  return <div className="space-y-8">
         <section className="rounded-3xl p-8 md:p-10 flex flex-col md:flex-row gap-8 items-center justify-between"
           style={{ backgroundColor: '#e8f4ff', border: '2px solid #1cb0f6' }}>
           <div className="space-y-4">
@@ -82,7 +87,7 @@ export default function DashboardPage() {
 
         <section aria-label="Thống kê quản trị" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatsCard icon="group" label="Người dùng" value={data ? data.users.toLocaleString() : '...'} />
-          <StatsCard icon="auto_stories" label="Khóa học" value={data ? data.courses.length : '...'} color="#843ab4" />
+          <StatsCard icon="auto_stories" label="Khóa học" value={data ? data.summary.courses : '...'} color="#843ab4" />
           <StatsCard icon="publish" label="Đã xuất bản" value={data ? published : '...'} color="#755b00" />
           <StatsCard icon="menu_book" label="Bài học" value={data ? lessons : '...'} color="#006590" />
         </section>
@@ -114,9 +119,7 @@ export default function DashboardPage() {
             </div>
           </section>
         )}
-      </div>
-    </AdminLayout>
-  );
+      </div>;
 }
 
 function DashboardLink({ href, label, primary = false }: { href: string; label: string; primary?: boolean }) {

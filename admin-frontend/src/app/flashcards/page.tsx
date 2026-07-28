@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import AdminLayout from '@/components/AdminLayout';
-import { words } from '@/lib/api';
+import { adminCatalog, type AdminVocabulary, type VocabularyWrite } from '@/lib/api';
 
 interface Word {
   id: number;
@@ -114,8 +114,12 @@ function WordModal({ word, onClose, onSave }: {
 }
 
 export default function FlashcardsPage() {
+  return <AdminLayout title="Flashcards"><PageContent /></AdminLayout>;
+}
+
+function PageContent() {
   const [data, setData] = useState<WordsPage | null>(null);
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -125,20 +129,21 @@ export default function FlashcardsPage() {
   const [modal, setModal] = useState<{ open: boolean; word: Partial<Word> | null }>({ open: false, word: null });
   const [deleting, setDeleting] = useState<number | null>(null);
   const [totalElements, setTotalElements] = useState(0);
+  const [error, setError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [res, cats] = await Promise.allSettled([
-        words.list({ page, size: 15, search: search || undefined, category: categoryFilter || undefined, difficulty: difficultyFilter || undefined }),
-        words.categories(),
-      ]);
-      if (res.status === 'fulfilled') {
-        const d = res.value as WordsPage;
-        setData(d);
-        setTotalElements(d.totalElements ?? (Array.isArray(d) ? (d as unknown as Word[]).length : 0));
-      }
-      if (cats.status === 'fulfilled') setCategories(cats.value as string[]);
+      setError('');
+      const res = await adminCatalog.vocabularies({ page, perPage: 15, search: search || undefined });
+      const content = res.data.map(toWord).filter(word =>
+        (!categoryFilter || word.category === categoryFilter) && (!difficultyFilter || word.difficulty === difficultyFilter));
+      setData({ content, totalElements: res.meta.total, totalPages: res.meta.last_page, number: res.meta.page });
+      setTotalElements(res.meta.total);
+      setCategories([...new Set(res.data.map(item => item.topic?.name).filter((name): name is string => Boolean(name)))]);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not load flashcards.');
+      setData({ content: [], totalElements: 0, totalPages: 1, number: page });
     } finally {
       setLoading(false);
     }
@@ -148,22 +153,27 @@ export default function FlashcardsPage() {
   useEffect(() => { void load(); }, [load]);
 
   const handleSave = async (formData: Partial<Word>) => {
-    if (formData.id) await words.update(formData.id, formData);
-    else await words.create(formData);
-    load();
+    const payload: VocabularyWrite = {
+      word: formData.word?.trim() ?? '', meaning: (formData.meaning ?? formData.translation ?? '').trim(),
+      definition: formData.definition || null, example: formData.example || null,
+      pronunciation: formData.pronunciation || null, part_of_speech: formData.partOfSpeech || null,
+      difficulty_level: formData.difficulty || null,
+    };
+    if (formData.id) await adminCatalog.updateVocabulary(formData.id, payload);
+    else await adminCatalog.createVocabulary(payload);
+    await load();
   };
 
   const handleDelete = async (id: number) => {
     if (!confirm('Delete this flashcard?')) return;
     setDeleting(id);
-    try { await words.delete(id); load(); } finally { setDeleting(null); }
+    try { await adminCatalog.deleteVocabulary(id); await load(); } finally { setDeleting(null); }
   };
 
   const wordList: Word[] = Array.isArray(data) ? (data as unknown as Word[]) : (data?.content ?? []);
   const totalPages = data?.totalPages ?? 1;
 
-  return (
-    <AdminLayout title="Flashcards">
+  return <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
@@ -183,17 +193,17 @@ export default function FlashcardsPage() {
         <div className="flex flex-wrap gap-3">
           <div className="relative">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg" style={{ color: '#3e4850' }}>search</span>
-            <input value={searchInput} onChange={e => setSearchInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { setSearch(searchInput); setPage(0); } }} placeholder="Search flashcards..." className="pl-10 pr-4 py-2.5 rounded-xl text-sm font-medium outline-none" style={{ border: '2px solid #bdc8d2', backgroundColor: '#ffffff', color: '#1b1c1c', width: '240px' }} onFocus={e => (e.target.style.borderColor = '#006590')} onBlur={e => (e.target.style.borderColor = '#bdc8d2')} />
+            <input value={searchInput} onChange={e => setSearchInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { setSearch(searchInput); setPage(1); } }} placeholder="Search flashcards..." className="pl-10 pr-4 py-2.5 rounded-xl text-sm font-medium outline-none" style={{ border: '2px solid #bdc8d2', backgroundColor: '#ffffff', color: '#1b1c1c', width: '240px' }} onFocus={e => (e.target.style.borderColor = '#006590')} onBlur={e => (e.target.style.borderColor = '#bdc8d2')} />
           </div>
-          <select value={categoryFilter} onChange={e => { setCategoryFilter(e.target.value); setPage(0); }} className="py-2.5 px-4 rounded-xl text-sm font-bold outline-none" style={{ border: '2px solid #bdc8d2', backgroundColor: '#ffffff', color: '#1b1c1c' }}>
+          <select value={categoryFilter} onChange={e => { setCategoryFilter(e.target.value); setPage(1); }} className="py-2.5 px-4 rounded-xl text-sm font-bold outline-none" style={{ border: '2px solid #bdc8d2', backgroundColor: '#ffffff', color: '#1b1c1c' }}>
             <option value="">All Categories</option>
             {categories.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
-          <select value={difficultyFilter} onChange={e => { setDifficultyFilter(e.target.value); setPage(0); }} className="py-2.5 px-4 rounded-xl text-sm font-bold outline-none" style={{ border: '2px solid #bdc8d2', backgroundColor: '#ffffff', color: '#1b1c1c' }}>
+          <select value={difficultyFilter} onChange={e => { setDifficultyFilter(e.target.value); setPage(1); }} className="py-2.5 px-4 rounded-xl text-sm font-bold outline-none" style={{ border: '2px solid #bdc8d2', backgroundColor: '#ffffff', color: '#1b1c1c' }}>
             <option value="">All Levels</option>
             {DIFFICULTIES.filter(Boolean).map(d => <option key={d} value={d}>{d}</option>)}
           </select>
-          <button onClick={() => { setSearch(searchInput); setPage(0); }} className="btn-tactile px-4 py-2.5 rounded-xl font-bold text-sm" style={{ backgroundColor: '#efeded', color: '#1b1c1c', borderBottom: '3px solid #bdc8d2' }}>
+          <button onClick={() => { setSearch(searchInput); setPage(1); }} className="btn-tactile px-4 py-2.5 rounded-xl font-bold text-sm" style={{ backgroundColor: '#efeded', color: '#1b1c1c', borderBottom: '3px solid #bdc8d2' }}>
             Search
           </button>
         </div>
@@ -212,7 +222,7 @@ export default function FlashcardsPage() {
               <tbody>
                 {loading ? (
                   <tr><td colSpan={6} className="p-10 text-center text-sm" style={{ color: '#3e4850' }}>Loading flashcards...</td></tr>
-                ) : wordList.length === 0 ? (
+                ) : error ? (<tr><td colSpan={6} className="p-10 text-center text-sm" style={{ color: '#93000a' }}>{error}</td></tr>) : wordList.length === 0 ? (
                   <tr><td colSpan={6} className="p-10 text-center" style={{ color: '#3e4850' }}>
                     <span className="material-symbols-outlined text-4xl block mb-2" style={{ color: '#bdc8d2' }}>style</span>
                     <p className="text-sm font-medium">No flashcards found. Add your first one!</p>
@@ -253,9 +263,9 @@ export default function FlashcardsPage() {
           </div>
           {totalPages > 1 && (
             <div className="flex justify-between items-center px-5 py-4" style={{ borderTop: '2px solid #bdc8d2' }}>
-              <span className="text-sm font-medium" style={{ color: '#3e4850' }}>Page {page + 1} of {totalPages}</span>
+              <span className="text-sm font-medium" style={{ color: '#3e4850' }}>Page {page} of {totalPages}</span>
               <div className="flex gap-2">
-                <button disabled={page === 0} onClick={() => setPage(p => p - 1)} className="btn-tactile px-4 py-2 rounded-xl text-sm font-bold" style={{ backgroundColor: page === 0 ? '#efeded' : '#006590', color: page === 0 ? '#bdc8d2' : '#ffffff', borderBottom: '3px solid #004c6e' }}>← Prev</button>
+                <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="btn-tactile px-4 py-2 rounded-xl text-sm font-bold" style={{ backgroundColor: page === 1 ? '#efeded' : '#006590', color: page === 1 ? '#bdc8d2' : '#ffffff', borderBottom: '3px solid #004c6e' }}>← Prev</button>
                 <button disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="btn-tactile px-4 py-2 rounded-xl text-sm font-bold" style={{ backgroundColor: page >= totalPages - 1 ? '#efeded' : '#006590', color: page >= totalPages - 1 ? '#bdc8d2' : '#ffffff', borderBottom: '3px solid #004c6e' }}>Next →</button>
               </div>
             </div>
@@ -264,6 +274,11 @@ export default function FlashcardsPage() {
       </div>
 
       {modal.open && <WordModal word={modal.word} onClose={() => setModal({ open: false, word: null })} onSave={handleSave} />}
-    </AdminLayout>
-  );
+    </>;
+}
+
+function toWord(item: AdminVocabulary): Word {
+  return { id: item.id, word: item.word, meaning: item.meaning, definition: item.definition ?? undefined,
+    category: item.topic?.name, partOfSpeech: item.part_of_speech ?? undefined,
+    difficulty: item.difficulty_level ?? undefined, example: item.example ?? undefined, pronunciation: item.pronunciation ?? undefined };
 }

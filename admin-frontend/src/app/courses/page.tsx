@@ -7,6 +7,10 @@ import { adminCourses, type AdminCourse, type CourseWrite } from '@/lib/api';
 const emptyForm: CourseWrite = { title: '', slug: '', description: '', status: 'draft', language: 'en', estimated_duration: 0 };
 
 export default function CoursesPage() {
+  return <AdminLayout title="Courses"><PageContent /></AdminLayout>;
+}
+
+function PageContent() {
   const [courses, setCourses] = useState<AdminCourse[]>([]);
   const [search, setSearch] = useState('');
   const [form, setForm] = useState<CourseWrite>(emptyForm);
@@ -52,8 +56,7 @@ export default function CoursesPage() {
     }
   }
 
-  return <AdminLayout title="Courses">
-    <div className="space-y-6">
+  return <><div className="space-y-6">
       <header className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end"><div><p className="text-xs font-black uppercase tracking-[.18em]" style={{ color: '#006590' }}>Local learning catalog</p><h2 className="mt-2 text-3xl font-black">Course library</h2><p className="mt-1 font-medium" style={{ color: '#3e4850' }}>Draft, publish, and maintain the course snapshots used by learners.</p></div><button onClick={() => edit()} className="rounded-xl px-6 py-3 font-black text-white" style={{ background: '#006590', borderBottom: '4px solid #004c6e' }}>+ New course</button></header>
       {message && <p role="status" className="rounded-xl p-4 font-bold" style={{ background: '#ffdf92', color: '#594400' }}>{message}</p>}
       <section className="rounded-3xl bg-white p-5" style={{ border: '2px solid #bdc8d2', borderBottomWidth: 4 }}><form onSubmit={(event) => { event.preventDefault(); void load(search); }} className="flex gap-3"><label className="flex-1"><span className="sr-only">Search courses</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search courses" className="w-full rounded-xl px-4 py-3" style={{ border: '2px solid #bdc8d2' }} /></label><button className="rounded-xl px-5 py-3 font-bold" style={{ border: '2px solid #88ceff', color: '#006590' }}>Search</button></form>
@@ -61,7 +64,7 @@ export default function CoursesPage() {
       </section>
     </div>
     {open && <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"><form onSubmit={save} className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-3xl bg-white p-7"><h3 className="text-2xl font-black">{editingId ? 'Edit course' : 'New course'}</h3><div className="mt-5 grid gap-4 sm:grid-cols-2"><Field label="Title"><input required value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value, ...(!editingId ? { slug: slugify(event.target.value) } : {}) })} /></Field><Field label="Slug"><input required value={form.slug} onChange={(event) => setForm({ ...form, slug: event.target.value })} /></Field><Field label="Status"><select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as AdminCourse['status'] })}><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></Field><Field label="Duration (minutes)"><input type="number" min="0" value={form.estimated_duration ?? 0} onChange={(event) => setForm({ ...form, estimated_duration: Number(event.target.value) })} /></Field></div><Field label="Description" wide><textarea rows={4} value={form.description ?? ''} onChange={(event) => setForm({ ...form, description: event.target.value })} /></Field><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setOpen(false)} className="rounded-xl px-5 py-3 font-bold">Cancel</button><button className="rounded-xl px-5 py-3 font-black text-white" style={{ background: '#006590' }}>Save course</button></div></form></div>}
-  </AdminLayout>;
+  </>;
 }
 
 function Field({ label, children, wide = false }: { label: string; children: React.ReactElement<{ className?: string }>; wide?: boolean }) {

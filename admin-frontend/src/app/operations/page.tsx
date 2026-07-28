@@ -1,155 +1,37 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import AdminLayout from '@/components/AdminLayout';
-import {
-  operations,
-  type AlertRule,
-  type AuditEvent,
-  type ContractStatus,
-  type OperationsOverview,
-  type OperationsUsage,
-  type QuotaPolicy,
-  type ServiceProbe,
-} from '@/lib/api';
+import { ApiError, operations, type AlertRule, type AuditEvent, type ContractStatus, type OperationsOverview, type OperationsUsage, type QuotaPolicy, type ServiceProbe } from '@/lib/api';
+import { DataPanel, PageHeading, StatCard } from '@/components/AdminDataView';
 
-const serviceNames = ['backend', 'ai', 'trace_cag', 'stt', 'tts'];
+const services = ['backend', 'ai', 'trace_cag', 'stt', 'tts'];
+type Panels = { overview?: OperationsOverview; usage?: OperationsUsage; contract?: ContractStatus; quota?: QuotaPolicy; rules?: AlertRule[]; audits?: AuditEvent[] };
 
-export default function OperationsPage() {
-  const [overview, setOverview] = useState<OperationsOverview>();
-  const [usage, setUsage] = useState<OperationsUsage>();
-  const [contract, setContract] = useState<ContractStatus>();
-  const [quota, setQuota] = useState<QuotaPolicy>();
-  const [rules, setRules] = useState<AlertRule[]>([]);
-  const [audits, setAudits] = useState<AuditEvent[]>([]);
-  const [probes, setProbes] = useState<Record<string, ServiceProbe>>({});
-  const [quotaJson, setQuotaJson] = useState('{"trace_cag_daily":100,"speech_daily":50}');
-  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [message, setMessage] = useState('');
-
-  async function load() {
-    try {
-      const [status, nextUsage, nextContract, nextQuota, nextRules, nextAudits] = await Promise.all([
-        operations.overview(), operations.usage(), operations.contracts(),
-        operations.quota(), operations.rules(), operations.audits(),
-      ]);
-      setOverview(status);
-      setUsage(nextUsage);
-      setContract(nextContract);
-      setQuota(nextQuota);
-      setRules(nextRules);
-      setAudits(nextAudits);
-      if (nextQuota?.is_active) setQuotaJson(JSON.stringify(nextQuota.limits, null, 2));
-      setState('ready');
-    } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : 'Không thể tải dữ liệu vận hành.');
-      setState('error');
-    }
-  }
-
-  useEffect(() => { void Promise.resolve().then(load); }, []);
-
-  async function probe(service: string) {
-    try {
-      const result = await operations.probe(service);
-      setProbes((current) => ({ ...current, [service]: result }));
-    } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : 'Probe thất bại.');
-    }
-  }
-
-  async function saveQuota(event: React.FormEvent) {
-    event.preventDefault();
-    try {
-      const limits = JSON.parse(quotaJson) as Record<string, number>;
-      if (Object.values(limits).some((value) => !Number.isInteger(value) || value < 0)) throw new Error('Mỗi quota phải là số nguyên không âm.');
-      setQuota(await operations.updateQuota(limits));
-      setMessage('Đã kích hoạt quota policy mới.');
-    } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : 'Không thể cập nhật quota.');
-    }
-  }
-
-  async function toggleRule(rule: AlertRule) {
-    try {
-      const updated = await operations.updateRule(rule.id, !rule.enabled, rule.parameters ?? {});
-      setRules((current) => [updated, ...current.filter((item) => item.rule_key !== updated.rule_key)]);
-      setMessage(`Đã tạo phiên bản ${updated.version} cho ${updated.rule_key}.`);
-    } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : 'Không thể cập nhật alert rule.');
-    }
-  }
-
-  return (
-    <AdminLayout title="AI & Operations" requiredRole="super_admin">
-      <div className="space-y-8">
-        <section className="rounded-3xl bg-gradient-to-br from-[#00364d] to-[#006590] p-8 text-white">
-          <p className="text-xs font-black uppercase tracking-[.2em] text-[#b9e9ff]">Super admin only</p>
-          <h2 className="mt-3 text-4xl font-black text-balance">AI control room</h2>
-          <p className="mt-2 max-w-2xl text-sm text-[#d9f3ff]">Service health, TraceCAG contract, quota, deterministic alert rules và audit trail — không hiển thị secret.</p>
-        </section>
-
-        {message && <p aria-live="polite" className="rounded-xl bg-[#ffdad6] p-4 font-semibold text-[#93000a]">{message}</p>}
-        {state === 'loading' && <p aria-live="polite" className="rounded-2xl bg-white p-8 text-center font-bold">Đang tải dữ liệu vận hành…</p>}
-        {state === 'error' && <button onClick={() => { setState('loading'); setMessage(''); void load(); }} className="rounded-xl bg-[#006590] px-5 py-3 font-bold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">Thử lại</button>}
-
-        {state === 'ready' && <>
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            {serviceNames.map((service) => {
-              const result = probes[service];
-              const configured = overview?.services[service];
-              return <article key={service} className="rounded-2xl border-2 border-[#bdc8d2] bg-white p-5">
-                <div className="flex items-center justify-between"><span aria-hidden="true" className={`h-3 w-3 rounded-full ${result?.healthy ? 'bg-emerald-500' : configured ? 'bg-amber-500' : 'bg-slate-300'}`} /><span className="text-xs font-bold uppercase">{configured ? 'configured' : 'off'}</span></div>
-                <h3 className="mt-4 text-lg font-black">{service.replace('_', ' ')}</h3>
-                <p className="mt-1 text-xs text-[#5f6b74]">{result ? `${result.status} · ${result.latency_ms} ms` : 'Chưa probe'}</p>
-                <button onClick={() => probe(service)} className="mt-4 w-full rounded-xl bg-[#d1edff] px-3 py-2 text-sm font-bold text-[#004c6e] hover:bg-[#b9e9ff] focus-visible:outline focus-visible:outline-2">Chạy probe</button>
-              </article>;
-            })}
-          </section>
-
-          <section className="grid gap-4 md:grid-cols-3">
-            <Metric label="AI requests · 24h" value={usage?.last_24_hours ?? 0} />
-            <Metric label="AI requests · 30d" value={usage?.last_30_days ?? 0} />
-            <Metric label="Degraded · 30d" value={usage?.degraded_30_days ?? 0} />
-          </section>
-
-          <section className="grid gap-6 xl:grid-cols-2">
-            <Panel title={`Quota policy · v${quota?.version ?? 0}`}>
-              <form onSubmit={saveQuota} className="space-y-4">
-                <label className="block font-bold" htmlFor="quota-json">Limits JSON</label>
-                <textarea id="quota-json" name="limits" value={quotaJson} onChange={(event) => setQuotaJson(event.target.value)} rows={7} spellCheck={false} className="w-full rounded-xl border-2 border-[#bdc8d2] p-3 font-mono text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#006590]" />
-                <a href="/api/v1/auth/oauth/google/admin?return=/operations" className="block rounded-xl border-2 border-[#88ceff] px-5 py-3 text-center font-bold text-[#006590]">Verify with Google</a>
-                <button className="rounded-xl bg-[#006590] px-5 py-3 font-bold text-white hover:bg-[#004c6e] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">Kích hoạt policy mới</button>
-              </form>
-            </Panel>
-            <Panel title={`Alert rules · ${overview?.open_alerts ?? 0} open`}>
-              {rules.length === 0 && <p className="py-6 text-center text-sm">Chưa có alert rule.</p>}
-              {rules.map((rule) => <div key={rule.id} className="flex items-center justify-between gap-4 border-b py-3 last:border-0">
-                <div className="min-w-0"><p className="truncate font-bold capitalize">{rule.rule_key.replaceAll('_', ' ')}</p><p className="text-xs text-[#5f6b74]">Version {rule.version}</p></div>
-                <button onClick={() => toggleRule(rule)} className={`rounded-full px-3 py-2 text-xs font-bold ${rule.enabled ? 'bg-[#c5f7dc] text-[#075e36]' : 'bg-[#efeded] text-[#5f6b74]'}`}>{rule.enabled ? 'Enabled' : 'Disabled'}</button>
-              </div>)}
-            </Panel>
-          </section>
-
-          <Panel title="Contract đang triển khai">
-            <p className="font-bold">TraceCAG {contract?.trace_cag.version ?? '—'}</p>
-            <p className="mt-1 break-all font-mono text-xs text-[#5f6b74]">{contract?.trace_cag.sha256 ?? 'Không tìm thấy schema hash'}</p>
-          </Panel>
-
-          <Panel title="Recent operations audit">
-            {audits.slice(0, 20).map((event) => <div key={event.id} className="grid grid-cols-[1fr_auto] gap-4 border-b py-3 last:border-0"><div className="min-w-0"><p className="truncate font-bold">{event.action}</p><p className="text-xs text-[#5f6b74]">{event.target_type} {event.target_id}</p></div><time className="text-xs" dateTime={event.occurred_at}>{new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(event.occurred_at))}</time></div>)}
-            {audits.length === 0 && <p className="py-6 text-center text-sm">Chưa có thao tác vận hành.</p>}
-          </Panel>
-        </>}
-      </div>
-    </AdminLayout>
-  );
-}
-
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
-  return <section className="rounded-3xl border-2 border-[#bdc8d2] bg-white p-6"><h3 className="mb-4 text-xl font-black">{title}</h3>{children}</section>;
-}
-
-function Metric({ label, value }: { label: string; value: number }) {
-  return <article className="rounded-2xl border-2 border-[#bdc8d2] bg-white p-5"><p className="text-sm font-bold text-[#5f6b74]">{label}</p><p className="mt-2 text-3xl font-black tabular-nums">{new Intl.NumberFormat('vi-VN').format(value)}</p></article>;
+export default function OperationsPage() { return <AdminLayout title="AI & Operations" requiredRole="super_admin"><PageContent /></AdminLayout>; }
+function PageContent() {
+  const [panels, setPanels] = useState<Panels>({}); const [failed, setFailed] = useState<string[]>([]); const [loading, setLoading] = useState(true); const [message, setMessage] = useState(''); const [quotaJson, setQuotaJson] = useState('{}'); const [probes, setProbes] = useState<Record<string, ServiceProbe>>({});
+  const load = useCallback(async () => {
+    setLoading(true); const calls = [operations.overview(), operations.usage(), operations.contracts(), operations.quota(), operations.rules(), operations.audits()] as const;
+    const [overview, usage, contract, quota, rules, audits] = await Promise.allSettled(calls); const next: Panels = {}; const errors: string[] = [];
+    if (overview.status === 'fulfilled') next.overview = overview.value; else errors.push('overview');
+    if (usage.status === 'fulfilled') next.usage = usage.value; else errors.push('usage');
+    if (contract.status === 'fulfilled') next.contract = contract.value; else errors.push('contract');
+    if (quota.status === 'fulfilled') next.quota = quota.value; else errors.push('quota');
+    if (rules.status === 'fulfilled') next.rules = rules.value; else errors.push('rules');
+    if (audits.status === 'fulfilled') next.audits = audits.value.data; else errors.push('audits');
+    setPanels(next); setFailed(errors); if (next.quota) setQuotaJson(JSON.stringify(next.quota.limits, null, 2)); setLoading(false);
+  }, []);
+  useEffect(() => { void Promise.resolve().then(load); }, [load]);
+  function handleError(error: unknown, fallback: string) { if (error instanceof ApiError && error.status === 428) { window.location.assign('/api/v1/auth/oauth/google/admin?return=/operations'); return; } setMessage(error instanceof Error ? error.message : fallback); }
+  async function probe(service: string) { try { const value = await operations.probe(service); setProbes((current) => ({ ...current, [service]: value })); } catch (e) { handleError(e, 'Probe thất bại.'); } }
+  async function saveQuota(event: React.FormEvent) { event.preventDefault(); try { const limits = JSON.parse(quotaJson) as Record<string, number>; if (Object.values(limits).some((value) => !Number.isInteger(value) || value < 0)) throw new Error('Quota phải là số nguyên không âm.'); const quota = await operations.updateQuota(limits); setPanels((current) => ({ ...current, quota })); setMessage('Đã kích hoạt quota policy.'); } catch (e) { handleError(e, 'Không thể cập nhật quota.'); } }
+  async function toggle(rule: AlertRule) { try { const updated = await operations.updateRule(rule.id, !rule.enabled, rule.parameters); setPanels((current) => ({ ...current, rules: current.rules?.map((item) => item.id === rule.id ? updated : item) })); } catch (e) { handleError(e, 'Không thể cập nhật alert rule.'); } }
+  return <div className="space-y-6"><PageHeading eyebrow="Super admin only" title="AI control room" description="Service health, TraceCAG contract, quota, alerts và audit — không hiển thị secret." />{loading && <p className="rounded-xl bg-white p-5 font-bold">Đang tải các panel…</p>}{failed.length > 0 && <p role="status" className="rounded-xl bg-[#ffdf92] p-4 font-bold text-[#594400]">Không tải được: {failed.join(', ')}. Các panel còn lại vẫn hoạt động. <button onClick={() => void load()} className="underline">Thử lại</button></p>}{message && <p role="status" className="rounded-xl bg-[#e8f4ff] p-4 font-bold text-[#004c6e]">{message}</p>}
+    <section className="grid gap-4 md:grid-cols-3"><StatCard label="AI requests · 24h" value={panels.usage?.last_24_hours ?? '—'} /><StatCard label="AI requests · 30d" value={panels.usage?.last_30_days ?? '—'} /><StatCard label="Degraded · 30d" value={panels.usage?.degraded_30_days ?? '—'} accent="#ba1a1a" /></section>
+    <DataPanel title="Service probes"><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">{services.map((service) => <article key={service} className="rounded-2xl bg-[#f5f3f3] p-4"><p className="font-black capitalize">{service.replace('_', ' ')}</p><p className="mt-1 text-xs text-[#6e7881]">{probes[service] ? `${probes[service].status} · ${probes[service].latency_ms} ms` : panels.overview?.services[service] ? 'Configured' : 'Unavailable'}</p><button onClick={() => void probe(service)} className="mt-3 rounded-xl bg-[#d1edff] px-3 py-2 text-sm font-bold text-[#004c6e]">Probe</button></article>)}</div></DataPanel>
+    <section id="controls" className="grid gap-6 xl:grid-cols-2"><DataPanel title={`Quota policy · v${panels.quota?.version ?? '—'}`}><form onSubmit={saveQuota} className="space-y-3"><textarea aria-label="Quota limits JSON" value={quotaJson} onChange={(event) => setQuotaJson(event.target.value)} rows={7} className="w-full rounded-xl border-2 border-[#bdc8d2] p-3 font-mono text-sm" /><button className="rounded-xl bg-[#006590] px-5 py-3 font-bold text-white">Save quota</button></form></DataPanel><DataPanel title={`Alert rules · ${panels.overview?.open_alerts ?? '—'} open`}>{panels.rules?.length ? panels.rules.map((rule) => <div key={rule.id} className="flex justify-between gap-3 border-b py-3"><span className="font-bold">{rule.rule_key}</span><button onClick={() => void toggle(rule)} className="rounded-full bg-[#e8f4ff] px-3 py-1 text-xs font-bold text-[#006590]">{rule.enabled ? 'Enabled' : 'Disabled'}</button></div>) : <p className="text-sm text-[#6e7881]">Chưa có alert rule.</p>}</DataPanel></section>
+    <DataPanel title="TraceCAG contract"><p className="font-bold">Version {panels.contract?.trace_cag.version ?? '—'}</p><p className="break-all font-mono text-xs text-[#6e7881]">{panels.contract?.trace_cag.sha256 ?? 'Không có schema hash.'}</p></DataPanel>
+    <DataPanel title="Recent audit">{panels.audits?.length ? panels.audits.slice(0, 20).map((event) => <div key={event.id} className="flex justify-between gap-4 border-b py-3"><span className="font-bold">{event.action}</span><time className="text-xs">{new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(event.occurred_at))}</time></div>) : <p className="text-sm text-[#6e7881]">Chưa có audit event.</p>}</DataPanel>
+  </div>;
 }

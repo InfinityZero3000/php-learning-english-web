@@ -16,16 +16,16 @@ class LexiLingoVocabularySync extends AbstractLexiLingoImporter
         return 'vocabulary';
     }
 
-    public function import(int $limit, bool $dryRun = false, bool $reset = false): ImportResult
+    public function import(int $limit, bool $dryRun = false, bool $reset = false, ?int $cursor = null): ImportResult
     {
-        $offset = $this->startingCursor($reset);
-        $processed = $this->syncPage($offset, $limit, $dryRun);
+        $offset = $this->startingCursor($reset, $cursor);
+        $processed = $this->syncPage($offset, $limit, $dryRun, $reset);
         $nextCursor = $dryRun ? $offset : $this->checkpoint()->cursor;
 
         return new ImportResult($processed, $this->lastSkipped, $nextCursor);
     }
 
-    public function syncPage(int $offset = 0, int $limit = 100, bool $dryRun = false): int
+    public function syncPage(int $offset = 0, int $limit = 100, bool $dryRun = false, bool $replaceCheckpoint = false): int
     {
         $limit = min(100, max(1, $limit));
         $payload = $this->client->partner()
@@ -81,7 +81,7 @@ class LexiLingoVocabularySync extends AbstractLexiLingoImporter
         });
 
         if (! $dryRun) {
-            $this->advanceCheckpoint($offset + count($items));
+            $this->advanceCheckpoint($offset + count($items), $replaceCheckpoint);
         }
 
         return $count;

@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AlertRule;
+use App\Models\Course;
 use App\Models\LearningAssistanceResult;
 use App\Models\OperationsAudit;
 use App\Models\QuotaPolicy;
 use App\Models\SupervisionAlert;
+use App\Models\User;
 use App\Support\ApiResponse;
 use App\Support\RecentPassword;
 use Illuminate\Http\JsonResponse;
@@ -35,6 +37,9 @@ class OperationsController extends Controller
                 'partner_content' => (bool) config('services.lexilingo.partner_api_key'),
             ],
             'open_alerts' => SupervisionAlert::query()->where('state', 'open')->count(),
+            'users' => User::query()->count(),
+            'courses' => Course::query()->count(),
+            'environment' => app()->environment(),
         ]);
     }
 
@@ -176,11 +181,35 @@ class OperationsController extends Controller
     {
         $this->authorizeOperations($request);
 
-        $perPage = min(100, max(1, $request->integer('per_page', 20)));
-        $page = OperationsAudit::query()->latest('occurred_at')->paginate($perPage);
+        $data = $request->validate([
+            'action' => ['nullable', 'string', 'max:150'],
+            'search' => ['nullable', 'string', 'max:150'],
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+        $perPage = (int) ($data['per_page'] ?? 20);
+        $page = OperationsAudit::query()->with('actor:id,name,email')
+            ->when($data['action'] ?? null, fn ($query, string $action) => $query->where('action', $action))
+            ->when($data['search'] ?? null, fn ($query, string $search) => $query->where(function ($query) use ($search): void {
+                $query->where('action', 'like', "%{$search}%")
+                    ->orWhere('target_type', 'like', "%{$search}%")
+                    ->orWhere('target_id', 'like', "%{$search}%");
+            }))
+            ->when($data['from'] ?? null, fn ($query, string $from) => $query->where('occurred_at', '>=', "{$from} 00:00:00"))
+            ->when($data['to'] ?? null, fn ($query, string $to) => $query->where('occurred_at', '<=', "{$to} 23:59:59"))
+            ->latest('occurred_at')->paginate($perPage);
 
         return ApiResponse::success(collect($page->items())
-            ->map(fn (OperationsAudit $audit) => ['type' => 'audit_event', ...$audit->toArray()]), meta: [
+            ->map(fn (OperationsAudit $audit) => [
+                'type' => 'audit_event',
+                'id' => $audit->id,
+                'action' => $audit->action,
+                'target_type' => $audit->target_type,
+                'target_id' => $audit->target_id,
+                'actor' => $audit->actor ? $audit->actor->only(['id', 'name', 'email']) : null,
+                'occurred_at' => $audit->occurred_at?->toISOString(),
+            ]), meta: [
                 'page' => $page->currentPage(), 'per_page' => $page->perPage(), 'total' => $page->total(),
             ]);
     }

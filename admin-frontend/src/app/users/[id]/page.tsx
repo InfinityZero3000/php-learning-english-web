@@ -1,22 +1,16 @@
 'use client';
 
-import { use, useEffect, useState } from 'react';
+import { use, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import AdminLayout from '@/components/AdminLayout';
-import { adminUsers, type AdminUser } from '@/lib/api';
+import { DataPanel, StateNotice } from '@/components/AdminDataView';
+import { adminUsers, auth, type AdminUser, type LearningEvidence } from '@/lib/api';
 
-export default function UserDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const id = Number(use(params).id);
-  const [user, setUser] = useState<AdminUser>();
-  const [message, setMessage] = useState('');
-
-  useEffect(() => {
-    adminUsers.get(id).then(setUser).catch((reason) => setMessage(reason instanceof Error ? reason.message : 'Could not load user.'));
-  }, [id]);
-
-  return <AdminLayout title="User detail">
-    <div className="mx-auto max-w-3xl space-y-6"><Link href="/users" className="font-bold" style={{ color: '#006590' }}>← Back to users</Link>
-      {message ? <p role="alert" className="rounded-xl p-4" style={{ background: '#ffdad6', color: '#93000a' }}>{message}</p> : !user ? <p className="rounded-3xl bg-white p-10 text-center font-bold">Loading user…</p> : <section className="rounded-3xl bg-white p-8" style={{ border: '2px solid #bdc8d2', borderBottomWidth: 4 }}><div className="flex h-20 w-20 items-center justify-center rounded-full text-2xl font-black" style={{ background: '#c8e6ff', color: '#004c6e' }}>{user.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</div><h2 className="mt-5 text-3xl font-black">{user.name}</h2><p className="mt-1" style={{ color: '#3e4850' }}>{user.email}</p><dl className="mt-7 grid gap-4 sm:grid-cols-2"><div className="rounded-2xl p-4" style={{ background: '#f5f3f3' }}><dt className="text-xs font-bold uppercase">Role</dt><dd className="mt-1 text-lg font-black">{user.role.replace('_', ' ')}</dd></div><div className="rounded-2xl p-4" style={{ background: '#f5f3f3' }}><dt className="text-xs font-bold uppercase">Email verified</dt><dd className="mt-1 text-lg font-black">{user.email_verified_at ? 'Yes' : 'No'}</dd></div></dl></section>}
-    </div>
-  </AdminLayout>;
+export default function UserDetailPage({ params }: { params: Promise<{ id: string }> }) { return <AdminLayout title="User detail"><PageContent params={params} /></AdminLayout>; }
+function PageContent({ params }: { params: Promise<{ id: string }> }) {
+  const id = Number(use(params).id); const [user, setUser] = useState<AdminUser>(); const [superAdmin, setSuperAdmin] = useState(false); const [error, setError] = useState(''); const [reason, setReason] = useState(''); const [evidence, setEvidence] = useState<LearningEvidence[]>(); const [loadingEvidence, setLoadingEvidence] = useState(false);
+  const load = useCallback(async () => { setError(''); try { const [nextUser, me] = await Promise.all([adminUsers.get(id), auth.adminMe()]); setUser(nextUser); setSuperAdmin(me.role === 'super_admin'); } catch (e) { setError(e instanceof Error ? e.message : 'Không thể tải user.'); } }, [id]);
+  useEffect(() => { void Promise.resolve().then(load); }, [load]);
+  async function accessEvidence(event: React.FormEvent) { event.preventDefault(); if (reason.trim().length < 3) { setError('Lý do phải có ít nhất 3 ký tự.'); return; } setLoadingEvidence(true); setError(''); try { setEvidence(await adminUsers.evidence(id, reason.trim())); } catch (e) { setError(e instanceof Error ? e.message : 'Không thể truy cập evidence.'); } finally { setLoadingEvidence(false); } }
+  return <div className="mx-auto max-w-4xl space-y-6"><Link href="/users" className="font-bold text-[#006590]">← Back to users</Link>{error && <p role="alert" className="rounded-xl bg-[#ffdad6] p-4 font-bold text-[#93000a]">{error}</p>}{!user ? <StateNotice state={error ? 'error' : 'loading'} message={error} retry={load} /> : <><DataPanel title={user.name}><p className="text-[#3e4850]">{user.email}</p><dl className="mt-5 grid gap-4 sm:grid-cols-2"><div className="rounded-2xl bg-[#f5f3f3] p-4"><dt className="text-xs font-bold uppercase">Role</dt><dd className="mt-1 text-lg font-black">{user.role.replace('_', ' ')}</dd></div><div className="rounded-2xl bg-[#f5f3f3] p-4"><dt className="text-xs font-bold uppercase">Verified</dt><dd className="mt-1 text-lg font-black">{user.email_verified_at ? 'Yes' : 'No'}</dd></div></dl></DataPanel>{superAdmin && user.role === 'learner' && <DataPanel title="Audited learning evidence"><p className="mb-4 text-sm text-[#3e4850]">Evidence không được preload. Mỗi lần truy cập cần lý do và tạo một audit event mới.</p><form onSubmit={accessEvidence} className="flex flex-col gap-3 sm:flex-row"><input required minLength={3} maxLength={500} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Reason for access" className="min-w-0 flex-1 rounded-xl border-2 border-[#bdc8d2] px-4 py-3" /><button disabled={loadingEvidence} className="rounded-xl bg-[#006590] px-5 py-3 font-bold text-white disabled:opacity-50">{loadingEvidence ? 'Đang truy cập…' : 'Access evidence'}</button></form>{evidence && <div className="mt-5"><p role="status" className="mb-3 rounded-xl bg-[#d8f3dc] p-3 font-bold text-[#1b5e20]">Truy cập đã được audit · {evidence.length} events.</p>{evidence.length === 0 ? <StateNotice state="empty" /> : <div className="max-h-96 overflow-auto">{evidence.map((item) => <article key={item.id} className="border-b py-3"><div className="flex justify-between"><strong>{item.event_type}</strong><time className="text-xs">{new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(item.occurred_at))}</time></div><p className="mt-1 text-sm text-[#3e4850]">Correct: {item.is_correct == null ? '—' : item.is_correct ? 'Yes' : 'No'} · Duration: {item.duration_ms ?? '—'} ms</p></article>)}</div>}</div>}</DataPanel>}</>}</div>;
 }
