@@ -32,11 +32,11 @@ describe("session API client", () => {
         headers: { "Content-Type": "application/json" }
       }));
 
-    await expect(auth.login("", "")).rejects.toMatchObject<ApiError>({
+    await expect(auth.login("", "")).rejects.toMatchObject({
       status: 422,
       message: "Invalid",
       errors: { email: ["Required"] }
-    });
+    } as Partial<ApiError>);
   });
 
   it("initializes CSRF before resending verification", async () => {
