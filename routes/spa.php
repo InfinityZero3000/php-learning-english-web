@@ -49,6 +49,7 @@ Route::prefix('api/v1')->group(function (): void {
     Route::get('/catalog/lessons/{lesson}', [CatalogController::class, 'lesson']);
 
     Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
+    Route::get('/auth/oauth/google', [SocialController::class, 'google'])->middleware('throttle:10,1');
     Route::get('/auth/oauth/google/admin', [AdminGoogleAuthController::class, 'entry'])->middleware('throttle:10,1');
     Route::get('/auth/oauth/google/admin/start', [AdminGoogleAuthController::class, 'redirect'])->middleware('throttle:10,1');
     Route::get('/auth/oauth/google/callback', [SocialController::class, 'googleCallback'])->middleware('throttle:10,1');

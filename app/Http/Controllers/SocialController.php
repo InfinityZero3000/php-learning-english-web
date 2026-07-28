@@ -19,8 +19,11 @@ class SocialController extends Controller
     |--------------------------------------------------------------------------
     */
 
-    public function google()
+    public function google(Request $request)
     {
+        $next = $request->string('next')->toString();
+        $request->session()->put('google_oauth_return', $this->safeReturnPath($next));
+
         return Socialite::driver('google')->redirect();
     }
 
@@ -38,7 +41,7 @@ class SocialController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
 
-        return redirect('/profile');
+        return redirect($request->session()->pull('google_oauth_return', '/profile'));
     }
 
     /*
@@ -95,5 +98,12 @@ class SocialController extends Controller
         }
 
         return $user;
+    }
+
+    private function safeReturnPath(string $path): string
+    {
+        return $path !== '' && strlen($path) <= 256 && str_starts_with($path, '/') && ! str_starts_with($path, '//')
+            ? $path
+            : '/profile';
     }
 }
