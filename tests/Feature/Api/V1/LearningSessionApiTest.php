@@ -23,7 +23,8 @@ class LearningSessionApiTest extends TestCase
     {
         [$user, $course, $lesson, $word] = $this->context();
 
-        $enrollmentId = $this->actingAs($user)->postJson('/api/v1/enrollments', ['course_id' => $course->id])
+        $enrollmentId = $this->actingAs($user)->withHeader('X-Request-ID', (string) Str::uuid())
+            ->postJson('/api/v1/enrollments', ['course_id' => $course->id])
             ->assertCreated()
             ->assertJsonPath('data.type', 'enrollment')
             ->json('data.id');
@@ -87,6 +88,24 @@ class LearningSessionApiTest extends TestCase
         $this->actingAs(User::factory()->create())
             ->getJson("/api/v1/learning/sessions/{$session->id}/next")
             ->assertForbidden();
+    }
+
+    public function test_session_request_id_is_bound_to_its_payload(): void
+    {
+        [$user, $course] = $this->context();
+        $enrollment = Enrollment::create([
+            'user_id' => $user->id, 'course_id' => $course->id, 'status' => 'active', 'enrolled_at' => now(),
+        ]);
+        $requestId = (string) Str::uuid();
+
+        $this->actingAs($user)->withHeader('X-Request-ID', $requestId)
+            ->postJson('/api/v1/learning/sessions', ['enrollment_id' => $enrollment->id])
+            ->assertCreated();
+        $this->withHeader('X-Request-ID', $requestId)
+            ->postJson('/api/v1/learning/sessions', [
+                'enrollment_id' => $enrollment->id,
+                'timezone' => 'Asia/Ho_Chi_Minh',
+            ])->assertConflict();
     }
 
     public function test_teacher_vocabulary_assignment_is_practice_only_and_does_not_create_fsrs_state(): void

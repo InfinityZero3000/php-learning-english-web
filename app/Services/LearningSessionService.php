@@ -9,6 +9,7 @@ use App\Models\LearningSession;
 use App\Models\Progress;
 use App\Models\User;
 use App\Models\UserVocabulary;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -25,7 +26,9 @@ class LearningSessionService
             ->orderBy('due_at')
             ->get()
             ->map(fn (Assignment $assignment): array => [
-                'id' => $assignment->id, 'type' => 'teacher_lesson', 'priority' => $priority++,
+                'id' => $assignment->id,
+                'type' => $assignment->vocabulary_id ? 'teacher_vocabulary_practice' : 'teacher_lesson',
+                'priority' => $priority++,
             ])->all();
 
         foreach (UserVocabulary::query()->where('user_id', $user->id)
@@ -45,8 +48,11 @@ class LearningSessionService
             }
         }
 
-        $remediation = LearningEvent::query()->where('user_id', $user->id)->where('is_correct', false)
-            ->latest('occurred_at')->first();
+        $remediation = LearningEvent::query()->where('user_id', $user->id)->whereNotNull('is_correct')
+            ->where('occurred_at', '>=', now('UTC')->subDays(7))->get()
+            ->groupBy(fn (LearningEvent $event) => data_get($event->metadata, 'vocabulary_id'))
+            ->map(fn ($events) => $events->sortByDesc('occurred_at')->take(5))
+            ->first(fn ($events, $concept) => $concept && $events->where('is_correct', false)->count() >= 3)?->first();
         if ($remediation) {
             $items[] = ['id' => $remediation->id, 'type' => 'remediation', 'priority' => $priority++];
         }
@@ -56,10 +62,10 @@ class LearningSessionService
 
     public function start(User $user, array $input, string $requestId): LearningSession
     {
-        $replay = LearningEvent::query()->where('request_id', $requestId)->where('user_id', $user->id)
-            ->where('event_type', 'session_started')->first();
+        $fingerprint = hash('sha256', json_encode($input, JSON_THROW_ON_ERROR));
+        $replay = LearningEvent::query()->where('request_id', $requestId)->first();
         if ($replay) {
-            return $replay->session;
+            return $this->replay($replay, $user, 'session_started', $fingerprint);
         }
 
         if (isset($input['assignment_id'])) {
@@ -80,7 +86,7 @@ class LearningSessionService
             return $this->createSession($user, [
                 'course_id' => $lesson->course_id, 'lesson_id' => $lesson->id,
                 'summary' => ['assignment_id' => $assignment->id, 'vocabulary_id' => $assignment->vocabulary_id],
-            ], $requestId);
+            ], $requestId, $fingerprint);
         }
 
         $enrollment = Enrollment::query()
@@ -102,7 +108,7 @@ class LearningSessionService
 
         return $this->createSession($user, [
             'enrollment_id' => $enrollment->id, 'course_id' => $enrollment->course_id, 'lesson_id' => $lesson->id,
-        ], $requestId);
+        ], $requestId, $fingerprint);
     }
 
     public function next(User $user, LearningSession $session): array
@@ -135,70 +141,103 @@ class LearningSessionService
 
     public function complete(User $user, LearningSession $session, string $requestId): LearningSession
     {
-        $replay = LearningEvent::query()->where('request_id', $requestId)->where('user_id', $user->id)
-            ->where('event_type', 'session_completed')->first();
+        $fingerprint = hash('sha256', "complete:{$session->id}");
+        $replay = LearningEvent::query()->where('request_id', $requestId)->first();
         if ($replay) {
-            return $replay->session;
+            return $this->replay($replay, $user, 'session_completed', $fingerprint);
         }
         $this->ownedActive($user, $session);
 
-        return DB::transaction(function () use ($user, $session, $requestId): LearningSession {
-            $session = LearningSession::query()->whereKey($session->id)->lockForUpdate()->firstOrFail();
-            if ($session->status !== 'active') {
-                throw new ConflictHttpException('Learning session is not active.');
-            }
-            $activityCount = $session->events()->whereNotIn('event_type', ['session_started'])->count();
-            if ($activityCount === 0) {
-                throw new ConflictHttpException('Complete at least one learning activity first.');
-            }
-            $assignmentId = $session->summary['assignment_id'] ?? null;
-            $practiceOnly = ($session->summary['vocabulary_id'] ?? null) !== null;
-            if (! $practiceOnly) {
-                Progress::firstOrCreate(
-                    ['user_id' => $user->id, 'lesson_id' => $session->lesson_id],
-                    ['completed_at' => now('UTC')],
-                );
-            }
-            if ($assignmentId) {
-                Assignment::query()->whereKey($assignmentId)->where('learner_id', $user->id)->update([
-                    'status' => 'completed', 'completed_at' => now('UTC'),
+        try {
+            return DB::transaction(function () use ($user, $session, $requestId, $fingerprint): LearningSession {
+                $session = LearningSession::query()->whereKey($session->id)->lockForUpdate()->firstOrFail();
+                if ($session->status !== 'active') {
+                    if ($replay = LearningEvent::query()->where('request_id', $requestId)->first()) {
+                        return $this->replay($replay, $user, 'session_completed', $fingerprint);
+                    }
+                    throw new ConflictHttpException('Learning session is not active.');
+                }
+                $activityCount = $session->events()->whereNotIn('event_type', ['session_started'])->count();
+                if ($activityCount === 0) {
+                    throw new ConflictHttpException('Complete at least one learning activity first.');
+                }
+                $assignmentId = $session->summary['assignment_id'] ?? null;
+                $practiceOnly = ($session->summary['vocabulary_id'] ?? null) !== null;
+                if (! $practiceOnly) {
+                    Progress::firstOrCreate(
+                        ['user_id' => $user->id, 'lesson_id' => $session->lesson_id],
+                        ['completed_at' => now('UTC')],
+                    );
+                }
+                if ($assignmentId) {
+                    Assignment::query()->whereKey($assignmentId)->where('learner_id', $user->id)->update([
+                        'status' => 'completed', 'completed_at' => now('UTC'),
+                    ]);
+                }
+                $summary = [
+                    ...($session->summary ?? []),
+                    'events' => $activityCount,
+                    'completed_lesson_id' => $practiceOnly ? null : $session->lesson_id,
+                ];
+                $session->update(['status' => 'completed', 'completed_at' => now('UTC'), 'summary' => $summary]);
+
+                if (! $practiceOnly && $session->enrollment && ! $session->enrollment->course->lessons()
+                    ->where('status', 'published')
+                    ->whereDoesntHave('progress', fn ($query) => $query->where('user_id', $user->id))
+                    ->exists()) {
+                    $session->enrollment->update(['status' => 'completed', 'completed_at' => now('UTC')]);
+                }
+                LearningEvent::create([
+                    'learning_session_id' => $session->id, 'user_id' => $user->id,
+                    'event_type' => 'session_completed', 'request_id' => $requestId, 'occurred_at' => now('UTC'),
+                    'metadata' => ['idempotency_fingerprint' => $fingerprint],
                 ]);
-            }
-            $summary = [
-                ...($session->summary ?? []),
-                'events' => $activityCount,
-                'completed_lesson_id' => $practiceOnly ? null : $session->lesson_id,
-            ];
-            $session->update(['status' => 'completed', 'completed_at' => now('UTC'), 'summary' => $summary]);
 
-            if (! $practiceOnly && $session->enrollment && ! $session->enrollment->course->lessons()
-                ->where('status', 'published')
-                ->whereDoesntHave('progress', fn ($query) => $query->where('user_id', $user->id))
-                ->exists()) {
-                $session->enrollment->update(['status' => 'completed', 'completed_at' => now('UTC')]);
+                return $session->refresh();
+            });
+        } catch (QueryException $exception) {
+            $replay = LearningEvent::query()->where('request_id', $requestId)->first();
+            if (! $replay) {
+                throw $exception;
             }
-            LearningEvent::create([
-                'learning_session_id' => $session->id, 'user_id' => $user->id,
-                'event_type' => 'session_completed', 'request_id' => $requestId, 'occurred_at' => now('UTC'),
-            ]);
 
-            return $session->refresh();
-        });
+            return $this->replay($replay, $user, 'session_completed', $fingerprint);
+        }
     }
 
-    private function createSession(User $user, array $attributes, string $requestId): LearningSession
+    private function createSession(User $user, array $attributes, string $requestId, string $fingerprint): LearningSession
     {
-        return DB::transaction(function () use ($user, $attributes, $requestId): LearningSession {
-            $session = LearningSession::create([
-                ...$attributes, 'user_id' => $user->id, 'status' => 'active', 'started_at' => now('UTC'),
-            ]);
-            LearningEvent::create([
-                'learning_session_id' => $session->id, 'user_id' => $user->id,
-                'event_type' => 'session_started', 'request_id' => $requestId, 'occurred_at' => now('UTC'),
-            ]);
+        try {
+            return DB::transaction(function () use ($user, $attributes, $requestId, $fingerprint): LearningSession {
+                $session = LearningSession::create([
+                    ...$attributes, 'user_id' => $user->id, 'status' => 'active', 'started_at' => now('UTC'),
+                ]);
+                LearningEvent::create([
+                    'learning_session_id' => $session->id, 'user_id' => $user->id,
+                    'event_type' => 'session_started', 'request_id' => $requestId, 'occurred_at' => now('UTC'),
+                    'metadata' => ['idempotency_fingerprint' => $fingerprint],
+                ]);
 
-            return $session;
-        });
+                return $session;
+            });
+        } catch (QueryException $exception) {
+            $replay = LearningEvent::query()->where('request_id', $requestId)->first();
+            if (! $replay) {
+                throw $exception;
+            }
+
+            return $this->replay($replay, $user, 'session_started', $fingerprint);
+        }
+    }
+
+    private function replay(LearningEvent $event, User $user, string $type, string $fingerprint): LearningSession
+    {
+        if ((int) $event->user_id !== (int) $user->id || $event->event_type !== $type
+            || data_get($event->metadata, 'idempotency_fingerprint') !== $fingerprint) {
+            throw new ConflictHttpException('X-Request-ID was already used for another operation.');
+        }
+
+        return $event->session;
     }
 
     private function ownedActive(User $user, LearningSession $session): void

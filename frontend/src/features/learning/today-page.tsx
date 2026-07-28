@@ -31,10 +31,18 @@ export function TodayPage() {
       </section>
       {error && <p role="alert" className="rounded-xl border-2 border-red-200 bg-red-50 p-4 text-red-800">{error}</p>}
       <section className="grid gap-4 md:grid-cols-3">
-        <Metric icon={IconSchool} label="Giáo viên giao" value={counts("teacher_lesson")} tone="bg-amber-100 text-amber-800" />
+        <Metric icon={IconSchool} label="Giáo viên giao" value={counts("teacher_lesson") + counts("teacher_vocabulary_practice")} tone="bg-amber-100 text-amber-800" />
         <Metric icon={IconBrain} label="FSRS đến hạn" value={counts("fsrs_review")} tone="bg-cyan-100 text-cyan-800" />
         <Metric icon={IconBook2} label="Bài tiếp theo" value={counts("course_activity")} tone="bg-emerald-100 text-emerald-800" />
       </section>
+      {(plan?.items.length ?? 0) > 0 && (
+        <Card>
+          <CardHeader><CardTitle>Ưu tiên hôm nay</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            {plan?.items.map((item) => <PlanItem key={`${item.type}-${item.id}`} item={item} />)}
+          </CardContent>
+        </Card>
+      )}
       <Card>
         <CardHeader><CardTitle>Lộ trình đang học</CardTitle></CardHeader>
         <CardContent className="space-y-3">
@@ -53,6 +61,27 @@ export function TodayPage() {
       </Card>
     </div>
   );
+}
+
+function PlanItem({ item }: { item: LearningPlan["items"][number] }) {
+  const [busy, setBusy] = useState(false);
+  const labels = {
+    teacher_lesson: "Bài học giáo viên giao",
+    teacher_vocabulary_practice: "Luyện từ vựng giáo viên giao",
+    fsrs_review: "Ôn tập FSRS",
+    course_activity: "Bài tiếp theo trong khóa học",
+    remediation: "Ôn lại nội dung đang yếu",
+  };
+  if (item.type === "fsrs_review" || item.type === "remediation") {
+    return <div className="flex items-center justify-between rounded-2xl border-2 border-border p-4"><span className="font-bold">{labels[item.type]}</span><Button asChildCompat="a"><Link href="/review">Bắt đầu</Link></Button></div>;
+  }
+  if (item.type === "course_activity") return null;
+  async function start() {
+    setBusy(true);
+    try { const session = await api.startAssignment(item.id); window.location.href = `/session/${session.id}`; }
+    finally { setBusy(false); }
+  }
+  return <div className="flex items-center justify-between rounded-2xl border-2 border-border p-4"><span className="font-bold">{labels[item.type]}</span><Button onClick={start} disabled={busy}>{busy ? "Đang mở…" : "Bắt đầu"}</Button></div>;
 }
 
 function Metric({ icon: Icon, label, value, tone }: { icon: typeof IconBrain; label: string; value: number; tone: string }) {

@@ -34,8 +34,7 @@ class ProgressController extends Controller
         return ApiResponse::success(
             ProgressResource::collection($page->items()),
             meta: [
-                'current_page' => $page->currentPage(),
-                'last_page' => $page->lastPage(),
+                'page' => $page->currentPage(),
                 'per_page' => $page->perPage(),
                 'total' => $page->total(),
             ],
@@ -56,6 +55,7 @@ class ProgressController extends Controller
         $progressPercent = $totalLessons > 0 ? round(($completedCount / $totalLessons) * 100) : 0;
 
         return ApiResponse::success([
+            'type' => 'progress',
             'course' => [
                 'id' => $course->id,
                 'title' => $course->title,
@@ -93,6 +93,7 @@ class ProgressController extends Controller
             ->get();
 
         return ApiResponse::success([
+            'type' => 'progress',
             'overview' => [
                 'completed_lessons' => $completedLessons,
                 'quiz_attempts' => $quizAttempts,
@@ -124,6 +125,6 @@ class ProgressController extends Controller
             'completed_at' => now(),
         ]);
 
-        return ApiResponse::success(['status' => 'completed']);
+        return ApiResponse::success(['type' => 'progress', 'status' => 'completed']);
     }
 }

@@ -354,7 +354,7 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/LearningAttemptRequest" }
       responses:
-        "200": { $ref: "#/components/responses/AssistanceResponse" }
+        "200": { $ref: "#/components/responses/DataResponse" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "409": { $ref: "#/components/responses/Conflict" }
@@ -453,8 +453,42 @@ paths:
       operationId: getLearnerProgress
       security: [{ session: [] }]
       responses:
+        "200": { $ref: "#/components/responses/CollectionResponse" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+  /api/v1/progress/dashboard:
+    get:
+      summary: Get the current learner's progress dashboard
+      operationId: getLearnerProgressDashboard
+      security: [{ session: [] }]
+      responses:
         "200": { $ref: "#/components/responses/DataResponse" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
+  /api/v1/progress/course/{course}:
+    get:
+      summary: Get progress for one published course
+      operationId: getLearnerCourseProgress
+      security: [{ session: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/CourseId" }
+      responses:
+        "200": { $ref: "#/components/responses/DataResponse" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/progress/lesson/{lesson}/complete:
+    post:
+      summary: Confirm progress for a lesson completed through an owned session
+      operationId: confirmLearnerLessonProgress
+      security: [{ session: [], csrf: [] }]
+      parameters:
+        - name: lesson
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200": { $ref: "#/components/responses/DataResponse" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "419": { $ref: "#/components/responses/CsrfError" }
   /api/v1/ai/trace-cag:
     post:
       summary: Request bounded TraceCAG assistance
@@ -1379,6 +1413,7 @@ components:
             - enrollment
             - learning_plan
             - learning_session
+            - learning_attempt
             - fsrs_card
             - fsrs_stats
             - assignment
@@ -1438,6 +1473,18 @@ components:
         transcript: { type: string, maxLength: 2000 }
         pronunciation_score: { type: number, minimum: 0, maximum: 100 }
         estimated_minutes: { type: integer, minimum: 0 }
+        event_id: { type: integer, minimum: 1 }
+        is_correct: { type: boolean }
+        summary: { type: [object, "null"] }
+        activity: { type: [object, "null"] }
+        course: { type: object }
+        lesson: { type: [object, "null"] }
+        progress_percent: { type: number, minimum: 0, maximum: 100 }
+        completed_lessons: { type: integer, minimum: 0 }
+        total_lessons: { type: integer, minimum: 0 }
+        overview: { type: object }
+        recent_activity: { type: array }
+        recent_attempts: { type: array }
         items:
           type: array
           items:
@@ -1445,7 +1492,7 @@ components:
             required: [id, type, priority]
             properties:
               id: { type: [integer, string] }
-              type: { type: string, enum: [teacher_lesson, fsrs_review, course_activity, remediation] }
+              type: { type: string, enum: [teacher_lesson, teacher_vocabulary_practice, fsrs_review, course_activity, remediation] }
               priority: { type: integer, minimum: 1 }
             additionalProperties: false
       additionalProperties: false

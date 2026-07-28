@@ -152,12 +152,17 @@ export const api = {
   catalogCourses: () => request<Envelope<CourseCard[]> & { meta: { total?: number } }>("/api/v1/catalog/courses"),
   enrollments: () => apiRequest<Enrollment[]>("/api/v1/enrollments"),
   enroll: (courseId: number) => apiRequest<Enrollment>("/api/v1/enrollments", {
-    method: "POST", body: JSON.stringify({ course_id: courseId })
+    method: "POST", headers: { "X-Request-ID": crypto.randomUUID() }, body: JSON.stringify({ course_id: courseId })
   }),
   startSession: (enrollmentId: number) => apiRequest<LearningSession>("/api/v1/learning/sessions", {
     method: "POST",
     headers: { "X-Request-ID": crypto.randomUUID() },
     body: JSON.stringify({ enrollment_id: enrollmentId })
+  }),
+  startAssignment: (assignmentId: number) => apiRequest<LearningSession>("/api/v1/learning/sessions", {
+    method: "POST",
+    headers: { "X-Request-ID": crypto.randomUUID() },
+    body: JSON.stringify({ assignment_id: assignmentId })
   }),
   nextActivity: (sessionId: number) => apiRequest<LearningSession>(`/api/v1/learning/sessions/${sessionId}/next`),
   submitAttempt: (sessionId: number, payload: LearningAttempt) => apiRequest<{ event_id: number; is_correct: boolean }>(
@@ -184,7 +189,7 @@ export const api = {
   teacherAssignments: () => apiRequest<TeacherAssignment[]>("/api/v1/teacher/assignments")
 };
 
-export type LearningPlan = { type: "learning_plan"; items: Array<{ id: number; type: "teacher_lesson" | "fsrs_review" | "course_activity" | "remediation"; priority: number }> };
+export type LearningPlan = { type: "learning_plan"; items: Array<{ id: number; type: "teacher_lesson" | "teacher_vocabulary_practice" | "fsrs_review" | "course_activity" | "remediation"; priority: number }> };
 export type CourseCard = { id: number; title: string; description?: string; level?: { name: string }; lessons_count?: number; estimated_duration?: number };
 export type Enrollment = { id: number; course_id: number; title: string; status: string };
 export type Activity = { id: string; type: string; vocabulary_id: number; word: string; meaning: string; practice_only: boolean };

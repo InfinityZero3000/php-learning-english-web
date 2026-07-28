@@ -10,6 +10,7 @@ class ProgressResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
+            'type' => 'progress',
             'id' => $this->id,
             'lesson_id' => $this->lesson_id,
             'completed_at' => $this->completed_at,
