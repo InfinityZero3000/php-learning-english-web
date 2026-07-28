@@ -1,5 +1,11 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Admin\CategoryAdminController;
+use App\Http\Controllers\Api\V1\Admin\CourseAdminController;
+use App\Http\Controllers\Api\V1\Admin\LessonAdminController;
+use App\Http\Controllers\Api\V1\Admin\QuizAdminController;
+use App\Http\Controllers\Api\V1\Admin\UserAdminController;
+use App\Http\Controllers\Api\V1\Admin\VocabularyAdminController;
 use App\Http\Controllers\Api\V1\AiProxyController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BookmarkApiController;
@@ -91,5 +97,18 @@ Route::prefix('api/v1')->group(function (): void {
         Route::get('/progress/dashboard', [ProgressController::class, 'dashboard']);
         Route::get('/progress/course/{course}', [ProgressController::class, 'courseProgress']);
         Route::post('/progress/lesson/{lesson}/complete', [ProgressController::class, 'markCompleted']);
+    });
+
+    // Authenticated admin routes
+    Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function (): void {
+        Route::get('/levels', [CourseAdminController::class, 'levels']);
+        Route::apiResource('categories', CategoryAdminController::class);
+        Route::apiResource('courses', CourseAdminController::class);
+        Route::apiResource('lessons', LessonAdminController::class);
+        Route::apiResource('vocabulary', VocabularyAdminController::class);
+        Route::apiResource('quizzes', QuizAdminController::class);
+        Route::get('users', [UserAdminController::class, 'index']);
+        Route::get('users/{user}', [UserAdminController::class, 'show']);
+        Route::put('users/{user}/role', [UserAdminController::class, 'updateRole']);
     });
 });
