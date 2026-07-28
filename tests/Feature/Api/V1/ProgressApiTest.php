@@ -44,6 +44,7 @@ class ProgressApiTest extends TestCase
         })->value('id');
     }
 
+
     public function test_guest_gets_401_on_progress_routes(): void
     {
         $this->getJson('/api/v1/progress')->assertUnauthorized();
