@@ -1,0 +1,122 @@
+<?php
+
+namespace Tests\Feature\Api\V1;
+
+use App\Models\Assignment;
+use App\Models\Course;
+use App\Models\Enrollment;
+use App\Models\LearningSession;
+use App\Models\Lesson;
+use App\Models\User;
+use App\Models\UserVocabulary;
+use App\Models\Vocabulary;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
+use Tests\TestCase;
+
+class LearningSessionApiTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_learner_can_enroll_start_advance_and_complete_a_course_lesson(): void
+    {
+        [$user, $course, $lesson, $word] = $this->context();
+
+        $enrollmentId = $this->actingAs($user)->postJson('/api/v1/enrollments', ['course_id' => $course->id])
+            ->assertCreated()
+            ->assertJsonPath('data.type', 'enrollment')
+            ->json('data.id');
+
+        $sessionId = $this->postJson('/api/v1/learning/sessions', ['enrollment_id' => $enrollmentId])
+            ->assertCreated()
+            ->assertJsonPath('data.lesson_id', $lesson->id)
+            ->json('data.id');
+
+        $this->getJson("/api/v1/learning/sessions/{$sessionId}/next")
+            ->assertOk()
+            ->assertJsonPath('data.activity.vocabulary_id', $word->id)
+            ->assertJsonPath('data.activity.practice_only', false);
+
+        $this->postJson("/api/v1/learning/sessions/{$sessionId}/complete")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'completed');
+        $this->assertDatabaseHas('progress', ['user_id' => $user->id, 'lesson_id' => $lesson->id]);
+        $this->assertDatabaseHas('enrollments', ['id' => $enrollmentId, 'status' => 'completed']);
+    }
+
+    public function test_today_plan_prioritizes_teacher_lesson_then_fsrs_then_course(): void
+    {
+        [$user, $course, $lesson, $word] = $this->context();
+        $teacher = User::factory()->create();
+        $enrollment = Enrollment::create([
+            'user_id' => $user->id, 'course_id' => $course->id, 'status' => 'active', 'enrolled_at' => now(),
+        ]);
+        $assignment = Assignment::create([
+            'teacher_id' => $teacher->id, 'learner_id' => $user->id, 'lesson_id' => $lesson->id,
+            'status' => 'pending', 'due_at' => now()->subMinute(),
+        ]);
+        $card = UserVocabulary::create([
+            'user_id' => $user->id, 'vocabulary_id' => $word->id, 'due_at' => now()->subMinute(),
+        ]);
+
+        $this->actingAs($user)->getJson('/api/v1/learning/plan')
+            ->assertOk()
+            ->assertJsonPath('data.items.0.id', $assignment->id)
+            ->assertJsonPath('data.items.0.type', 'teacher_lesson')
+            ->assertJsonPath('data.items.1.id', $card->id)
+            ->assertJsonPath('data.items.1.type', 'fsrs_review')
+            ->assertJsonPath('data.items.2.id', $enrollment->id)
+            ->assertJsonPath('data.items.2.type', 'course_activity');
+    }
+
+    public function test_session_ownership_is_enforced(): void
+    {
+        [$owner, $course, $lesson] = $this->context();
+        $session = LearningSession::create([
+            'user_id' => $owner->id, 'course_id' => $course->id, 'lesson_id' => $lesson->id,
+            'status' => 'active', 'started_at' => now(),
+        ]);
+
+        $this->actingAs(User::factory()->create())
+            ->getJson("/api/v1/learning/sessions/{$session->id}/next")
+            ->assertForbidden();
+    }
+
+    public function test_teacher_vocabulary_assignment_is_practice_only_and_does_not_create_fsrs_state(): void
+    {
+        [$learner, , , $word] = $this->context();
+        $assignment = Assignment::create([
+            'teacher_id' => User::factory()->create()->id,
+            'learner_id' => $learner->id,
+            'vocabulary_id' => $word->id,
+            'status' => 'pending',
+        ]);
+
+        $sessionId = $this->actingAs($learner)
+            ->postJson('/api/v1/learning/sessions', ['assignment_id' => $assignment->id])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this->getJson("/api/v1/learning/sessions/{$sessionId}/next")
+            ->assertOk()
+            ->assertJsonPath('data.activity.practice_only', true);
+        $this->assertDatabaseCount('user_vocabularies', 0);
+    }
+
+    private function context(): array
+    {
+        $user = User::factory()->create();
+        $course = Course::create([
+            'title' => 'Course '.Str::random(6), 'slug' => 'course-'.Str::random(8), 'status' => 'published',
+        ]);
+        $lesson = Lesson::create([
+            'course_id' => $course->id, 'title' => 'Lesson', 'slug' => 'lesson-'.Str::random(8),
+            'status' => 'published', 'sort_order' => 1,
+        ]);
+        $word = Vocabulary::create([
+            'lesson_id' => $lesson->id, 'word' => 'hello'.Str::random(4), 'meaning' => 'xin chào',
+        ]);
+
+        return [$user, $course, $lesson, $word];
+    }
+}

@@ -1,10 +1,14 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\CatalogController;
 use App\Http\Controllers\Api\V1\EmailVerificationController;
+use App\Http\Controllers\Api\V1\EnrollmentController;
 use App\Http\Controllers\Api\V1\FsrsController;
+use App\Http\Controllers\Api\V1\LearningSessionController;
 use App\Http\Controllers\Api\V1\PasswordController;
 use App\Http\Controllers\Api\V1\ProfileController;
+use App\Http\Controllers\Api\V1\ProgressController;
 use App\Http\Controllers\Api\V1\VocabularyController;
 use App\Support\HealthCheck;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
@@ -27,6 +31,12 @@ Route::prefix('api/v1')->group(function (): void {
         ]);
     Route::get('/csrf-cookie', fn () => response()->noContent());
     Route::get('/vocabulary', [VocabularyController::class, 'index']);
+    Route::get('/catalog/categories', [CatalogController::class, 'categories']);
+    Route::get('/catalog/courses', [CatalogController::class, 'courses']);
+    Route::get('/catalog/courses/{course}', [CatalogController::class, 'course']);
+    Route::get('/catalog/courses/{course}/lessons', [CatalogController::class, 'courseLessons']);
+    Route::get('/catalog/lessons', [CatalogController::class, 'lessons']);
+    Route::get('/catalog/lessons/{lesson}', [CatalogController::class, 'lesson']);
 
     Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
     Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
@@ -46,5 +56,15 @@ Route::prefix('api/v1')->group(function (): void {
         Route::get('/fsrs/due', [FsrsController::class, 'due']);
         Route::get('/fsrs/stats', [FsrsController::class, 'stats']);
         Route::post('/fsrs/review', [FsrsController::class, 'review']);
+        Route::get('/enrollments', [EnrollmentController::class, 'index']);
+        Route::post('/enrollments', [EnrollmentController::class, 'store']);
+        Route::get('/learning/plan', [LearningSessionController::class, 'plan']);
+        Route::post('/learning/sessions', [LearningSessionController::class, 'store']);
+        Route::get('/learning/sessions/{session}/next', [LearningSessionController::class, 'next']);
+        Route::post('/learning/sessions/{session}/complete', [LearningSessionController::class, 'complete']);
+        Route::get('/progress', [ProgressController::class, 'myProgress']);
+        Route::get('/progress/dashboard', [ProgressController::class, 'dashboard']);
+        Route::get('/progress/course/{course}', [ProgressController::class, 'courseProgress']);
+        Route::post('/progress/lesson/{lesson}/complete', [ProgressController::class, 'markCompleted']);
     });
 });
