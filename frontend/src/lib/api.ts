@@ -122,6 +122,10 @@ async function synthesize(text: string) {
 
 export const api = {
   me: () => apiRequest<AppUser>("/api/v1/auth/me"),
+  vocabulary: ({ search = "", page = 1, perPage = 24 }: { search?: string; page?: number; perPage?: number } = {}) =>
+    request<Envelope<VocabularyItem[]> & { meta: { current_page: number; last_page: number; per_page: number; total: number } }>(
+      `/api/v1/vocabulary${toQuery({ search, page, per_page: perPage })}`
+    ),
   words: (query?: Query) => request<Word[]>(`/api/words${toQuery(query)}`),
   wordsPage: (query?: Query) => request<PageResponse<Word>>(`/api/words${toQuery(query)}`),
   word: (id: number) => request<Word>(`/api/words/${id}`),
@@ -277,6 +281,7 @@ export type LearningAttempt = { activity_id: string; answer: string; duration_ms
 export type TraceCagInput = { session_id: number; activity_id: string; input_type: "answer" | "hint_request" | "pronunciation" | "tutor_message"; text: string };
 export type Assistance = { diagnosis: { codes: string[]; summary: string }; hints: Array<{ level: number; text: string }>; feedback: string; recommended_action: string; message: string; degraded: boolean };
 export type FsrsCard = { type: "fsrs_card"; id: number; vocabulary_id: number; word: string; meaning: string; definition?: string; state: string; due_at?: string; revision: number; scheduled_days?: number };
+export type VocabularyItem = { type: "vocabulary"; id: number; external_id?: string; word: string; meaning: string; definition?: string; translation?: Record<string, string>; pronunciation?: string; part_of_speech?: string; difficulty_level?: string; tags?: string[]; external_audio_url?: string };
 export type TeacherLearner = { id: number; name: string; email: string };
 export type SupervisionAlert = { id: number; rule_key: string; severity: string; state: string; evidence: Array<Record<string, unknown>>; detected_at: string; learner: TeacherLearner };
 export type TeacherAssignment = { id: number; status: string; due_at?: string; learner: TeacherLearner; lesson?: { title: string }; vocabulary?: { word: string } };

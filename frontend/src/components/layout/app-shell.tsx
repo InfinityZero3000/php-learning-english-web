@@ -20,7 +20,8 @@ const nav = [
   { href: "/", label: "Today", icon: navigationIcons.home },
   { href: "/courses", label: "Courses", icon: navigationIcons.flashcards },
   { href: "/assignments", label: "Assignments", icon: navigationIcons.quiz },
-  { href: "/review", label: "Review", icon: navigationIcons.words },
+  { href: "/review", label: "Flashcards", icon: navigationIcons.flashcards },
+  { href: "/vocabulary", label: "Words", icon: navigationIcons.words },
   { href: "/progress", label: "Progress", icon: navigationIcons.progress },
 ];
 
@@ -28,7 +29,8 @@ const titles: Record<string, string> = {
   "/": "Today",
   "/courses": "Course Path",
   "/assignments": "Assignments",
-  "/review": "Smart Review",
+  "/review": "FSRS Flashcards",
+  "/vocabulary": "Words",
   "/progress": "Progress",
   "/profile": "Profile"
 };
