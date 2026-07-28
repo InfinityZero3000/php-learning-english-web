@@ -16,6 +16,7 @@ class LexiLingoClientTest extends TestCase
             'backend_url' => 'https://backend.lexilingo.test/',
             'ai_url' => 'https://ai.lexilingo.test/',
             'import_key' => 'import-secret',
+            'partner_api_key' => 'partner-secret',
             'ai_service_secret' => 'ai-secret',
             'timeout' => 30,
         ]);
@@ -26,6 +27,7 @@ class LexiLingoClientTest extends TestCase
 
         $client = app(LexiLingoClient::class);
         $client->backend()->get('/health')->throw();
+        $client->partner()->get('/api/v1/integrations/courses')->throw();
         $client->protectedBackend()->get('/api/v1/admin/lessons/lesson-1')->throw();
         $client->ai()->get('/health')->throw();
         $client->internalAi()->get('/api/v1/internal/content-agent/sources')->throw();
@@ -34,6 +36,8 @@ class LexiLingoClientTest extends TestCase
             && ! $request->hasHeader('X-Import-Key'));
         Http::assertSent(fn (Request $request) => str_contains($request->url(), '/admin/lessons/')
             && $request->hasHeader('X-Import-Key', 'import-secret'));
+        Http::assertSent(fn (Request $request) => str_contains($request->url(), '/integrations/courses')
+            && $request->hasHeader('X-LexiLingo-API-Key', 'partner-secret'));
         Http::assertSent(fn (Request $request) => $request->url() === 'https://ai.lexilingo.test/health'
             && ! $request->hasHeader('X-AI-Service-Secret'));
         Http::assertSent(fn (Request $request) => str_contains($request->url(), '/internal/content-agent/')
