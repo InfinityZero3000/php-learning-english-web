@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -23,10 +24,17 @@ class LexiLingoClient
 
     public function partner(): PendingRequest
     {
-        return $this->backend()->withHeader(
-            'X-LexiLingo-API-Key',
-            $this->credential('partner_api_key'),
-        );
+        $maxRetries = min(5, max(0, (int) config('services.lexilingo.import_max_retries', 3)));
+
+        return $this->backend()
+            ->withHeader('X-LexiLingo-API-Key', $this->credential('partner_api_key'))
+            ->withOptions(['delay' => min(5000, max(0, (int) config('services.lexilingo.import_delay_ms', 250)))])
+            ->retry(
+                $maxRetries + 1,
+                fn (int $attempt, \Exception $exception): int => $this->retryDelay($attempt, $exception),
+                fn (\Exception $exception): bool => $this->retryable($exception),
+                throw: false,
+            );
     }
 
     public function ai(): PendingRequest
@@ -59,7 +67,40 @@ class LexiLingoClient
 
         return Http::baseUrl(rtrim($url, '/'))
             ->acceptJson()
+            ->connectTimeout(min(30, max(1, (int) config('services.lexilingo.connect_timeout', 5))))
             ->timeout(min(60, max(1, (int) config('services.lexilingo.timeout', 30))));
+    }
+
+    private function retryable(\Exception $exception): bool
+    {
+        if (! $exception instanceof RequestException) {
+            return true;
+        }
+
+        $status = $exception->response->status();
+
+        return $status === 429 || $status >= 500;
+    }
+
+    private function retryDelay(int $attempt, \Exception $exception): int
+    {
+        $cap = min(30000, max(0, (int) config('services.lexilingo.import_max_backoff_ms', 10000)));
+        $local = min($cap, 250 * (2 ** max(0, $attempt - 1)));
+
+        if (! $exception instanceof RequestException) {
+            return $local;
+        }
+
+        $header = $exception->response->header('Retry-After');
+        if (! is_string($header) || $header === '') {
+            return $local;
+        }
+
+        $seconds = ctype_digit($header)
+            ? (int) $header
+            : max(0, (int) ceil(strtotime($header) - time()));
+
+        return min($cap, max($local, $seconds * 1000));
     }
 
     private function credential(string $key): string

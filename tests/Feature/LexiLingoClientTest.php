@@ -66,4 +66,24 @@ class LexiLingoClientTest extends TestCase
         $this->expectException(RuntimeException::class);
         app(LexiLingoClient::class)->backend();
     }
+
+    public function test_partner_retries_rate_limits_and_server_errors(): void
+    {
+        config()->set('services.lexilingo.backend_url', 'https://backend.lexilingo.test');
+        config()->set('services.lexilingo.partner_api_key', 'partner-secret');
+        config()->set('services.lexilingo.import_delay_ms', 0);
+        config()->set('services.lexilingo.import_max_backoff_ms', 0);
+        config()->set('services.lexilingo.import_max_retries', 2);
+
+        Http::fakeSequence()
+            ->push([], 429, ['Retry-After' => '0'])
+            ->push([], 503)
+            ->push(['data' => [['id' => 'ok']]], 200);
+
+        $response = app(LexiLingoClient::class)->partner()->get('/api/v1/integrations/categories');
+
+        $response->throw();
+        $this->assertSame('ok', $response->json('data.0.id'));
+        Http::assertSentCount(3);
+    }
 }
