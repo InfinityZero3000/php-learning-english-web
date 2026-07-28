@@ -9,8 +9,7 @@ import {
   IconMenu2
 } from "@tabler/icons-react";
 import { useEffect, useMemo, useState } from "react";
-import { AppDiamondIcon, AppFlameIcon, navigationIcons } from "@/components/icons/app-icons";
-import { NotificationWidget } from "@/components/layout/notifications";
+import { navigationIcons } from "@/components/icons/app-icons";
 import { Button } from "@/components/ui/button";
 import { CatLoader } from "@/components/ui/cat-loader";
 import { api, ApiError, auth } from "@/lib/api";
@@ -22,11 +21,7 @@ const nav = [
   { href: "/courses", label: "Courses", icon: navigationIcons.flashcards },
   { href: "/assignments", label: "Assignments", icon: navigationIcons.quiz },
   { href: "/review", label: "Review", icon: navigationIcons.words },
-  { href: "/vocabulary", label: "Words", icon: navigationIcons.words },
-  { href: "/flashcards", label: "Flashcards", icon: navigationIcons.flashcards },
-  { href: "/quiz", label: "Quiz", icon: navigationIcons.quiz },
   { href: "/progress", label: "Progress", icon: navigationIcons.progress },
-  { href: "/import", label: "Import", icon: navigationIcons.import }
 ];
 
 const titles: Record<string, string> = {
@@ -34,11 +29,7 @@ const titles: Record<string, string> = {
   "/courses": "Course Path",
   "/assignments": "Assignments",
   "/review": "Smart Review",
-  "/vocabulary": "Words",
-  "/flashcards": "Flashcards",
-  "/quiz": "Quiz",
   "/progress": "Progress",
-  "/import": "Import",
   "/profile": "Profile"
 };
 
@@ -48,8 +39,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [authError, setAuthError] = useState(false);
-  const [streak, setStreak] = useState(0);
-  const [xp] = useState(0);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const pageTitle = useMemo(() => titles[pathname] || "FSRSpring", [pathname]);
@@ -181,19 +170,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <IconMenu2 className="h-6 w-6" stroke={2} />
             </button>
             <h1 className="font-display text-2xl font-bold text-foreground">{pageTitle}</h1>
-          </div>
-          <div className="flex items-center gap-6">
-            <button className="flex items-center gap-2 transition hover:opacity-80" aria-label="Daily streak">
-              <AppFlameIcon className="text-[34px] text-[#f4bf00]" />
-              <span className="font-display text-[24px] font-bold leading-none text-[#f4bf00]">{streak}</span>
-            </button>
-            <button className="flex items-center gap-2 transition hover:opacity-80" aria-label="XP">
-              <span className="flex items-center justify-center rounded-lg bg-[#1cb0f6] p-[3px]">
-                <AppDiamondIcon className="text-[28px] text-white" />
-              </span>
-              <span className="font-display text-[24px] font-bold leading-none text-[#1cb0f6]">{xp}</span>
-            </button>
-            <NotificationWidget />
           </div>
         </div>
         {isMobileMenuOpen && (
