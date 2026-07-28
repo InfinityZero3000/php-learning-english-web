@@ -97,6 +97,11 @@ export type OperationsUsage = { last_24_hours: number; last_30_days: number; deg
 export const auth = {
   me: () => request<{ data: User }>('/api/v1/auth/me').then(({ data }) => data),
   adminMe: () => request<{ data: User }>('/api/v1/admin/session').then(({ data }) => data),
+  completeGoogleAdmin: (handoff: string) =>
+    request<{ data: { user: User; return: string } }>('/api/v1/auth/oauth/google/admin/handoff', {
+      method: 'POST',
+      body: JSON.stringify({ handoff }),
+    }).then(({ data }) => data),
   logout: () => request<void>('/api/v1/auth/logout', { method: 'POST' }),
 };
 

@@ -59,12 +59,9 @@ Route::get('/auth/google', [SocialController::class, 'google'])
 
 Route::get('/auth/google/callback', [SocialController::class, 'googleCallback'])
     ->name('google.callback');
-Route::get('/auth/admin/google', [AdminGoogleAuthController::class, 'redirect'])
+Route::get('/auth/admin/google', [AdminGoogleAuthController::class, 'entry'])
     ->middleware('throttle:10,1')
     ->name('admin.google.login');
-Route::get('/auth/admin/google/reauthenticate', [AdminGoogleAuthController::class, 'reauthenticate'])
-    ->middleware(['auth', 'google.admin', 'throttle:10,1'])
-    ->name('admin.google.reauthenticate');
 // Đăng nhập Facebook
 Route::get('/auth/facebook', [SocialController::class, 'facebook'])
     ->name('facebook.login');

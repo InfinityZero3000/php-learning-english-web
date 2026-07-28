@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdminGoogleAuthController;
 use App\Http\Controllers\Api\V1\Admin\CatalogController as AdminCatalogController;
 use App\Http\Controllers\Api\V1\Admin\OperationsController;
 use App\Http\Controllers\Api\V1\Admin\UserController as AdminUserController;
@@ -16,6 +17,7 @@ use App\Http\Controllers\Api\V1\ProgressController;
 use App\Http\Controllers\Api\V1\TeacherController;
 use App\Http\Controllers\Api\V1\TraceCagController;
 use App\Http\Controllers\Api\V1\VocabularyController;
+use App\Http\Controllers\SocialController;
 use App\Support\ApiResponse;
 use App\Support\HealthCheck;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
@@ -47,6 +49,10 @@ Route::prefix('api/v1')->group(function (): void {
     Route::get('/catalog/lessons/{lesson}', [CatalogController::class, 'lesson']);
 
     Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
+    Route::get('/auth/oauth/google/admin', [AdminGoogleAuthController::class, 'entry'])->middleware('throttle:10,1');
+    Route::get('/auth/oauth/google/admin/start', [AdminGoogleAuthController::class, 'redirect'])->middleware('throttle:10,1');
+    Route::get('/auth/oauth/google/callback', [SocialController::class, 'googleCallback'])->middleware('throttle:10,1');
+    Route::post('/auth/oauth/google/admin/handoff', [AdminGoogleAuthController::class, 'handoff'])->middleware('throttle:10,1');
     Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
     Route::post('/auth/email/resend', [EmailVerificationController::class, 'resend'])->middleware('throttle:3,1');
     Route::get('/auth/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])

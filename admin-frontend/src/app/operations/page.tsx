@@ -118,7 +118,7 @@ export default function OperationsPage() {
               <form onSubmit={saveQuota} className="space-y-4">
                 <label className="block font-bold" htmlFor="quota-json">Limits JSON</label>
                 <textarea id="quota-json" name="limits" value={quotaJson} onChange={(event) => setQuotaJson(event.target.value)} rows={7} spellCheck={false} className="w-full rounded-xl border-2 border-[#bdc8d2] p-3 font-mono text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#006590]" />
-                <a href="/auth/admin/google/reauthenticate?return=/operations" className="block rounded-xl border-2 border-[#88ceff] px-5 py-3 text-center font-bold text-[#006590]">Verify with Google</a>
+                <a href="/api/v1/auth/oauth/google/admin?return=/operations" className="block rounded-xl border-2 border-[#88ceff] px-5 py-3 text-center font-bold text-[#006590]">Verify with Google</a>
                 <button className="rounded-xl bg-[#006590] px-5 py-3 font-bold text-white hover:bg-[#004c6e] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">Kích hoạt policy mới</button>
               </form>
             </Panel>

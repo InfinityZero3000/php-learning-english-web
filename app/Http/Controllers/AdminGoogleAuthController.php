@@ -5,9 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\Role;
 use App\Models\User;
 use App\Support\AdminGoogleAccess;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
@@ -15,16 +18,33 @@ use Throwable;
 
 class AdminGoogleAuthController extends Controller
 {
+    public function entry(Request $request): RedirectResponse
+    {
+        $return = $request->string('return')->toString();
+        $return = in_array($return, ['/operations', '/roles', '/users'], true) ? $return : '/dashboard';
+        $challenge = (string) Str::uuid();
+        Cache::put("admin-google-challenge:{$challenge}", [
+            'return' => $return,
+            'subject' => $request->user()?->google_id,
+        ], now()->addMinutes(5));
+
+        return redirect()->away(
+            rtrim((string) config('app.frontend_url'), '/')."/api/v1/auth/oauth/google/admin/start?challenge={$challenge}"
+        );
+    }
+
     public function redirect(Request $request, AdminGoogleAccess $access): RedirectResponse
     {
         $this->clearAdminState($request);
-        if (! $access->validConfiguration()) {
+        $challenge = $request->string('challenge')->toString();
+        if (! $access->validConfiguration() || ! Str::isUuid($challenge)
+            || ! Cache::has("admin-google-challenge:{$challenge}")) {
             return $this->loginRedirect('configuration');
         }
-
         $request->session()->put('google_admin_oauth_mode', 'login');
+        $request->session()->put('google_admin_challenge', $challenge);
 
-        return Socialite::driver('google')->redirect();
+        return Socialite::driver('google')->with(['prompt' => 'select_account', 'max_age' => 0])->redirect();
     }
 
     public function callback(Request $request, AdminGoogleAccess $access): RedirectResponse
@@ -35,30 +55,23 @@ class AdminGoogleAuthController extends Controller
             $subject = trim((string) $google->getId());
             $verified = filter_var(data_get($google->user, 'email_verified'), FILTER_VALIDATE_BOOL);
             $role = $access->role($email);
+            $challenge = $request->session()->pull('google_admin_challenge');
+            $expected = is_string($challenge) ? Cache::get("admin-google-challenge:{$challenge}") : null;
 
-            if (! $verified || $subject === '' || ! $role) {
-                $this->clearAdminState($request);
-
-                return $this->loginRedirect('denied');
+            abort_unless($verified && $subject !== '' && $role && is_array($expected), 403);
+            if ($expected['subject'] ?? null) {
+                abort_unless(hash_equals((string) $expected['subject'], $subject), 403);
             }
 
             $user = DB::transaction(function () use ($email, $google, $subject, $role): User {
                 $user = User::query()->where('email', $email)->lockForUpdate()->first();
                 $subjectOwner = User::query()->where('google_id', $subject)->lockForUpdate()->first();
-
-                if (($user?->google_id && $user->google_id !== $subject)
+                abort_if(($user?->google_id && $user->google_id !== $subject)
                     || ($subjectOwner && $subjectOwner->id !== $user?->id)
-                    || ($user?->auth_provider && $user->auth_provider !== 'google')) {
-                    abort(403);
-                }
-
+                    || ($user?->auth_provider && $user->auth_provider !== 'google'), 403);
                 $roleId = Role::query()->where('slug', $role)->value('id');
                 abort_unless($roleId, 503);
-
-                $user ??= new User([
-                    'email' => $email,
-                    'password' => Str::password(40),
-                ]);
+                $user ??= new User(['email' => $email, 'password' => Str::password(40)]);
                 $user->fill([
                     'name' => $google->getName() ?: $email,
                     'google_id' => $subject,
@@ -71,16 +84,21 @@ class AdminGoogleAuthController extends Controller
                 return $user;
             });
 
-            Auth::login($user);
-            $request->session()->regenerate();
-            $request->session()->regenerateToken();
-            $request->session()->put('google_admin', [
+            Cache::forget("admin-google-challenge:{$challenge}");
+            $nonce = (string) Str::uuid();
+            Cache::put("admin-google-handoff:{$nonce}", true, now()->addMinutes(2));
+            $handoff = Crypt::encryptString(json_encode([
+                'nonce' => $nonce,
                 'user_id' => $user->id,
                 'subject' => $subject,
                 'email' => $email,
-            ]);
+                'return' => $expected['return'] ?? '/dashboard',
+                'expires_at' => now()->addMinutes(2)->timestamp,
+            ], JSON_THROW_ON_ERROR));
 
-            return redirect()->away(rtrim((string) config('app.admin_frontend_url'), '/').'/dashboard');
+            return redirect()->away(
+                rtrim((string) config('app.admin_frontend_url'), '/').'/login?handoff='.urlencode($handoff)
+            );
         } catch (Throwable $exception) {
             report($exception);
             $this->clearAdminState($request);
@@ -89,48 +107,36 @@ class AdminGoogleAuthController extends Controller
         }
     }
 
-    public function reauthenticate(Request $request): RedirectResponse
+    public function handoff(Request $request, AdminGoogleAccess $access): JsonResponse
     {
-        $return = $request->string('return')->toString();
-        $request->session()->forget('google_admin_reauthenticated_at');
-        $request->session()->put(
-            'google_admin_reauth_return',
-            in_array($return, ['/operations', '/roles', '/users'], true) ? $return : '/dashboard',
-        );
-        $request->session()->put('google_admin_oauth_mode', 'reauthenticate');
-
-        return Socialite::driver('google')->with([
-            'prompt' => 'select_account',
-            'max_age' => 0,
-        ])->redirect();
-    }
-
-    public function reauthenticateCallback(Request $request, AdminGoogleAccess $access): RedirectResponse
-    {
+        $data = $request->validate(['handoff' => ['required', 'string', 'max:4096']]);
         try {
-            $user = $request->user();
-            $marker = $request->session()->get('google_admin');
-            $google = Socialite::driver('google')->user();
-            $email = strtolower(trim((string) $google->getEmail()));
-            $subject = trim((string) $google->getId());
-            $verified = filter_var(data_get($google->user, 'email_verified'), FILTER_VALIDATE_BOOL);
-
-            abort_unless($user && is_array($marker) && $verified, 403);
-            abort_unless($access->role($email) === $user->role?->slug, 403);
-            abort_unless((int) ($marker['user_id'] ?? 0) === $user->id, 403);
-            abort_unless(hash_equals((string) $user->google_id, $subject), 403);
-            abort_unless(hash_equals(strtolower($user->email), $email), 403);
-
-            $request->session()->put('google_admin_reauthenticated_at', now()->timestamp);
-            $return = $request->session()->pull('google_admin_reauth_return', '/dashboard');
-
-            return redirect()->away(rtrim((string) config('app.admin_frontend_url'), '/').$return);
-        } catch (Throwable $exception) {
-            report($exception);
-            $request->session()->forget(['google_admin_reauthenticated_at', 'google_admin_reauth_return']);
-
-            return $this->loginRedirect('denied');
+            $payload = json_decode(Crypt::decryptString($data['handoff']), true, flags: JSON_THROW_ON_ERROR);
+        } catch (Throwable) {
+            abort(401, 'Invalid or expired Google handoff.');
         }
+        abort_unless(is_array($payload) && (int) ($payload['expires_at'] ?? 0) >= now()->timestamp, 401);
+        $nonce = (string) ($payload['nonce'] ?? '');
+        abort_unless($nonce !== '' && Cache::pull("admin-google-handoff:{$nonce}"), 401);
+        $user = User::query()->with('role')->findOrFail((int) ($payload['user_id'] ?? 0));
+        abort_unless(hash_equals((string) $user->google_id, (string) ($payload['subject'] ?? '')), 401);
+        abort_unless(hash_equals(strtolower($user->email), (string) ($payload['email'] ?? '')), 401);
+        abort_unless($access->role($user->email) === $user->role?->slug, 403);
+
+        Auth::login($user);
+        $request->session()->regenerate();
+        $request->session()->regenerateToken();
+        $request->session()->put('google_admin', [
+            'user_id' => $user->id,
+            'subject' => $user->google_id,
+            'email' => strtolower($user->email),
+        ]);
+        $request->session()->put('google_admin_reauthenticated_at', now()->timestamp);
+
+        return response()->json(['data' => [
+            'user' => ['id' => $user->id, 'name' => $user->name, 'email' => $user->email, 'role' => $user->role->slug],
+            'return' => $payload['return'] ?? '/dashboard',
+        ]]);
     }
 
     private function clearAdminState(Request $request): void

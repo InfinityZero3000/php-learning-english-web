@@ -30,10 +30,6 @@ class SocialController extends Controller
         if ($adminMode === 'login') {
             return app(AdminGoogleAuthController::class)->callback($request, app(AdminGoogleAccess::class));
         }
-        if ($adminMode === 'reauthenticate') {
-            return app(AdminGoogleAuthController::class)->reauthenticateCallback($request, app(AdminGoogleAccess::class));
-        }
-
         $googleUser = Socialite::driver('google')->user();
         $user = $this->loginSocialUser(
             $googleUser->getEmail(),
