@@ -5,7 +5,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { auth } from '@/lib/api';
 
 const errors: Record<string, string> = {
-  denied: 'Tài khoản Google này không nằm trong whitelist quản trị.',
+  denied: 'Tài khoản Google này không có quyền truy cập trang quản trị.',
   configuration: 'Đăng nhập quản trị chưa được cấu hình. Vui lòng liên hệ người vận hành.',
 };
 
@@ -38,7 +38,6 @@ function LoginCard() {
           <h1 className="mt-5 font-display text-5xl font-bold leading-[1.08]">Vận hành việc học,<br />không làm gián đoạn người học.</h1>
           <p className="mt-6 max-w-lg text-lg font-semibold leading-relaxed text-sky-100">Quản lý khóa học, người dùng và hệ thống AI từ một không gian bảo mật riêng.</p>
         </div>
-        <p className="relative z-10 text-sm font-bold text-sky-100">Google-only access · Environment whitelist</p>
       </section>
 
       <section className="flex items-center justify-center p-5 sm:p-10">
@@ -52,9 +51,8 @@ function LoginCard() {
             <div className="grid h-12 w-12 place-items-center rounded-xl bg-[#e8f4ff] text-[#006590]">
               <span className="material-symbols-outlined text-3xl">shield_lock</span>
             </div>
-            <p className="mt-6 text-xs font-black uppercase tracking-[0.18em] text-[#006590]">Protected access</p>
-            <h2 className="mt-2 font-display text-3xl font-bold text-[#1b1c1c]">Đăng nhập quản trị</h2>
-            <p className="mt-3 text-sm font-semibold leading-relaxed text-[#56636d]">Dùng tài khoản Google nằm trong whitelist admin hoặc super admin. Không hỗ trợ đăng nhập bằng mật khẩu.</p>
+            <h2 className="mt-6 font-display text-3xl font-bold text-[#1b1c1c]">Đăng nhập quản trị</h2>
+            <p className="mt-3 text-sm font-semibold leading-relaxed text-[#56636d]">Tiếp tục bằng tài khoản Google được cấp quyền quản trị.</p>
 
             {(message || handoffError) && (
               <div role="alert" className="mt-5 rounded-xl border-2 border-[#ffb4ab] bg-[#fff0ee] p-4 text-sm font-bold text-[#93000a]">{message || handoffError}</div>
@@ -65,10 +63,6 @@ function LoginCard() {
               {handoff ? 'Đang hoàn tất đăng nhập…' : 'Tiếp tục với Google'}
             </a>
 
-            <div className="mt-7 flex items-start gap-3 border-t-2 border-[#e3e8ec] pt-5 text-xs font-semibold leading-relaxed text-[#56636d]">
-              <span className="material-symbols-outlined text-lg text-[#006590]">verified_user</span>
-              Quyền và whitelist được kiểm tra lại trên mỗi API request.
-            </div>
           </div>
         </div>
       </section>

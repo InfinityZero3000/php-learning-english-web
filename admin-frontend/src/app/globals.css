@@ -141,6 +141,20 @@ body {
 
 .admin-icon-button:hover { background: #f0eeee; color: #006590; }
 
+.admin-menu-toggle,
+.admin-menu-toggle .material-symbols-outlined {
+  transition: left 180ms ease, transform 180ms ease;
+}
+
+.admin-menu-toggle-open {
+  position: fixed;
+  top: 1.15rem;
+  left: min(calc(100vw - 6rem), 17rem);
+  z-index: 60;
+}
+
+.admin-menu-toggle-open .material-symbols-outlined { transform: rotate(90deg); }
+
 .admin-avatar {
   display: grid;
   height: 2.6rem;

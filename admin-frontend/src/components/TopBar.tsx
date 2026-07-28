@@ -8,10 +8,11 @@ import { auth, type User } from '@/lib/api';
 interface TopBarProps {
   title?: string;
   user: User;
+  menuOpen: boolean;
   onMenu: () => void;
 }
 
-export default function TopBar({ title, user, onMenu }: TopBarProps) {
+export default function TopBar({ title, user, menuOpen, onMenu }: TopBarProps) {
   const router = useRouter();
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -31,8 +32,14 @@ export default function TopBar({ title, user, onMenu }: TopBarProps) {
   return (
     <header className="admin-topbar">
       <div className="flex min-w-0 items-center gap-3">
-        <button type="button" onClick={onMenu} className="admin-icon-button lg:hidden" aria-label="Mở menu quản trị">
-          <span className="material-symbols-outlined">menu</span>
+        <button
+          type="button"
+          onClick={onMenu}
+          className={`admin-icon-button admin-menu-toggle lg:hidden ${menuOpen ? 'admin-menu-toggle-open' : ''}`}
+          aria-label={menuOpen ? 'Đóng menu quản trị' : 'Mở menu quản trị'}
+          aria-expanded={menuOpen}
+        >
+          <span className="material-symbols-outlined">{menuOpen ? 'close' : 'menu'}</span>
         </button>
         <div className="min-w-0">
           <p className="hidden text-[10px] font-black uppercase tracking-[0.18em] text-[#006590] sm:block">Control center</p>

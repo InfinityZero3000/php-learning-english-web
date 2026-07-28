@@ -21,14 +21,11 @@ export default function Sidebar({ role, open, onClose }: { role?: string | null;
     <>
       {open && <button type="button" className="fixed inset-0 z-40 bg-black/30 lg:hidden" onClick={onClose} aria-label="Đóng menu" />}
       <aside className={`admin-sidebar ${open ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
-        <div className="flex items-start justify-between px-6 pb-7 pt-6">
+        <div className="px-6 pb-7 pt-6">
           <Link href="/dashboard" onClick={onClose}>
             <span className="font-display text-[30px] font-bold leading-none text-[#006590]">Linguist</span>
             <span className="mt-2 block text-[10px] font-black uppercase tracking-[0.19em] text-[#56636d]">Admin control center</span>
           </Link>
-          <button type="button" onClick={onClose} className="admin-icon-button lg:hidden" aria-label="Đóng menu quản trị">
-            <span className="material-symbols-outlined">close</span>
-          </button>
         </div>
 
         <nav
@@ -55,10 +52,6 @@ export default function Sidebar({ role, open, onClose }: { role?: string | null;
           ))}
         </nav>
 
-        <div className="mx-4 mb-4 rounded-xl border-2 border-[#bdc8d2] bg-[#f5f3f3] px-4 py-3">
-          <p className="text-[10px] font-black uppercase tracking-wider text-[#006590]">Protected access</p>
-          <p className="mt-1 text-xs font-semibold text-[#56636d]">{role === 'super_admin' ? 'Super Admin' : 'Admin'} · Google whitelist</p>
-        </div>
       </aside>
     </>
   );

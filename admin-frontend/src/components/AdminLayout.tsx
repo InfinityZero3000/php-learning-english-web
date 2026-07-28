@@ -60,7 +60,7 @@ export default function AdminLayout({ children, title, requiredRole }: AdminLayo
     <div className="admin-shell min-h-screen">
       <Sidebar role={user?.role} open={menuOpen} onClose={() => setMenuOpen(false)} />
       <main className="min-h-screen lg:ml-64">
-        <TopBar title={title} user={user!} onMenu={() => setMenuOpen(true)} />
+        <TopBar title={title} user={user!} menuOpen={menuOpen} onMenu={() => setMenuOpen((open) => !open)} />
         <div className="mx-auto w-full max-w-7xl px-4 pb-10 pt-24 sm:px-6 lg:px-10 lg:pt-28">
           {children}
         </div>
