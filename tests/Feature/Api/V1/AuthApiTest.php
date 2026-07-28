@@ -35,13 +35,33 @@ class AuthApiTest extends TestCase
         ])->assertForbidden()->assertJsonPath('code', 'EMAIL_UNVERIFIED');
 
         $user->markEmailAsVerified();
+        $this->assertNull($user->fresh()->last_login_at);
         $this->postJson('/api/v1/auth/login', [
             'email' => $user->email,
             'password' => 'password123',
         ])->assertOk()->assertJsonPath('data.role', 'learner');
+        $this->assertNotNull($user->fresh()->last_login_at);
 
         $this->getJson('/api/v1/auth/me')->assertOk()->assertJsonPath('data.email', $user->email);
         $this->postJson('/api/v1/auth/logout')->assertNoContent();
+        $this->getJson('/api/v1/auth/me')->assertUnauthorized();
+    }
+
+    public function test_locked_account_cannot_log_in(): void
+    {
+        $this->seed();
+        $user = User::factory()->create([
+            'role_id' => Role::where('slug', 'learner')->value('id'),
+            'password' => bcrypt('password123'),
+            'email_verified_at' => now(),
+            'locked_at' => now(),
+        ]);
+
+        $this->postJson('/api/v1/auth/login', [
+            'email' => $user->email,
+            'password' => 'password123',
+        ])->assertForbidden()->assertJsonPath('code', 'ACCOUNT_LOCKED');
+
         $this->getJson('/api/v1/auth/me')->assertUnauthorized();
     }
 }
