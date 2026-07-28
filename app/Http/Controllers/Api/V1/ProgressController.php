@@ -42,6 +42,8 @@ class ProgressController extends Controller
 
     public function courseProgress(Request $request, Course $course): JsonResponse
     {
+        abort_unless($course->status === 'published', 404);
+
         $userId = $request->user()->id;
         $lessons = $course->lessons()->where('status', 'published')->orderBy('sort_order')->get();
         $completedLessonIds = Progress::where('user_id', $userId)
@@ -108,6 +110,12 @@ class ProgressController extends Controller
 
     public function markCompleted(Request $request, Lesson $lesson): JsonResponse
     {
+        abort_unless(
+            $lesson->status === 'published'
+            && $lesson->course()->where('status', 'published')->exists(),
+            404,
+        );
+
         $userId = $request->user()->id;
 
         Progress::firstOrCreate([

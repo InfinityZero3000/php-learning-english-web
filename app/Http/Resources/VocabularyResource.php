@@ -21,6 +21,7 @@ class VocabularyResource extends JsonResource
             'difficulty_level' => $this->difficulty_level,
             'tags' => $this->tags,
             'external_audio_url' => $this->external_audio_url,
+            'image_url' => $this->image_path,
         ];
     }
 }

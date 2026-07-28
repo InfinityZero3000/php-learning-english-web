@@ -10,6 +10,7 @@ use App\Models\Vocabulary;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class BookmarkApiController extends Controller
 {
@@ -39,50 +40,46 @@ class BookmarkApiController extends Controller
 
     public function toggleVocabulary(Request $request, Vocabulary $vocabulary): JsonResponse
     {
-        $userId = $request->user()->id;
-
-        $existing = Bookmark::where('user_id', $userId)
-            ->where('vocabulary_id', $vocabulary->id)
-            ->where('bookmark_type', 'vocabulary')
-            ->first();
-
-        if ($existing) {
-            $existing->delete();
-
-            return ApiResponse::success(['status' => 'unbookmarked']);
-        }
-
-        Bookmark::create([
-            'user_id' => $userId,
+        return $this->toggle($request, [
             'vocabulary_id' => $vocabulary->id,
             'bookmark_type' => 'vocabulary',
         ]);
-
-        return ApiResponse::success(['status' => 'bookmarked'], 201);
     }
 
     public function toggleLesson(Request $request, Lesson $lesson): JsonResponse
     {
-        $userId = $request->user()->id;
-
-        $existing = Bookmark::where('user_id', $userId)
-            ->where('lesson_id', $lesson->id)
-            ->where('bookmark_type', 'lesson')
-            ->first();
-
-        if ($existing) {
-            $existing->delete();
-
-            return ApiResponse::success(['status' => 'unbookmarked']);
-        }
-
-        Bookmark::create([
-            'user_id' => $userId,
+        return $this->toggle($request, [
             'vocabulary_id' => null,
             'lesson_id' => $lesson->id,
             'bookmark_type' => 'lesson',
         ]);
+    }
 
-        return ApiResponse::success(['status' => 'bookmarked'], 201);
+    private function toggle(Request $request, array $attributes): JsonResponse
+    {
+        return DB::transaction(function () use ($request, $attributes): JsonResponse {
+            $userId = $request->user()->id;
+            $request->user()->newQuery()->whereKey($userId)->lockForUpdate()->firstOrFail();
+
+            $bookmark = Bookmark::query()
+                ->where('user_id', $userId)
+                ->where('bookmark_type', $attributes['bookmark_type'])
+                ->when(
+                    $attributes['bookmark_type'] === 'lesson',
+                    fn ($query) => $query->where('lesson_id', $attributes['lesson_id']),
+                    fn ($query) => $query->where('vocabulary_id', $attributes['vocabulary_id']),
+                )
+                ->first();
+
+            if ($bookmark) {
+                $bookmark->delete();
+
+                return ApiResponse::success(['status' => 'unbookmarked']);
+            }
+
+            Bookmark::create(['user_id' => $userId, ...$attributes]);
+
+            return ApiResponse::success(['status' => 'bookmarked'], 201);
+        }, 3);
     }
 }

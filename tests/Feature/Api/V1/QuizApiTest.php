@@ -138,6 +138,33 @@ class QuizApiTest extends TestCase
             ->assertJsonValidationErrors(['answers']);
     }
 
+    public function test_duplicate_question_cannot_inflate_score(): void
+    {
+        $this->actingAs($this->user);
+        $question = Question::where('quiz_id', $this->quiz1Id)->firstOrFail();
+        $answer = Answer::where('question_id', $question->id)->where('is_correct', true)->firstOrFail();
+
+        $this->postJson("/api/v1/quizzes/{$this->quiz1Id}/submit", ['answers' => [
+            ['question_id' => $question->id, 'answer_id' => $answer->id],
+            ['question_id' => $question->id, 'answer_id' => $answer->id],
+        ]])->assertUnprocessable()->assertJsonValidationErrors('answers.1.question_id');
+
+        $this->assertDatabaseMissing('attempts', [
+            'user_id' => $this->user->id,
+            'quiz_id' => $this->quiz1Id,
+        ]);
+    }
+
+    public function test_draft_quiz_cannot_be_viewed_or_submitted(): void
+    {
+        $this->actingAs($this->user);
+        Quiz::whereKey($this->quiz1Id)->update(['status' => 'draft']);
+
+        $this->getJson("/api/v1/quizzes/{$this->quiz1Id}")->assertNotFound();
+        $this->postJson("/api/v1/quizzes/{$this->quiz1Id}/submit", ['answers' => []])->assertNotFound();
+        $this->getJson("/api/v1/quizzes/{$this->quiz1Id}/history")->assertNotFound();
+    }
+
     public function test_user_can_view_quiz_history(): void
     {
         $this->actingAs($this->user);

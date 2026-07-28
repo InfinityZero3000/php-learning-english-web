@@ -62,6 +62,8 @@ class CatalogController extends Controller
 
     public function course(Course $course): JsonResponse
     {
+        abort_unless($course->status === 'published', 404);
+
         $course->load(['level', 'category', 'topics']);
         $course->loadCount('lessons', 'units');
 
@@ -74,7 +76,8 @@ class CatalogController extends Controller
         $query = Lesson::query()
             ->with('course')
             ->withCount('quizzes', 'vocabularies')
-            ->where('status', 'published');
+            ->where('status', 'published')
+            ->whereHas('course', fn ($course) => $course->where('status', 'published'));
 
         if ($search = $request->string('search')->trim()->toString()) {
             $query->where('title', 'like', "%{$search}%");
@@ -105,6 +108,12 @@ class CatalogController extends Controller
 
     public function lesson(Lesson $lesson): JsonResponse
     {
+        abort_unless(
+            $lesson->status === 'published'
+            && $lesson->course()->where('status', 'published')->exists(),
+            404,
+        );
+
         $lesson->load(['course', 'quizzes', 'vocabularies']);
         $lesson->loadCount('quizzes', 'vocabularies');
 
@@ -113,6 +122,8 @@ class CatalogController extends Controller
 
     public function courseLessons(Request $request, Course $course): JsonResponse
     {
+        abort_unless($course->status === 'published', 404);
+
         $perPage = min(100, max(1, $request->integer('per_page', 20)));
         $query = $course->lessons()
             ->with('course')

@@ -78,6 +78,18 @@ class ProgressApiTest extends TestCase
             ->count());
     }
 
+    public function test_user_cannot_complete_draft_lesson(): void
+    {
+        $this->actingAs($this->user);
+        $draftLesson = Lesson::where('status', 'draft')->firstOrFail();
+
+        $this->postJson("/api/v1/progress/lesson/{$draftLesson->id}/complete")->assertNotFound();
+        $this->assertDatabaseMissing('progress', [
+            'user_id' => $this->user->id,
+            'lesson_id' => $draftLesson->id,
+        ]);
+    }
+
     public function test_user_can_view_my_progress(): void
     {
         $this->actingAs($this->user);
@@ -128,6 +140,14 @@ class ProgressApiTest extends TestCase
             ->assertJsonPath('data.completed_lessons', 1)
             ->assertJsonPath('data.total_lessons', 2)
             ->assertJsonPath('data.progress_percent', 50);
+    }
+
+    public function test_course_progress_is_not_available_for_draft_course(): void
+    {
+        $this->actingAs($this->user);
+        Course::whereKey($this->course1Id)->update(['status' => 'draft']);
+
+        $this->getJson("/api/v1/progress/course/{$this->course1Id}")->assertNotFound();
     }
 
     public function test_dashboard_returns_overview(): void
