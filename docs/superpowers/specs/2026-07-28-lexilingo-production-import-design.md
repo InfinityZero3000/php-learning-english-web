@@ -17,9 +17,14 @@ database migration. Schema migrations must remain deterministic and must not
 depend on network availability. The production deployment sequence is:
 
 1. run database migrations;
-2. deploy application code;
-3. run or resume the bounded LexiLingo import command;
-4. verify local catalog counts and failed-item records.
+2. deploy application code with importer and import UI disabled;
+3. probe credentials, partner health and contract compatibility;
+4. run a dry-run that cannot write catalog rows or checkpoints;
+5. run a bounded import and verify counts, checkpoints and failures;
+6. enable the importer/UI feature flag.
+
+Rollback disables the importer/UI flag and application jobs first. Imported
+catalog rows remain locally available; rollback never deletes learning state.
 
 ## Import Workflow
 
@@ -27,30 +32,65 @@ Extend the existing `lexilingo:import` command rather than creating a second
 import framework. It imports in dependency order:
 
 1. categories;
-2. courses with nested units, lessons and lesson content;
-3. vocabulary.
+2. courses;
+3. units resolved to an imported course;
+4. lessons and lesson content resolved to imported units/courses;
+5. vocabulary resolved to its imported lesson where supplied.
 
 The command supports bounded production execution through:
 
 - `--page-size` for upstream page size;
-- `--max-items` for the maximum records processed in one invocation;
+- `--max-items` for the maximum top-level records processed across the whole
+  invocation;
 - `--delay-ms` for the minimum pause between upstream requests;
 - `--max-retries` for transient retry attempts;
-- `--resume` to continue from durable checkpoints;
+- `--resume` to continue the latest compatible incomplete run;
 - existing dry-run and reset behavior, with reset treated as privileged.
+
+Each run stores a UUID, state (`pending`, `running`, `partial`, `completed`,
+`failed`), requested resources, source/schema version and a fingerprint of
+page size, ordering and filters. Each resource checkpoint stores the upstream
+cursor/page and stable `external_id` ordering position. Resume selects only
+the latest incomplete run with the same fingerprint and source/schema version;
+otherwise it returns a configuration conflict. Dry-run never creates or
+advances a checkpoint.
+
+The item bound is checked between top-level records. The current record and
+its nested content commit atomically, so the command never stops halfway
+through a course. Reaching the bound produces resumable `partial` success and
+exit code `0`; exhausted retries or contract errors produce `failed` and exit
+code `1`; validation failures produce a completed/partial run with warnings.
 
 Imported rows use LexiLingo `external_id` as the stable upsert key. Re-running
 an import must update the same local records without duplicates. A checkpoint
-is advanced only after the corresponding local transaction commits.
+is advanced only after the corresponding local transaction commits. A
+complete snapshot marks missing upstream catalog records archived only when
+all requested pages completed without transport, contract or validation
+failures. “Archived validation failure” means a redacted failure record, never
+archiving the corresponding local catalog row.
+
+Upstream-owned fields are category name/slug, course title/description/
+language/media/duration/XP, unit title/description/order/presentation,
+lesson title/order/type/XP/content/duration/pass threshold, and vocabulary
+word/definition/translation/pronunciation/part of speech/difficulty/tags/audio.
+Local publication state, teacher content annotations, enrollment, progress,
+assignments, learning events, FSRS state and reviews are never overwritten.
 
 ## Rate Limits and Failure Handling
 
-All partner calls share one throttled request path. The client enforces the
-configured minimum delay between requests. HTTP `429` respects `Retry-After`;
-`429` and transient `5xx` responses use bounded exponential backoff with
-jitter. Validation failures are archived and skipped. Exhausted transport
-retries are recorded with safe response metadata, preserve the last committed
-checkpoint and end the command with failure so operators can resume.
+All partner calls share one throttled request path. A distributed cache lock
+allows only one active import run across CLI and queue workers; a second start
+returns the existing run and HTTP `409` for a different request. The client
+enforces connect and total request timeouts plus the configured minimum delay.
+HTTP `429` supports both seconds and HTTP-date `Retry-After`; the larger of
+the server delay and local exponential backoff applies, capped by a configured
+maximum and jittered without exceeding that cap. `429` and transient `5xx`
+responses are retried; other `4xx` responses fail immediately.
+
+The limiter clock, sleeper and jitter source are injectable for deterministic
+tests. Validation failures create redacted failure records and are skipped.
+Exhausted transport retries preserve the last committed checkpoint and end
+the command with failure so operators can resume.
 
 Logs and failure records must redact credentials and avoid storing raw
 sensitive response headers.
@@ -61,11 +101,37 @@ Add an admin import interface backed by versioned `/api/v1/admin` endpoints.
 It shows local entity counts, checkpoints, the most recent failures and the
 latest run result.
 
+The OpenAPI contract adds:
+
+- `GET /api/v1/admin/imports` paginated run history;
+- `POST /api/v1/admin/imports` start a bounded run;
+- `GET /api/v1/admin/imports/{run}` status and aggregate counts;
+- `POST /api/v1/admin/imports/{run}/resume`;
+- `GET /api/v1/admin/imports/{run}/failures` paginated redacted failures;
+- `POST /api/v1/admin/imports/{run}/failures/{failure}/retry`;
+- `POST /api/v1/admin/imports/{run}/reset`.
+
+Mutations require CSRF and `X-Request-ID`. Identical request ID/payload replay
+returns the original result; a changed payload returns `409`. Start/resume
+returns `202`, status/list returns `200`, validation returns `422`,
+unauthenticated `401`, unauthorized `403`, incompatible resume or active-run
+conflict `409`, and unavailable integration `503`. Responses never contain
+credentials, raw headers or unbounded upstream bodies.
+
 An admin may start or resume a normal import. Resetting a checkpoint or
 retrying archived failures requires `super_admin`, recent password
-confirmation and an idempotency request ID. The UI must expose loading,
+confirmation and an idempotency request ID. Only the actor who started a run
+or a super admin may mutate it. The UI must expose loading,
 running, success, partial-failure and unavailable states without polling more
-often than necessary.
+often than every five seconds; after one minute it backs off to fifteen
+seconds and stops on a terminal state or hidden browser tab.
+
+Reset requires a typed CLI confirmation unless `--force` is supplied in a
+non-interactive deployment; API reset requires recent password confirmation.
+Retry targets one unresolved failure belonging to the run. Failures are
+deduplicated by run/resource/external ID/error fingerprint and transition to
+resolved only after a successful retry. Starts, resumes, resets and retries
+write payload-bound audit events.
 
 Long imports execute through the configured queue. If production currently
 uses the synchronous queue, the command remains the supported deployment
@@ -122,4 +188,3 @@ The implementation must include:
   succeeds;
 - browser smoke tests for learner voice/tutor/review flows and admin catalog,
   import and operations pages when browser automation is available.
-
