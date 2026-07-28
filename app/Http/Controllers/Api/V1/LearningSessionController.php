@@ -3,8 +3,12 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\LearningEvent;
 use App\Models\LearningSession;
+use App\Models\UserVocabulary;
+use App\Models\Vocabulary;
 use App\Services\LearningSessionService;
+use App\Services\SupervisionAlertService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -40,6 +44,47 @@ class LearningSessionController extends Controller
     public function complete(Request $request, LearningSession $session, LearningSessionService $sessions): JsonResponse
     {
         return ApiResponse::success($this->payload($sessions->complete($request->user(), $session, $this->requestId($request))));
+    }
+
+    public function attempt(Request $request, LearningSession $session): JsonResponse
+    {
+        abort_unless($session->user_id === $request->user()->id && $session->status === 'active', 403);
+        $requestId = $this->requestId($request);
+        $data = $request->validate([
+            'activity_id' => ['required', 'string', 'max:128'],
+            'answer' => ['required', 'string', 'max:2000'],
+            'duration_ms' => ['required', 'integer', 'min:0', 'max:3600000'],
+            'hint_count' => ['required', 'integer', 'min:0', 'max:100'],
+        ]);
+        $existing = LearningEvent::query()->where('request_id', $requestId)->where('user_id', $request->user()->id)->first();
+        if ($existing) {
+            return ApiResponse::success(['event_id' => $existing->id, 'is_correct' => $existing->is_correct]);
+        }
+        $vocabularyId = str_starts_with($data['activity_id'], 'vocabulary:')
+            ? (int) substr($data['activity_id'], 11) : 0;
+        $vocabulary = Vocabulary::query()->whereKey($vocabularyId)->where('lesson_id', $session->lesson_id)->firstOrFail();
+        $correct = mb_strtolower(trim($data['answer'])) === mb_strtolower(trim($vocabulary->meaning));
+        $event = LearningEvent::create([
+            'learning_session_id' => $session->id,
+            'user_id' => $request->user()->id,
+            'event_type' => 'answer',
+            'request_id' => $requestId,
+            'response' => $data['answer'],
+            'is_correct' => $correct,
+            'hint_level' => $data['hint_count'],
+            'duration_ms' => $data['duration_ms'],
+            'occurred_at' => now('UTC'),
+            'metadata' => ['activity_id' => $data['activity_id'], 'vocabulary_id' => $vocabulary->id],
+        ]);
+        if (($session->summary['vocabulary_id'] ?? null) === null) {
+            UserVocabulary::firstOrCreate(
+                ['user_id' => $request->user()->id, 'vocabulary_id' => $vocabulary->id],
+                ['due_at' => now('UTC')],
+            );
+        }
+        app(SupervisionAlertService::class)->evaluate($request->user());
+
+        return ApiResponse::success(['event_id' => $event->id, 'is_correct' => $correct]);
     }
 
     private function payload(LearningSession $session): array

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Admin\OperationsController;
 use App\Http\Controllers\Api\V1\AiProxyController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\CatalogController;
@@ -10,6 +11,7 @@ use App\Http\Controllers\Api\V1\LearningSessionController;
 use App\Http\Controllers\Api\V1\PasswordController;
 use App\Http\Controllers\Api\V1\ProfileController;
 use App\Http\Controllers\Api\V1\ProgressController;
+use App\Http\Controllers\Api\V1\TeacherController;
 use App\Http\Controllers\Api\V1\TraceCagController;
 use App\Http\Controllers\Api\V1\VocabularyController;
 use App\Support\HealthCheck;
@@ -63,6 +65,7 @@ Route::prefix('api/v1')->group(function (): void {
         Route::get('/learning/plan', [LearningSessionController::class, 'plan']);
         Route::post('/learning/sessions', [LearningSessionController::class, 'store']);
         Route::get('/learning/sessions/{session}/next', [LearningSessionController::class, 'next']);
+        Route::post('/learning/sessions/{session}/attempts', [LearningSessionController::class, 'attempt']);
         Route::post('/learning/sessions/{session}/complete', [LearningSessionController::class, 'complete']);
         Route::get('/progress', [ProgressController::class, 'myProgress']);
         Route::get('/progress/dashboard', [ProgressController::class, 'dashboard']);
@@ -75,5 +78,21 @@ Route::prefix('api/v1')->group(function (): void {
             Route::post('/ai/text-to-speech', [AiProxyController::class, 'textToSpeech']);
             Route::post('/ai/trace-cag', [TraceCagController::class, 'analyze']);
         });
+        Route::get('/teacher/learners', [TeacherController::class, 'learners']);
+        Route::get('/teacher/learners/{learner}', [TeacherController::class, 'learner']);
+        Route::get('/teacher/learners/{learner}/progress', [TeacherController::class, 'progress']);
+        Route::get('/teacher/learners/{learner}/evidence', [TeacherController::class, 'evidence']);
+        Route::get('/teacher/alerts', [TeacherController::class, 'alerts']);
+        Route::get('/teacher/alerts/{alert}', [TeacherController::class, 'alert']);
+        Route::post('/teacher/alerts/{alert}/resolve', [TeacherController::class, 'resolve']);
+        Route::get('/teacher/assignments', [TeacherController::class, 'assignments']);
+        Route::post('/teacher/assignments', [TeacherController::class, 'createAssignment']);
+        Route::post('/teacher/intervention-notes', [TeacherController::class, 'note']);
+        Route::get('/admin/operations', [OperationsController::class, 'overview']);
+        Route::post('/admin/operations/service-probes', [OperationsController::class, 'probe']);
+        Route::get('/admin/operations/quotas', [OperationsController::class, 'quotas']);
+        Route::post('/admin/operations/quotas', [OperationsController::class, 'createQuota']);
+        Route::get('/admin/operations/alert-rules', [OperationsController::class, 'rules']);
+        Route::get('/admin/operations/audits', [OperationsController::class, 'audits']);
     });
 });
