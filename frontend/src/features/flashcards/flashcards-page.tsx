@@ -13,7 +13,7 @@ import { useToast } from "@/components/ui/toast";
 import { ApiError, api } from "@/lib/api";
 import { useAuth } from "@/features/auth/auth-context";
 import { loginHref } from "@/features/auth/route-policy";
-import type { TrustedFlashcard, UserProgress } from "@/types/api";
+import type { TrustedFlashcard, UserProgress, Word } from "@/types/api";
 
 const TRUSTED_INITIAL = 3;
 const TRUSTED_BATCH = 3;
@@ -56,7 +56,7 @@ export function FlashcardsPage() {
   const load = useCallback(async () => {
     const [dueWords, catalog] = await Promise.all([
       status === "authenticated" ? api.dueWords(30).catch(() => []) : Promise.resolve([]),
-      api.publicVocabulary({ search: searchQuery, perPage: 100 }).catch(() => ({ words: [], meta: {} }))
+      api.publicVocabulary({ search: searchQuery, perPage: 100 }).catch(() => ({ words: [] as Word[], meta: {} }))
     ]);
     const cards = catalog.words.map((word) => ({ id: word.id, word: word.word, translation: word.translation }));
     setDue(dueWords);
