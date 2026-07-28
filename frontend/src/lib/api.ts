@@ -102,7 +102,7 @@ interface ApiEnvelope<T> {
   meta?: Record<string, unknown>;
 }
 
-interface PaginationMeta {
+export interface PaginationMeta {
   current_page?: number;
   last_page?: number;
   per_page?: number;
@@ -111,7 +111,7 @@ interface PaginationMeta {
 
 // --- Type imports -----------------------------------------------------------
 
-import type { AppUser } from "@/types/api";
+import type { AppUser, ImportJob, ImportRow, Topic, TrustedFlashcard, UserProgress, Word } from "@/types/api";
 
 // --- Auth -------------------------------------------------------------------
 
@@ -481,20 +481,20 @@ export async function markLessonCompleted(lessonId: number): Promise<ApiEnvelope
 
 // --- Flashcards --------------------------------------------------------------
 
-export async function dueWords(count: number): Promise<unknown[]> {
-  const result = await apiRequest<ApiEnvelope<unknown[]>>("GET", `/api/v1/flashcards/due?count=${count}`);
+export async function dueWords(count: number): Promise<UserProgress[]> {
+  const result = await apiRequest<ApiEnvelope<UserProgress[]>>("GET", `/api/v1/flashcards/due?count=${count}`);
   return result.data;
 }
 
 export async function publicVocabulary(params: {
   search?: string;
   perPage?: number;
-}): Promise<{ words: unknown[]; meta: PaginationMeta }> {
+}): Promise<{ words: Word[]; meta: PaginationMeta }> {
   const searchParams = new URLSearchParams();
   if (params.search) searchParams.set("search", params.search);
   if (params.perPage) searchParams.set("per_page", String(params.perPage));
   const qs = searchParams.toString();
-  return apiRequest("GET", `/api/v1/vocabulary/public${qs ? `?${qs}` : ""}`);
+  return apiRequest<{ words: Word[]; meta: PaginationMeta }>("GET", `/api/v1/vocabulary/public${qs ? `?${qs}` : ""}`);
 }
 
 export async function reviewWord(wordId: number, rating: number, timeSpent: number): Promise<void> {
@@ -513,8 +513,8 @@ export async function checkInStreak(): Promise<{ streak: number } | undefined> {
   }
 }
 
-export async function importFlashcards(source: string, query: string): Promise<unknown[]> {
-  const result = await apiRequest<ApiEnvelope<unknown[]>>("POST", "/api/v1/flashcards/import", {
+export async function importFlashcards(source: string, query: string): Promise<TrustedFlashcard[]> {
+  const result = await apiRequest<ApiEnvelope<TrustedFlashcard[]>>("POST", "/api/v1/flashcards/import", {
     source,
     query,
   });
@@ -527,18 +527,18 @@ export async function saveFlashcard(flashcardId: number): Promise<void> {
 
 // --- Import ------------------------------------------------------------------
 
-export async function topics(): Promise<unknown[]> {
-  const result = await apiRequest<ApiEnvelope<unknown[]>>("GET", "/api/v1/import/topics");
+export async function topics(): Promise<Topic[]> {
+  const result = await apiRequest<ApiEnvelope<Topic[]>>("GET", "/api/v1/import/topics");
   return result.data;
 }
 
-export async function importJobs(): Promise<unknown[]> {
-  const result = await apiRequest<ApiEnvelope<unknown[]>>("GET", "/api/v1/import/jobs");
+export async function importJobs(): Promise<ImportJob[]> {
+  const result = await apiRequest<ApiEnvelope<ImportJob[]>>("GET", "/api/v1/import/jobs");
   return result.data;
 }
 
-export async function translateRows(rows: unknown[]): Promise<{ rows: unknown[] }> {
-  const result = await apiRequest<ApiEnvelope<{ rows: unknown[] }>>("POST", "/api/v1/import/translate", { rows });
+export async function translateRows(rows: ImportRow[]): Promise<{ rows: ImportRow[] }> {
+  const result = await apiRequest<ApiEnvelope<{ rows: ImportRow[] }>>("POST", "/api/v1/import/translate", { rows });
   return result.data;
 }
 

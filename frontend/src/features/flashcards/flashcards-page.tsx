@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/toast";
-import { ApiError, api } from "@/lib/api";
+import { ApiError, api, type PaginationMeta } from "@/lib/api";
 import { useAuth } from "@/features/auth/auth-context";
 import { loginHref } from "@/features/auth/route-policy";
 import type { TrustedFlashcard, UserProgress, Word } from "@/types/api";
@@ -56,7 +56,7 @@ export function FlashcardsPage() {
   const load = useCallback(async () => {
     const [dueWords, catalog] = await Promise.all([
       status === "authenticated" ? api.dueWords(30).catch(() => []) : Promise.resolve([]),
-      api.publicVocabulary({ search: searchQuery, perPage: 100 }).catch(() => ({ words: [] as Word[], meta: {} }))
+      api.publicVocabulary({ search: searchQuery, perPage: 100 }).catch(() => ({ words: [] as Word[], meta: {} as PaginationMeta }))
     ]);
     const cards = catalog.words.map((word) => ({ id: word.id, word: word.word, translation: word.translation }));
     setDue(dueWords);
