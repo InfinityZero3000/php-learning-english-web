@@ -1,5 +1,9 @@
 <?php
 
+use App\Http\Controllers\Api\V1\Admin\CourseCategoryController;
+use App\Http\Controllers\Api\V1\Admin\LevelController;
+use App\Http\Controllers\Api\V1\Admin\MediaController;
+use App\Http\Controllers\Api\V1\Admin\TopicController;
 use App\Http\Controllers\Api\V1\AiProxyController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BookmarkApiController;
@@ -91,5 +95,18 @@ Route::prefix('api/v1')->group(function (): void {
         Route::get('/progress/dashboard', [ProgressController::class, 'dashboard']);
         Route::get('/progress/course/{course}', [ProgressController::class, 'courseProgress']);
         Route::post('/progress/lesson/{lesson}/complete', [ProgressController::class, 'markCompleted']);
+    });
+
+    // Admin taxonomy routes
+    Route::middleware('auth')->prefix('admin')->withoutMiddleware([
+        PreventRequestForgery::class,
+    ])->group(function (): void {
+        Route::apiResource('topics', TopicController::class);
+        Route::apiResource('levels', LevelController::class);
+        Route::apiResource('categories', CourseCategoryController::class);
+
+        // Media
+        Route::post('/media/upload', [MediaController::class, 'upload']);
+        Route::delete('/media/{path?}', [MediaController::class, 'destroy'])->where('path', '.*');
     });
 });
