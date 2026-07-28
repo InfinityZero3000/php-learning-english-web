@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import AdminLayout from '@/components/AdminLayout';
+import { auditLogs } from '@/lib/api';
 
 type AuditAction = 'USER_LOCKED' | 'USER_UNLOCKED' | 'ROLE_CHANGED' | 'PASSWORD_RESET' | 'WORD_CREATED' | 'WORD_DELETED' | 'DECK_CREATED' | 'DECK_DELETED' | 'ADMIN_LOGIN' | 'SETTINGS_CHANGED';
 
@@ -30,21 +31,6 @@ const ACTION_STYLE: Record<AuditAction, { bg: string; color: string; icon: strin
   SETTINGS_CHANGED: { bg: '#efeded', color: '#3e4850', icon: 'settings' },
 };
 
-const MOCK_LOGS: AuditEntry[] = [
-  { id: 1, timestamp: '2026-05-31T10:42:00', action: 'USER_LOCKED', actor: 'admin@example.com', actorRole: 'ADMIN', resource: 'User #42', detail: 'Locked user account for policy violation', ip: '192.168.1.10', status: 'SUCCESS' },
-  { id: 2, timestamp: '2026-05-31T10:38:15', action: 'ROLE_CHANGED', actor: 'admin@example.com', actorRole: 'ADMIN', resource: 'User #38', detail: 'Changed role from USER to MODERATOR', ip: '192.168.1.10', status: 'SUCCESS' },
-  { id: 3, timestamp: '2026-05-31T10:15:02', action: 'WORD_CREATED', actor: 'mod@example.com', actorRole: 'MODERATOR', resource: 'Word #204', detail: 'Created flashcard: "ephemeral"', ip: '10.0.0.55', status: 'SUCCESS' },
-  { id: 4, timestamp: '2026-05-31T09:55:30', action: 'PASSWORD_RESET', actor: 'admin@example.com', actorRole: 'ADMIN', resource: 'User #17', detail: 'Temporary password generated and emailed', ip: '192.168.1.10', status: 'SUCCESS' },
-  { id: 5, timestamp: '2026-05-31T09:30:00', action: 'ADMIN_LOGIN', actor: 'admin@example.com', actorRole: 'ADMIN', resource: 'Auth', detail: 'Admin session started', ip: '192.168.1.10', status: 'SUCCESS' },
-  { id: 6, timestamp: '2026-05-30T22:14:08', action: 'DECK_DELETED', actor: 'admin@example.com', actorRole: 'ADMIN', resource: 'Deck #12', detail: 'Deleted deck "Test Set"', ip: '192.168.1.10', status: 'SUCCESS' },
-  { id: 7, timestamp: '2026-05-30T21:05:44', action: 'USER_UNLOCKED', actor: 'admin@example.com', actorRole: 'ADMIN', resource: 'User #42', detail: 'Account unlocked after appeal', ip: '192.168.1.10', status: 'SUCCESS' },
-  { id: 8, timestamp: '2026-05-30T18:30:00', action: 'SETTINGS_CHANGED', actor: 'admin@example.com', actorRole: 'ADMIN', resource: 'System Config', detail: 'Updated notification settings', ip: '192.168.1.10', status: 'SUCCESS' },
-  { id: 9, timestamp: '2026-05-30T15:22:10', action: 'WORD_DELETED', actor: 'mod@example.com', actorRole: 'MODERATOR', resource: 'Word #199', detail: 'Deleted duplicate word "recieve"', ip: '10.0.0.55', status: 'SUCCESS' },
-  { id: 10, timestamp: '2026-05-30T14:00:00', action: 'DECK_CREATED', actor: 'mod@example.com', actorRole: 'MODERATOR', resource: 'Deck #15', detail: 'Created deck "Advanced Business"', ip: '10.0.0.55', status: 'SUCCESS' },
-  { id: 11, timestamp: '2026-05-29T11:45:30', action: 'ROLE_CHANGED', actor: 'admin@example.com', actorRole: 'ADMIN', resource: 'User #25', detail: 'Changed role from MODERATOR to USER', ip: '192.168.1.10', status: 'SUCCESS' },
-  { id: 12, timestamp: '2026-05-29T09:10:05', action: 'PASSWORD_RESET', actor: 'admin@example.com', actorRole: 'ADMIN', resource: 'User #88', detail: 'Password reset requested by user', ip: '192.168.1.10', status: 'FAILED' },
-];
-
 const ALL_ACTIONS: AuditAction[] = ['USER_LOCKED', 'USER_UNLOCKED', 'ROLE_CHANGED', 'PASSWORD_RESET', 'WORD_CREATED', 'WORD_DELETED', 'DECK_CREATED', 'DECK_DELETED', 'ADMIN_LOGIN', 'SETTINGS_CHANGED'];
 
 function fmt(dt: string) {
@@ -53,10 +39,30 @@ function fmt(dt: string) {
 }
 
 export default function AuditLogsPage() {
+  const [logs, setLogs] = useState<AuditEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [actionFilter, setActionFilter] = useState('');
   const [search, setSearch] = useState('');
 
-  const filtered = MOCK_LOGS.filter(log => {
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await auditLogs.list() as AuditEntry[];
+      setLogs(res.map(log => ({ ...log, detail: log.detail ?? '' })));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load audit logs');
+      setLogs([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void load(); }, [load]);
+
+  const filtered = logs.filter(log => {
     const matchAction = !actionFilter || log.action === actionFilter;
     const matchSearch = !search || log.actor.includes(search) || log.resource.toLowerCase().includes(search.toLowerCase()) || log.detail.toLowerCase().includes(search.toLowerCase());
     return matchAction && matchSearch;
@@ -73,11 +79,20 @@ export default function AuditLogsPage() {
               Immutable trail of all admin and moderator actions
             </p>
           </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-xl" style={{ backgroundColor: '#ffdf92', border: '2px solid #f4bf00' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#594400' }}>info</span>
-            <span className="text-xs font-bold" style={{ color: '#594400' }}>Demo data — wire to /api/admin/audit-logs</span>
-          </div>
         </div>
+
+        {/* Error banner */}
+        {error && (
+          <div className="rounded-2xl p-4 flex items-center gap-3"
+            style={{ backgroundColor: '#ffdad6', border: '2px solid #ba1a1a' }}>
+            <span className="material-symbols-outlined" style={{ color: '#ba1a1a' }}>error</span>
+            <p className="text-sm font-bold" style={{ color: '#ba1a1a' }}>{error}</p>
+            <button onClick={load} className="ml-auto text-xs font-bold px-3 py-1 rounded-lg"
+              style={{ backgroundColor: '#ba1a1a', color: '#ffffff' }}>
+              Retry
+            </button>
+          </div>
+        )}
 
         {/* Filters */}
         <div className="flex flex-wrap gap-3">
@@ -112,7 +127,12 @@ export default function AuditLogsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 ? (
+                {loading ? (
+                  <tr><td colSpan={7} className="p-10 text-center">
+                    <span className="material-symbols-outlined text-4xl block mb-2 animate-spin" style={{ color: '#bdc8d2' }}>progress_activity</span>
+                    <p className="text-sm font-medium" style={{ color: '#3e4850' }}>Loading audit logs...</p>
+                  </td></tr>
+                ) : filtered.length === 0 ? (
                   <tr><td colSpan={7} className="p-10 text-center">
                     <span className="material-symbols-outlined text-4xl block mb-2" style={{ color: '#bdc8d2' }}>manage_history</span>
                     <p className="text-sm font-medium" style={{ color: '#3e4850' }}>No audit events match your filters.</p>
@@ -147,7 +167,7 @@ export default function AuditLogsPage() {
             </table>
           </div>
           <div className="px-5 py-4 flex items-center justify-between" style={{ borderTop: '2px solid #bdc8d2', backgroundColor: '#f5f3f3' }}>
-            <span className="text-xs font-bold" style={{ color: '#6e7881' }}>Showing {filtered.length} of {MOCK_LOGS.length} events</span>
+            <span className="text-xs font-bold" style={{ color: '#6e7881' }}>Showing {filtered.length} of {logs.length} events</span>
             <span className="text-xs font-medium" style={{ color: '#6e7881' }}>Logs are retained for 90 days</span>
           </div>
         </div>

@@ -143,6 +143,57 @@ khi hai Next.js app được chuyển đổi. Giao diện production cuối cùn
   /api/v1/voice/ready`, `POST /api/v1/voice/ticket` (thuộc luồng streaming
   thời gian thực, kiến trúc khác với proxy HTTP này).
 
+### Trạng thái xác minh 28/07/2026 — Issue #30 (quản lý người dùng, phân quyền, audit log)
+
+- `users` có thêm `locked_at`/`last_login_at`; đăng nhập session ghi
+  `last_login_at` và từ chối tài khoản đã khóa (`403 ACCOUNT_LOCKED`) trước
+  khi tạo session — nếu không, khóa tài khoản sẽ không có tác dụng thật.
+- Bảng `audit_logs` (actor snapshot theo email/role tại thời điểm ghi, action,
+  resource, detail, ip, status) và model `AuditLog::record()`; ghi cho cả 4
+  action `USER_LOCKED`/`USER_UNLOCKED`/`ROLE_CHANGED`/`PASSWORD_RESET`, không
+  bao giờ ghi mật khẩu thật vào `detail`.
+- API JSON `/api/admin/users` (list có search theo tên/email, filter
+  role/status, phân trang `page` 0-based), `/api/admin/users/{id}`,
+  `/api/admin/users/{id}/history`, `PUT .../lock`, `PUT .../unlock`,
+  `POST .../reset-password`, `PUT .../role`, `GET /api/admin/audit-logs` —
+  đặt trong `routes/spa.php` (nhóm `web` middleware, dùng chung session/CSRF
+  với `api/v1/*`), **không** dùng `routes/api.php` (nhóm `api` mặc định
+  không có session/CSRF, sai với cách app này xác thực).
+- Role trả về ở API là `ADMIN`/`USER` (map từ 2 role hiện có `admin`/
+  `learner`); `MODERATOR` chỉ dùng được ở filter danh sách (trả về rỗng), gán
+  role `MODERATOR` bị từ chối 422 vì role này chưa tồn tại trong DB.
+- Bảo vệ quyền cuối cùng: không tự khóa/tự hạ quyền chính mình, không khóa
+  hoặc hạ quyền quản trị viên đang hoạt động cuối cùng. Khi porting logic hạ
+  quyền từ `Admin\UserController::updateRole` (Blade) sang API, phát hiện và
+  sửa một lỗi có sẵn: guard cũ chỉ kiểm tra tổng số admin mà không kiểm tra
+  *người bị đổi quyền* có đang là admin hay không, dẫn tới false-block khi hạ
+  quyền một learner không liên quan trong lúc hệ thống chỉ có 1 admin — đã có
+  test hồi quy cho case này.
+- Route model binding đổi sang nhận `int` + `findOrFail()` thủ công **sau**
+  `Gate::authorize()` ở mọi action nhận `{user}` — phát hiện qua test rằng
+  route binding mặc định resolve trước khi middleware `role` kiểm tra quyền,
+  khiến một learner có thể phân biệt user id tồn tại (403) hay không (404),
+  lộ thông tin tồn tại tài khoản.
+- `tests/Feature/Admin/UserManagementApiTest.php`: list/search/filter/phân
+  trang, stats/history tính từ `UserVocabulary`/`VocabularyReview` thật,
+  lock/unlock (kèm guard tự khóa và khóa admin cuối), đổi role (kèm guard và
+  test hồi quy ở trên), reset password (không lộ mật khẩu vào audit log),
+  audit log ghi/liệt kê đúng, 401/403 cho mọi route kể cả với id không tồn
+  tại (chống rò rỉ IDOR).
+- `admin-frontend`: nối `/users`, `/users/{id}`, `/audit-logs` vào API thật
+  (trước đây `/audit-logs` dùng dữ liệu mock cứng); đã kiểm tra bằng
+  TypeScript build + ESLint và một phiên trình duyệt thật (đăng nhập
+  `admin@example.com`, thao tác lock/unlock/reset-password/đổi role, xem
+  audit log xuất hiện đúng).
+- Chưa làm trong đợt này (cố ý, ghi lại để không nhầm là thiếu sót): tính
+  năng Deck (trang chi tiết user luôn trả `decks: []` — app này chưa có khái
+  niệm Deck), tính năng Streak (luôn trả 0/null — chưa có bảng/nghiệp vụ
+  streak), role `MODERATOR` thật sự (chỉ là placeholder ở frontend), action
+  audit `ADMIN_LOGIN`/`WORD_*`/`DECK_*`/`SETTINGS_CHANGED` (thuộc phạm vi
+  tính năng khác). Reset password trả mật khẩu tạm dạng plaintext một lần
+  (theo đúng hợp đồng UI đã build sẵn) thay vì gửi email reset link — có thể
+  cân nhắc đổi hướng này khi có yêu cầu bảo mật chặt hơn.
+
 ## Quy ước bàn giao
 
 - Biến môi trường production được quản lý tại `docs/PRODUCTION_ENV.md`; mọi thay

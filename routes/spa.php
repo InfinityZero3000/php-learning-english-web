@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Api\Admin\AuditLogController;
+use App\Http\Controllers\Api\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Api\V1\Admin\CourseCategoryController;
 use App\Http\Controllers\Api\V1\Admin\LevelController;
 use App\Http\Controllers\Api\V1\Admin\MediaController;
@@ -109,4 +111,15 @@ Route::prefix('api/v1')->group(function (): void {
         Route::post('/media/upload', [MediaController::class, 'upload']);
         Route::delete('/media/{path?}', [MediaController::class, 'destroy'])->where('path', '.*');
     });
+});
+
+Route::prefix('api/admin')->middleware(['auth', 'role:admin'])->group(function (): void {
+    Route::get('/users', [AdminUserController::class, 'index']);
+    Route::get('/users/{user}', [AdminUserController::class, 'show']);
+    Route::get('/users/{user}/history', [AdminUserController::class, 'history']);
+    Route::put('/users/{user}/lock', [AdminUserController::class, 'lock']);
+    Route::put('/users/{user}/unlock', [AdminUserController::class, 'unlock']);
+    Route::post('/users/{user}/reset-password', [AdminUserController::class, 'resetPassword']);
+    Route::put('/users/{user}/role', [AdminUserController::class, 'updateRole']);
+    Route::get('/audit-logs', [AuditLogController::class, 'index']);
 });
