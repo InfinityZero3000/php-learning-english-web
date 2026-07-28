@@ -27,7 +27,9 @@ class LearningSessionController extends Controller
             abort(422, 'Provide exactly one enrollment_id or assignment_id.');
         }
 
-        return ApiResponse::success($this->payload($sessions->start($request->user(), $input)), status: 201);
+        $requestId = $this->requestId($request);
+
+        return ApiResponse::success($this->payload($sessions->start($request->user(), $input, $requestId)), status: 201);
     }
 
     public function next(Request $request, LearningSession $session, LearningSessionService $sessions): JsonResponse
@@ -37,7 +39,7 @@ class LearningSessionController extends Controller
 
     public function complete(Request $request, LearningSession $session, LearningSessionService $sessions): JsonResponse
     {
-        return ApiResponse::success($this->payload($sessions->complete($request->user(), $session)));
+        return ApiResponse::success($this->payload($sessions->complete($request->user(), $session, $this->requestId($request))));
     }
 
     private function payload(LearningSession $session): array
@@ -51,5 +53,13 @@ class LearningSessionController extends Controller
             'completed_at' => $session->completed_at?->toISOString(),
             'summary' => $session->summary,
         ];
+    }
+
+    private function requestId(Request $request): string
+    {
+        $requestId = $request->header('X-Request-ID');
+        validator(['request_id' => $requestId], ['request_id' => ['required', 'uuid']])->validate();
+
+        return $requestId;
     }
 }

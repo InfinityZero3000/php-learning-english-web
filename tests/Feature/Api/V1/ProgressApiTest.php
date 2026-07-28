@@ -4,6 +4,8 @@ namespace Tests\Feature\Api\V1;
 
 use App\Models\Attempt;
 use App\Models\Course;
+use App\Models\Enrollment;
+use App\Models\LearningSession;
 use App\Models\Lesson;
 use App\Models\Progress;
 use App\Models\Quiz;
@@ -55,6 +57,7 @@ class ProgressApiTest extends TestCase
     public function test_user_can_mark_lesson_completed(): void
     {
         $this->actingAs($this->user);
+        $this->eligibleSession();
 
         $this->postJson("/api/v1/progress/lesson/{$this->lesson1Id}/complete")
             ->assertOk()
@@ -69,6 +72,7 @@ class ProgressApiTest extends TestCase
     public function test_mark_completed_is_idempotent(): void
     {
         $this->actingAs($this->user);
+        $this->eligibleSession();
 
         $this->postJson("/api/v1/progress/lesson/{$this->lesson1Id}/complete")->assertOk();
         $this->postJson("/api/v1/progress/lesson/{$this->lesson1Id}/complete")->assertOk();
@@ -179,5 +183,24 @@ class ProgressApiTest extends TestCase
         $this->getJson("/api/v1/progress?course_id={$this->course1Id}")
             ->assertOk()
             ->assertJsonPath('meta.total', 1);
+    }
+
+    private function eligibleSession(): void
+    {
+        $enrollment = Enrollment::create([
+            'user_id' => $this->user->id,
+            'course_id' => $this->course1Id,
+            'status' => 'active',
+            'enrolled_at' => now(),
+        ]);
+        LearningSession::create([
+            'enrollment_id' => $enrollment->id,
+            'user_id' => $this->user->id,
+            'course_id' => $this->course1Id,
+            'lesson_id' => $this->lesson1Id,
+            'status' => 'completed',
+            'started_at' => now()->subMinute(),
+            'completed_at' => now(),
+        ]);
     }
 }

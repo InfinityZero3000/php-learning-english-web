@@ -5,6 +5,7 @@ namespace Tests\Feature\Api\V1;
 use App\Models\Assignment;
 use App\Models\Course;
 use App\Models\Enrollment;
+use App\Models\LearningEvent;
 use App\Models\LearningSession;
 use App\Models\Lesson;
 use App\Models\User;
@@ -27,7 +28,8 @@ class LearningSessionApiTest extends TestCase
             ->assertJsonPath('data.type', 'enrollment')
             ->json('data.id');
 
-        $sessionId = $this->postJson('/api/v1/learning/sessions', ['enrollment_id' => $enrollmentId])
+        $sessionId = $this->withHeader('X-Request-ID', (string) Str::uuid())
+            ->postJson('/api/v1/learning/sessions', ['enrollment_id' => $enrollmentId])
             ->assertCreated()
             ->assertJsonPath('data.lesson_id', $lesson->id)
             ->json('data.id');
@@ -37,7 +39,12 @@ class LearningSessionApiTest extends TestCase
             ->assertJsonPath('data.activity.vocabulary_id', $word->id)
             ->assertJsonPath('data.activity.practice_only', false);
 
-        $this->postJson("/api/v1/learning/sessions/{$sessionId}/complete")
+        LearningEvent::create([
+            'learning_session_id' => $sessionId, 'user_id' => $user->id,
+            'event_type' => 'answer', 'occurred_at' => now(), 'is_correct' => true,
+        ]);
+        $this->withHeader('X-Request-ID', (string) Str::uuid())
+            ->postJson("/api/v1/learning/sessions/{$sessionId}/complete")
             ->assertOk()
             ->assertJsonPath('data.status', 'completed');
         $this->assertDatabaseHas('progress', ['user_id' => $user->id, 'lesson_id' => $lesson->id]);
@@ -93,6 +100,7 @@ class LearningSessionApiTest extends TestCase
         ]);
 
         $sessionId = $this->actingAs($learner)
+            ->withHeader('X-Request-ID', (string) Str::uuid())
             ->postJson('/api/v1/learning/sessions', ['assignment_id' => $assignment->id])
             ->assertCreated()
             ->json('data.id');
@@ -100,7 +108,15 @@ class LearningSessionApiTest extends TestCase
         $this->getJson("/api/v1/learning/sessions/{$sessionId}/next")
             ->assertOk()
             ->assertJsonPath('data.activity.practice_only', true);
+        LearningEvent::create([
+            'learning_session_id' => $sessionId, 'user_id' => $learner->id,
+            'event_type' => 'answer', 'occurred_at' => now(), 'is_correct' => true,
+        ]);
+        $this->withHeader('X-Request-ID', (string) Str::uuid())
+            ->postJson("/api/v1/learning/sessions/{$sessionId}/complete")->assertOk();
         $this->assertDatabaseCount('user_vocabularies', 0);
+        $this->assertDatabaseCount('progress', 0);
+        $this->assertDatabaseHas('assignments', ['id' => $assignment->id, 'status' => 'completed']);
     }
 
     private function context(): array

@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\ProgressResource;
 use App\Models\Attempt;
 use App\Models\Course;
+use App\Models\Enrollment;
+use App\Models\LearningSession;
 use App\Models\Lesson;
 use App\Models\Progress;
 use App\Support\ApiResponse;
@@ -109,6 +111,11 @@ class ProgressController extends Controller
     public function markCompleted(Request $request, Lesson $lesson): JsonResponse
     {
         $userId = $request->user()->id;
+        $eligible = $lesson->status === 'published'
+            && Enrollment::query()->where('user_id', $userId)->where('course_id', $lesson->course_id)->exists()
+            && LearningSession::query()->where('user_id', $userId)->where('lesson_id', $lesson->id)
+                ->where('status', 'completed')->exists();
+        abort_unless($eligible, 403, 'Complete the learner-owned session before marking progress.');
 
         Progress::firstOrCreate([
             'user_id' => $userId,

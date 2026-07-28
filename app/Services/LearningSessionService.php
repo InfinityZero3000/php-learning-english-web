@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Assignment;
 use App\Models\Enrollment;
+use App\Models\LearningEvent;
 use App\Models\LearningSession;
 use App\Models\Progress;
 use App\Models\User;
@@ -20,7 +21,6 @@ class LearningSessionService
         $items = Assignment::query()
             ->where('learner_id', $user->id)
             ->whereIn('status', ['pending', 'in_progress'])
-            ->whereNotNull('lesson_id')
             ->where(fn ($query) => $query->whereNull('due_at')->orWhere('due_at', '<=', now('UTC')))
             ->orderBy('due_at')
             ->get()
@@ -28,7 +28,9 @@ class LearningSessionService
                 'id' => $assignment->id, 'type' => 'teacher_lesson', 'priority' => $priority++,
             ])->all();
 
-        foreach (UserVocabulary::query()->where('user_id', $user->id)->where('due_at', '<=', now('UTC'))->orderBy('due_at')->get() as $card) {
+        foreach (UserVocabulary::query()->where('user_id', $user->id)
+            ->where(fn ($query) => $query->whereNull('due_at')->orWhere('due_at', '<=', now('UTC')))
+            ->orderBy('due_at')->get() as $card) {
             $items[] = ['id' => $card->id, 'type' => 'fsrs_review', 'priority' => $priority++];
         }
 
@@ -43,11 +45,23 @@ class LearningSessionService
             }
         }
 
+        $remediation = LearningEvent::query()->where('user_id', $user->id)->where('is_correct', false)
+            ->latest('occurred_at')->first();
+        if ($remediation) {
+            $items[] = ['id' => $remediation->id, 'type' => 'remediation', 'priority' => $priority++];
+        }
+
         return ['type' => 'learning_plan', 'items' => $items];
     }
 
-    public function start(User $user, array $input): LearningSession
+    public function start(User $user, array $input, string $requestId): LearningSession
     {
+        $replay = LearningEvent::query()->where('request_id', $requestId)->where('user_id', $user->id)
+            ->where('event_type', 'session_started')->first();
+        if ($replay) {
+            return $replay->session;
+        }
+
         if (isset($input['assignment_id'])) {
             $assignment = Assignment::query()
                 ->with(['lesson', 'vocabulary.lesson'])
@@ -63,14 +77,10 @@ class LearningSessionService
                 throw new ConflictHttpException('Assignment has no learnable lesson.');
             }
 
-            return LearningSession::create([
-                'user_id' => $user->id,
-                'course_id' => $lesson->course_id,
-                'lesson_id' => $lesson->id,
-                'status' => 'active',
-                'started_at' => now('UTC'),
+            return $this->createSession($user, [
+                'course_id' => $lesson->course_id, 'lesson_id' => $lesson->id,
                 'summary' => ['assignment_id' => $assignment->id, 'vocabulary_id' => $assignment->vocabulary_id],
-            ]);
+            ], $requestId);
         }
 
         $enrollment = Enrollment::query()
@@ -90,14 +100,9 @@ class LearningSessionService
             throw new ConflictHttpException('This course has no remaining lesson.');
         }
 
-        return LearningSession::create([
-            'enrollment_id' => $enrollment->id,
-            'user_id' => $user->id,
-            'course_id' => $enrollment->course_id,
-            'lesson_id' => $lesson->id,
-            'status' => 'active',
-            'started_at' => now('UTC'),
-        ]);
+        return $this->createSession($user, [
+            'enrollment_id' => $enrollment->id, 'course_id' => $enrollment->course_id, 'lesson_id' => $lesson->id,
+        ], $requestId);
     }
 
     public function next(User $user, LearningSession $session): array
@@ -128,30 +133,71 @@ class LearningSessionService
         ];
     }
 
-    public function complete(User $user, LearningSession $session): LearningSession
+    public function complete(User $user, LearningSession $session, string $requestId): LearningSession
     {
+        $replay = LearningEvent::query()->where('request_id', $requestId)->where('user_id', $user->id)
+            ->where('event_type', 'session_completed')->first();
+        if ($replay) {
+            return $replay->session;
+        }
         $this->ownedActive($user, $session);
 
-        return DB::transaction(function () use ($user, $session): LearningSession {
-            Progress::firstOrCreate(
-                ['user_id' => $user->id, 'lesson_id' => $session->lesson_id],
-                ['completed_at' => now('UTC')],
-            );
+        return DB::transaction(function () use ($user, $session, $requestId): LearningSession {
+            $session = LearningSession::query()->whereKey($session->id)->lockForUpdate()->firstOrFail();
+            if ($session->status !== 'active') {
+                throw new ConflictHttpException('Learning session is not active.');
+            }
+            $activityCount = $session->events()->whereNotIn('event_type', ['session_started'])->count();
+            if ($activityCount === 0) {
+                throw new ConflictHttpException('Complete at least one learning activity first.');
+            }
+            $assignmentId = $session->summary['assignment_id'] ?? null;
+            $practiceOnly = ($session->summary['vocabulary_id'] ?? null) !== null;
+            if (! $practiceOnly) {
+                Progress::firstOrCreate(
+                    ['user_id' => $user->id, 'lesson_id' => $session->lesson_id],
+                    ['completed_at' => now('UTC')],
+                );
+            }
+            if ($assignmentId) {
+                Assignment::query()->whereKey($assignmentId)->where('learner_id', $user->id)->update([
+                    'status' => 'completed', 'completed_at' => now('UTC'),
+                ]);
+            }
             $summary = [
                 ...($session->summary ?? []),
-                'events' => $session->events()->count(),
-                'completed_lesson_id' => $session->lesson_id,
+                'events' => $activityCount,
+                'completed_lesson_id' => $practiceOnly ? null : $session->lesson_id,
             ];
             $session->update(['status' => 'completed', 'completed_at' => now('UTC'), 'summary' => $summary]);
 
-            if ($session->enrollment && ! $session->enrollment->course->lessons()
+            if (! $practiceOnly && $session->enrollment && ! $session->enrollment->course->lessons()
                 ->where('status', 'published')
                 ->whereDoesntHave('progress', fn ($query) => $query->where('user_id', $user->id))
                 ->exists()) {
                 $session->enrollment->update(['status' => 'completed', 'completed_at' => now('UTC')]);
             }
+            LearningEvent::create([
+                'learning_session_id' => $session->id, 'user_id' => $user->id,
+                'event_type' => 'session_completed', 'request_id' => $requestId, 'occurred_at' => now('UTC'),
+            ]);
 
             return $session->refresh();
+        });
+    }
+
+    private function createSession(User $user, array $attributes, string $requestId): LearningSession
+    {
+        return DB::transaction(function () use ($user, $attributes, $requestId): LearningSession {
+            $session = LearningSession::create([
+                ...$attributes, 'user_id' => $user->id, 'status' => 'active', 'started_at' => now('UTC'),
+            ]);
+            LearningEvent::create([
+                'learning_session_id' => $session->id, 'user_id' => $user->id,
+                'event_type' => 'session_started', 'request_id' => $requestId, 'occurred_at' => now('UTC'),
+            ]);
+
+            return $session;
         });
     }
 
