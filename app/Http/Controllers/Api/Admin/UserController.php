@@ -10,6 +10,7 @@ use App\Models\UserVocabulary;
 use App\Models\VocabularyReview;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -133,29 +134,34 @@ class UserController extends Controller
     {
         Gate::authorize('manage', User::class);
 
-        $target = User::findOrFail($user);
+        $target = DB::transaction(function () use ($request, $user): User {
+            // ponytail: one role-row lock serializes admin removal; split locks only if admin throughput matters.
+            $adminRoleId = Role::where('slug', 'admin')->lockForUpdate()->value('id');
+            $target = User::lockForUpdate()->findOrFail($user);
 
-        if ($target->locked_at === null) {
-            $adminRoleId = Role::where('slug', 'admin')->value('id');
+            if ($target->locked_at === null) {
+                if ((int) $target->role_id === (int) $adminRoleId) {
+                    if ($target->is($request->user())) {
+                        throw ValidationException::withMessages(['user' => 'Không thể tự khóa tài khoản của chính bạn.']);
+                    }
 
-            if ((int) $target->role_id === (int) $adminRoleId) {
-                if ($target->is($request->user())) {
-                    throw ValidationException::withMessages(['user' => 'Không thể tự khóa tài khoản của chính bạn.']);
+                    $remainingActiveAdmins = User::where('role_id', $adminRoleId)
+                        ->whereNull('locked_at')
+                        ->where('id', '!=', $target->id)
+                        ->count();
+
+                    if ($remainingActiveAdmins === 0) {
+                        throw ValidationException::withMessages(['user' => 'Không thể khóa quản trị viên đang hoạt động cuối cùng.']);
+                    }
                 }
 
-                $remainingActiveAdmins = User::where('role_id', $adminRoleId)
-                    ->whereNull('locked_at')
-                    ->where('id', '!=', $target->id)
-                    ->count();
-
-                if ($remainingActiveAdmins === 0) {
-                    throw ValidationException::withMessages(['user' => 'Không thể khóa quản trị viên đang hoạt động cuối cùng.']);
-                }
+                $target->forceFill(['locked_at' => now()])->save();
+                DB::table('sessions')->where('user_id', $target->id)->delete();
+                AuditLog::record($request->user(), 'USER_LOCKED', "User #{$target->id}", "Locked account {$target->email}");
             }
 
-            $target->forceFill(['locked_at' => now()])->save();
-            AuditLog::record($request->user(), 'USER_LOCKED', "User #{$target->id}", "Locked account {$target->email}");
-        }
+            return $target;
+        });
 
         return response()->json($this->mapUser($target->fresh('role')));
     }
@@ -164,12 +170,16 @@ class UserController extends Controller
     {
         Gate::authorize('manage', User::class);
 
-        $target = User::findOrFail($user);
+        $target = DB::transaction(function () use ($request, $user): User {
+            $target = User::lockForUpdate()->findOrFail($user);
 
-        if ($target->locked_at !== null) {
-            $target->forceFill(['locked_at' => null])->save();
-            AuditLog::record($request->user(), 'USER_UNLOCKED', "User #{$target->id}", "Unlocked account {$target->email}");
-        }
+            if ($target->locked_at !== null) {
+                $target->forceFill(['locked_at' => null])->save();
+                AuditLog::record($request->user(), 'USER_UNLOCKED', "User #{$target->id}", "Unlocked account {$target->email}");
+            }
+
+            return $target;
+        });
 
         return response()->json($this->mapUser($target->fresh('role')));
     }
@@ -178,12 +188,12 @@ class UserController extends Controller
     {
         Gate::authorize('manage', User::class);
 
-        $target = User::findOrFail($user);
-
         $plain = Str::password(16);
-        $target->forceFill(['password' => Hash::make($plain)])->save();
-
-        AuditLog::record($request->user(), 'PASSWORD_RESET', "User #{$target->id}", "Password reset for {$target->email}");
+        DB::transaction(function () use ($request, $user, $plain): void {
+            $target = User::lockForUpdate()->findOrFail($user);
+            $target->forceFill(['password' => Hash::make($plain)])->save();
+            AuditLog::record($request->user(), 'PASSWORD_RESET', "User #{$target->id}", "Password reset for {$target->email}");
+        });
 
         return response()->json(['temporaryPassword' => $plain]);
     }
@@ -192,42 +202,44 @@ class UserController extends Controller
     {
         Gate::authorize('manage', User::class);
 
-        $target = User::findOrFail($user);
-
         $validated = $request->validate([
             'role' => ['required', Rule::in(['USER', 'ADMIN'])],
         ]);
 
         $slug = self::FRONTEND_TO_SLUG[$validated['role']];
-        $roleId = Role::where('slug', $slug)->value('id');
+        $target = DB::transaction(function () use ($request, $user, $slug, $validated): User {
+            $adminRoleId = Role::where('slug', 'admin')->lockForUpdate()->value('id');
+            $roleId = Role::where('slug', $slug)->value('id');
 
-        if (! $roleId) {
-            throw ValidationException::withMessages(['role' => 'Hệ thống chưa được cấu hình vai trò này.']);
-        }
-
-        $adminRoleId = Role::where('slug', 'admin')->value('id');
-        if ((int) $roleId !== (int) $adminRoleId && (int) $target->role_id === (int) $adminRoleId) {
-            if ($target->is($request->user())) {
-                throw ValidationException::withMessages([
-                    'role' => 'Không thể hạ quyền quản trị viên cuối cùng hoặc tự hạ quyền tài khoản này.',
-                ]);
+            if (! $roleId) {
+                throw ValidationException::withMessages(['role' => 'Hệ thống chưa được cấu hình vai trò này.']);
             }
 
-            $remainingActiveAdmins = User::where('role_id', $adminRoleId)
-                ->whereNull('locked_at')
-                ->where('id', '!=', $target->id)
-                ->count();
+            $target = User::lockForUpdate()->findOrFail($user);
+            if ((int) $roleId !== (int) $adminRoleId && (int) $target->role_id === (int) $adminRoleId) {
+                if ($target->is($request->user())) {
+                    throw ValidationException::withMessages([
+                        'role' => 'Không thể hạ quyền quản trị viên cuối cùng hoặc tự hạ quyền tài khoản này.',
+                    ]);
+                }
 
-            if ($target->locked_at === null && $remainingActiveAdmins === 0) {
-                throw ValidationException::withMessages([
-                    'role' => 'Không thể hạ quyền quản trị viên cuối cùng hoặc tự hạ quyền tài khoản này.',
-                ]);
+                $remainingActiveAdmins = User::where('role_id', $adminRoleId)
+                    ->whereNull('locked_at')
+                    ->where('id', '!=', $target->id)
+                    ->count();
+
+                if ($target->locked_at === null && $remainingActiveAdmins === 0) {
+                    throw ValidationException::withMessages([
+                        'role' => 'Không thể hạ quyền quản trị viên cuối cùng hoặc tự hạ quyền tài khoản này.',
+                    ]);
+                }
             }
-        }
 
-        $target->update(['role_id' => $roleId]);
+            $target->update(['role_id' => $roleId]);
+            AuditLog::record($request->user(), 'ROLE_CHANGED', "User #{$target->id}", "Changed role to {$validated['role']}");
 
-        AuditLog::record($request->user(), 'ROLE_CHANGED', "User #{$target->id}", "Changed role to {$validated['role']}");
+            return $target;
+        });
 
         return response()->json($this->mapUser($target->fresh('role')));
     }

@@ -9,6 +9,7 @@ use App\Models\UserVocabulary;
 use App\Models\Vocabulary;
 use App\Models\VocabularyReview;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -160,10 +161,19 @@ class UserManagementApiTest extends TestCase
         $this->seed();
         $admin = $this->admin();
         $learner = $this->learner();
+        DB::table('sessions')->insert([
+            'id' => 'learner-session',
+            'user_id' => $learner->id,
+            'ip_address' => '127.0.0.1',
+            'user_agent' => 'test',
+            'payload' => '',
+            'last_activity' => time(),
+        ]);
 
         $this->actingAs($admin)->putJson("/api/admin/users/{$learner->id}/lock")
             ->assertOk()->assertJsonPath('locked', true);
         $this->assertNotNull($learner->fresh()->locked_at);
+        $this->assertDatabaseMissing('sessions', ['id' => 'learner-session']);
         $this->assertDatabaseHas('audit_logs', ['action' => 'USER_LOCKED', 'actor_email' => $admin->email]);
 
         // Idempotent re-lock does not duplicate the audit entry.
@@ -174,6 +184,23 @@ class UserManagementApiTest extends TestCase
             ->assertOk()->assertJsonPath('locked', false);
         $this->assertNull($learner->fresh()->locked_at);
         $this->assertDatabaseHas('audit_logs', ['action' => 'USER_UNLOCKED', 'actor_email' => $admin->email]);
+    }
+
+    public function test_lock_rolls_back_when_audit_write_fails(): void
+    {
+        $this->seed();
+        $admin = $this->admin();
+        $learner = $this->learner();
+        AuditLog::creating(fn () => throw new \RuntimeException('audit unavailable'));
+
+        try {
+            $this->actingAs($admin)->putJson("/api/admin/users/{$learner->id}/lock");
+            $this->fail('Expected audit failure.');
+        } catch (\RuntimeException $exception) {
+            $this->assertSame('audit unavailable', $exception->getMessage());
+        }
+
+        $this->assertNull($learner->fresh()->locked_at);
     }
 
     public function test_admin_cannot_lock_own_account(): void
