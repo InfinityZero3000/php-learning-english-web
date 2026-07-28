@@ -3,8 +3,10 @@
 namespace App\Services\Import;
 
 use App\Models\Course;
+use App\Models\CourseCategory;
 use App\Models\Lesson;
 use App\Models\Level;
+use App\Models\Topic;
 use App\Models\Unit;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -108,6 +110,25 @@ class CourseImporter extends AbstractLexiLingoImporter
         $courseSlug = Str::slug($item['title']).'-'.substr(md5($externalId), 0, 8);
         $levelId = Level::query()->where('slug', $item['level'])->value('id');
 
+        // Resolve category_id from payload (if category_id is provided)
+        $categoryId = null;
+        if (! empty($item['category_id'])) {
+            $categoryId = CourseCategory::query()
+                ->where('external_id', (string) $item['category_id'])
+                ->orWhere('id', $item['category_id'])
+                ->value('id');
+        }
+
+        // Resolve topic IDs from payload tags (if present)
+        $topicIds = [];
+        if (! empty($item['tags']) && is_array($item['tags'])) {
+            $topicIds = Topic::query()
+                ->whereIn('external_id', $item['tags'])
+                ->orWhereIn('slug', array_map(fn ($tag) => Str::slug((string) $tag), $item['tags']))
+                ->pluck('id')
+                ->toArray();
+        }
+
         $course = null;
 
         if (! $dryRun) {
@@ -115,6 +136,7 @@ class CourseImporter extends AbstractLexiLingoImporter
                 ['external_id' => $externalId],
                 [
                     'level_id' => $levelId,
+                    'category_id' => $categoryId,
                     'title' => $item['title'],
                     'slug' => $courseSlug,
                     'description' => $item['description'] ?? null,
@@ -124,6 +146,10 @@ class CourseImporter extends AbstractLexiLingoImporter
                     'total_xp' => $item['total_xp'] ?? 0,
                 ]
             );
+
+            if ($topicIds !== []) {
+                $course->topics()->syncWithoutDetaching($topicIds);
+            }
         }
 
         foreach ($units as $unit) {

@@ -34,5 +34,9 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('is-admin', function ($user) {
             return $user->role && $user->role->slug === 'admin';
         });
+
+        // Media gates (no associated model, so defined manually)
+        Gate::define('upload-media', fn ($user) => $user->role?->slug === 'admin');
+        Gate::define('delete-media', fn ($user) => $user->role?->slug === 'admin');
     }
 }
