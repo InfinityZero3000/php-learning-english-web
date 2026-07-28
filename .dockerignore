@@ -12,4 +12,8 @@ storage/framework/cache
 storage/framework/sessions
 storage/framework/views
 docs
+!docs/
+docs/*
+!docs/openapi/
+!docs/openapi/*.json
 tests
