@@ -26,7 +26,6 @@
                                         <option value="{{ $role->id }}" @selected($user->role_id === $role->id)>{{ $role->name }}</option>
                                     @endforeach
                                 </select>
-                                <input name="password" type="password" class="form-control" placeholder="Mật khẩu gần đây">
                                 <button class="btn btn-primary">Lưu</button>
                             </form>
                         @else

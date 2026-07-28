@@ -95,12 +95,8 @@ export type OperationsUsage = { last_24_hours: number; last_30_days: number; deg
 
 // Auth
 export const auth = {
-  login: (email: string, password: string) =>
-    request<{ data: User }>('/api/v1/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    }).then(({ data }) => data),
   me: () => request<{ data: User }>('/api/v1/auth/me').then(({ data }) => data),
+  adminMe: () => request<{ data: User }>('/api/v1/admin/session').then(({ data }) => data),
   logout: () => request<void>('/api/v1/auth/logout', { method: 'POST' }),
 };
 

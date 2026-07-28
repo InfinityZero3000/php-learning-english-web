@@ -125,7 +125,7 @@ Route::middleware('auth')->group(function () {
 // ==========================================
 // Admin Routes (Yêu cầu quyền admin)
 // ==========================================
-Route::middleware(['auth', 'can:manage-content'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth', 'google.admin', 'can:manage-content'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', fn () => to_route('admin.dashboard'))->name('home');
     Route::get('/dashboard', [UserController::class, 'index'])->name('dashboard');
     Route::get('/users', [UserController::class, 'index'])->name('users.index');

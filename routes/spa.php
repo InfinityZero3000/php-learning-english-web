@@ -16,8 +16,10 @@ use App\Http\Controllers\Api\V1\ProgressController;
 use App\Http\Controllers\Api\V1\TeacherController;
 use App\Http\Controllers\Api\V1\TraceCagController;
 use App\Http\Controllers\Api\V1\VocabularyController;
+use App\Support\ApiResponse;
 use App\Support\HealthCheck;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
+use Illuminate\Http\Request;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
@@ -93,6 +95,12 @@ Route::prefix('api/v1')->group(function (): void {
         Route::put('/teacher/assignments/{assignment}', [TeacherController::class, 'updateAssignment']);
         Route::post('/teacher/intervention-notes', [TeacherController::class, 'note']);
         Route::middleware('google.admin')->group(function (): void {
+            Route::get('/admin/session', fn (Request $request) => ApiResponse::success([
+                'id' => $request->user()->id,
+                'name' => $request->user()->name,
+                'email' => $request->user()->email,
+                'role' => $request->user()->role?->slug,
+            ]));
             Route::get('/admin/operations', [OperationsController::class, 'overview']);
             Route::post('/admin/operations/service-probes', [OperationsController::class, 'probe']);
             Route::get('/admin/operations/contracts', [OperationsController::class, 'contracts']);

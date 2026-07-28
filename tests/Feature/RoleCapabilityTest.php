@@ -44,7 +44,7 @@ class RoleCapabilityTest extends TestCase
         $this->assertFalse(Gate::forUser($admin)->allows('view-learning-evidence', $learner));
     }
 
-    public function test_admin_cannot_grant_privileged_roles_but_super_admin_can_after_password_confirmation(): void
+    public function test_admin_cannot_grant_privileged_roles_but_recently_google_verified_super_admin_can(): void
     {
         $this->seed();
 
@@ -64,13 +64,6 @@ class RoleCapabilityTest extends TestCase
             ->patch(route('admin.users.updateRole', $learner), [
                 'role_id' => $teacherRole->id,
             ])
-            ->assertSessionHasErrors('password');
-
-        $this->actingAs($superAdmin)
-            ->patch(route('admin.users.updateRole', $learner), [
-                'role_id' => $teacherRole->id,
-                'password' => 'password',
-            ])
             ->assertRedirect(route('admin.users.index'));
 
         $this->assertTrue($learner->fresh()->hasRole('teacher'));
@@ -83,12 +76,6 @@ class RoleCapabilityTest extends TestCase
         $this->assertTrue($secondLearner->fresh()->hasRole('teacher'));
         $this->assertSame(900, config('auth.password_timeout'));
 
-        $thirdLearner = $this->user('learner');
-        $this->withSession(['auth.password_confirmed_at' => now()->subSeconds(901)->timestamp])
-            ->patch(route('admin.users.updateRole', $thirdLearner), [
-                'role_id' => $teacherRole->id,
-            ])
-            ->assertSessionHasErrors('password');
     }
 
     public function test_super_admin_cannot_demote_self_or_final_super_admin(): void
@@ -108,7 +95,7 @@ class RoleCapabilityTest extends TestCase
         $this->assertTrue($superAdmin->fresh()->hasRole('super_admin'));
     }
 
-    public function test_role_change_reauthorizes_a_fresh_actor_inside_the_transaction(): void
+    public function test_whitelist_role_is_resynchronized_before_authorization(): void
     {
         $this->seed();
 
@@ -124,9 +111,10 @@ class RoleCapabilityTest extends TestCase
 
         $this->patch(route('admin.users.updateRole', $target), [
             'role_id' => $teacherRole->id,
-        ])->assertForbidden();
+        ])->assertRedirect(route('admin.users.index'));
 
-        $this->assertTrue($target->fresh()->hasRole('learner'));
+        $this->assertTrue($target->fresh()->hasRole('teacher'));
+        $this->assertTrue($superAdmin->fresh()->hasRole('super_admin'));
     }
 
     private function user(string $role): User

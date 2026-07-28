@@ -12,14 +12,12 @@ class RecentPassword
     public function require(Request $request): void
     {
         if ($request->session()->has('google_admin')) {
-            if ($request->session()->has('google_admin_reauthenticated_at')) {
-                $confirmedAt = (int) $request->session()->get('google_admin_reauthenticated_at');
-                if (Date::now()->timestamp - $confirmedAt <= 900) {
-                    return;
-                }
-
-                throw new HttpException(428, 'Recent Google verification is required.');
+            $confirmedAt = (int) $request->session()->get('google_admin_reauthenticated_at', 0);
+            if (Date::now()->timestamp - $confirmedAt <= 900) {
+                return;
             }
+
+            throw new HttpException(428, 'Recent Google verification is required.');
         }
 
         $confirmedAt = $request->session()->get('auth.password_confirmed_at', 0);

@@ -20,7 +20,7 @@ export default function AdminLayout({ children, title, requiredRole }: AdminLayo
 
   useEffect(() => {
     let cancelled = false;
-    auth.me().then((user: User) => {
+    auth.adminMe().then((user: User) => {
       if (cancelled) return;
       if (!['admin', 'super_admin'].includes(user.role ?? '')) {
         setMessage('This area is restricted to administrators.');
@@ -35,7 +35,7 @@ export default function AdminLayout({ children, title, requiredRole }: AdminLayo
       setState('ready');
     }).catch((error) => {
       if (cancelled) return;
-      if (error instanceof ApiError && error.status === 401) router.replace('/login');
+      if (error instanceof ApiError && error.status === 401) router.replace('/login?error=expired');
       else {
         setMessage('Could not reach the server. Please retry.');
         setState('error');

@@ -19,7 +19,7 @@ abstract class TestCase extends BaseTestCase
                 'user_id' => $user->getAuthIdentifier(),
                 'subject' => $user->google_id,
                 'email' => $email,
-            ]]);
+            ], 'google_admin_reauthenticated_at' => now()->timestamp]);
         }
 
         return parent::actingAs($user, $guard);

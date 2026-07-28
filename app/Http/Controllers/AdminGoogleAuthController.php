@@ -79,7 +79,6 @@ class AdminGoogleAuthController extends Controller
                 'subject' => $subject,
                 'email' => $email,
             ]);
-            $request->session()->put('google_admin_reauthenticated_at', now()->timestamp);
 
             return redirect()->away(rtrim((string) config('app.admin_frontend_url'), '/').'/dashboard');
         } catch (Throwable $exception) {
