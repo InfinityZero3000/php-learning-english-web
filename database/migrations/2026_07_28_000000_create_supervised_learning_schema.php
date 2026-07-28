@@ -9,6 +9,14 @@ return new class extends Migration
 {
     public function up(): void
     {
+        Schema::table('user_vocabularies', function (Blueprint $table) {
+            $table->dropForeign(['user_id']);
+        });
+        Schema::table('user_vocabularies', function (Blueprint $table) {
+            $table->foreignId('user_id')->nullable()->change();
+            $table->foreign('user_id')->references('id')->on('users')->nullOnDelete();
+        });
+
         Schema::table('progress', function (Blueprint $table) {
             $table->string('status')->default('not_started');
             $table->unsignedTinyInteger('best_score')->nullable();
@@ -20,6 +28,7 @@ return new class extends Migration
             $table->double('stability')->nullable()->default(null)->change();
             $table->double('difficulty')->nullable()->default(null)->change();
             $table->timestamp('last_reviewed_at')->nullable();
+            $table->unsignedTinyInteger('step')->nullable()->default(0);
             $table->string('algorithm')->nullable();
             $table->string('algorithm_version')->nullable();
             $table->unsignedBigInteger('revision')->default(0);
@@ -33,6 +42,8 @@ return new class extends Migration
             $table->unsignedBigInteger('resulting_revision')->nullable();
             $table->string('before_state')->nullable();
             $table->string('after_state')->nullable();
+            $table->unsignedTinyInteger('before_step')->nullable();
+            $table->unsignedTinyInteger('after_step')->nullable();
             $table->timestamp('before_due_at')->nullable();
             $table->timestamp('after_due_at')->nullable();
             $table->double('before_stability')->nullable();
@@ -131,7 +142,8 @@ return new class extends Migration
             $table->foreignId('alert_rule_id')->nullable()->constrained()->nullOnDelete();
             $table->string('rule_key');
             $table->unsignedInteger('rule_version');
-            $table->string('fingerprint')->unique();
+            $table->string('fingerprint');
+            $table->string('active_fingerprint')->nullable()->unique();
             $table->string('severity');
             $table->json('evidence');
             $table->foreignId('assignee_id')->nullable()->constrained('users')->nullOnDelete();
@@ -289,6 +301,7 @@ return new class extends Migration
             $table->dropColumn([
                 'request_id', 'algorithm', 'algorithm_version', 'base_revision',
                 'resulting_revision', 'before_state', 'after_state',
+                'before_step', 'after_step',
                 'before_due_at', 'after_due_at', 'before_stability',
                 'after_stability', 'before_difficulty', 'after_difficulty',
                 'before_scheduled_days', 'after_scheduled_days',
@@ -299,7 +312,7 @@ return new class extends Migration
         DB::table('user_vocabularies')->whereNull('stability')->update(['stability' => 0]);
         DB::table('user_vocabularies')->whereNull('difficulty')->update(['difficulty' => 0]);
         Schema::table('user_vocabularies', function (Blueprint $table) {
-            $table->dropColumn(['last_reviewed_at', 'algorithm', 'algorithm_version', 'revision']);
+            $table->dropColumn(['last_reviewed_at', 'step', 'algorithm', 'algorithm_version', 'revision']);
             $table->string('state')->default('new')->change();
             $table->double('stability')->nullable(false)->default(0)->change();
             $table->double('difficulty')->nullable(false)->default(0)->change();
@@ -307,6 +320,15 @@ return new class extends Migration
 
         Schema::table('progress', function (Blueprint $table) {
             $table->dropColumn(['status', 'best_score', 'started_at']);
+        });
+
+        Schema::table('user_vocabularies', function (Blueprint $table) {
+            $table->dropForeign(['user_id']);
+        });
+        DB::table('user_vocabularies')->whereNull('user_id')->delete();
+        Schema::table('user_vocabularies', function (Blueprint $table) {
+            $table->foreignId('user_id')->nullable(false)->change();
+            $table->foreign('user_id')->references('id')->on('users')->cascadeOnDelete();
         });
     }
 };

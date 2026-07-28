@@ -10,6 +10,7 @@ class SupervisionAlert extends Model
 {
     protected $fillable = [
         'learner_id', 'alert_rule_id', 'rule_key', 'rule_version', 'fingerprint',
+        'active_fingerprint',
         'severity', 'evidence', 'assignee_id', 'state', 'detected_at',
         'resolved_at', 'resolved_by', 'resolution_note',
     ];

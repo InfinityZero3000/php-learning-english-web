@@ -31,7 +31,7 @@ class BackfillFsrsStateTest extends TestCase
             'vocabulary_id' => $word->id,
             'state' => 'learning',
         ]);
-        foreach ([[3, '2026-01-01 12:00:00'], [3, '2026-01-01 12:10:00'], [2, '2026-01-08 12:10:00']] as [$rating, $at]) {
+        foreach ([[3, '2026-01-01 12:00:00'], [3, '2026-01-01 12:00:00'], [2, '2026-01-08 12:00:00']] as [$rating, $at]) {
             VocabularyReview::create([
                 'user_vocabulary_id' => $state->id,
                 'rating' => $rating,
@@ -52,6 +52,25 @@ class BackfillFsrsStateTest extends TestCase
         $this->assertNotNull($state->stability);
         $this->assertNotNull($state->difficulty);
         $snapshot = $state->only(['revision', 'due_at', 'stability', 'difficulty']);
+        $expected = collect(json_decode(
+            file_get_contents(base_path('tests/Fixtures/fsrs_v6_3_0.json')),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        )['cases'])->firstWhere('name', 'sequence_3')['after'];
+        $this->assertSame($expected['due'], $state->due_at->toImmutable()->utc()->format('c'));
+        $this->assertEqualsWithDelta($expected['stability'], $state->stability, 1e-9);
+        $this->assertEqualsWithDelta($expected['difficulty'], $state->difficulty, 1e-9);
+        $this->assertSame(
+            [0, 1, 2],
+            $state->reviews()->orderBy('reviewed_at')->pluck('base_revision')->all(),
+        );
+        $this->assertSame(
+            [1, 2, 3],
+            $state->reviews()->orderBy('reviewed_at')->pluck('resulting_revision')->all(),
+        );
+        $this->assertFalse($state->reviews()->whereNull('before_state')->exists());
+        $this->assertFalse($state->reviews()->whereNull('after_due_at')->exists());
+        $this->assertFalse($state->reviews()->where('algorithm_version', '!=', FsrsConfig::VERSION)->exists());
 
         $this->artisan('fsrs:backfill')->expectsOutput('Backfilled 0 vocabulary states.')->assertSuccessful();
         $this->assertEquals($snapshot, $state->fresh()->only(array_keys($snapshot)));

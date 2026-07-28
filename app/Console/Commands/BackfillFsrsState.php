@@ -43,17 +43,43 @@ class BackfillFsrsState extends Command
                         ));
                         $result = null;
 
-                        foreach ($reviews as $review) {
+                        foreach ($reviews as $index => $review) {
+                            $before = clone $card;
                             $result = $scheduler->review(
                                 $card,
                                 (int) $review->rating,
                                 new DateTimeImmutable($review->reviewed_at->clone()->utc()->format('c')),
                             );
                             $card = $result->card;
+                            $review->forceFill([
+                                'algorithm' => 'fsrs-6',
+                                'algorithm_version' => FsrsConfig::VERSION,
+                                'base_revision' => $index,
+                                'resulting_revision' => $index + 1,
+                                'before_state' => $before->state,
+                                'after_state' => $card->state,
+                                'before_step' => $before->step,
+                                'after_step' => $card->step,
+                                'before_due_at' => $before->due,
+                                'after_due_at' => $card->due,
+                                'before_stability' => $before->stability,
+                                'after_stability' => $card->stability,
+                                'before_difficulty' => $before->difficulty,
+                                'after_difficulty' => $card->difficulty,
+                                'before_scheduled_days' => $index === 0 ? 0 : $reviews[$index - 1]->after_scheduled_days,
+                                'after_scheduled_days' => $result->scheduledDays,
+                                'before_last_reviewed_at' => $before->lastReview,
+                                'after_last_reviewed_at' => $card->lastReview,
+                                'stability' => $card->stability,
+                                'difficulty' => $card->difficulty,
+                                'scheduled_days' => $result->scheduledDays,
+                                'elapsed_days' => $result->elapsedDays,
+                            ])->save();
                         }
 
                         $locked->forceFill([
                             'state' => $card->state,
+                            'step' => $card->step,
                             'due_at' => $card->due,
                             'stability' => $card->stability,
                             'difficulty' => $card->difficulty,
