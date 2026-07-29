@@ -4,10 +4,14 @@ namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\LessonResource;
+use App\Models\Course;
 use App\Models\Lesson;
+use App\Models\Unit;
 use App\Support\ApiResponse;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -74,8 +78,14 @@ class LessonAdminController extends Controller
         $validated['slug'] = $validated['slug'] ?? Str::slug($validated['title']).'-'.Str::random(6);
         $validated['status'] = $validated['status'] ?? 'draft';
 
-        $lesson = Lesson::create($validated);
-        $lesson->applyLocalEdit([]);
+        $lesson = DB::transaction(function () use ($validated): Lesson {
+            Course::query()->lockForUpdate()->findOrFail($validated['course_id']);
+            $this->assertUnitCourse($validated['unit_id'] ?? null, $validated['course_id']);
+            $lesson = Lesson::create($validated);
+            $lesson->applyLocalEdit([]);
+
+            return $lesson;
+        });
 
         Log::info('admin.lesson.created', [
             'user_id' => $request->user()->id,
@@ -115,7 +125,22 @@ class LessonAdminController extends Controller
         // Never overwrite external_id from LexiLingo
         unset($validated['external_id']);
 
-        $lesson->applyLocalEdit($validated);
+        $lesson = DB::transaction(function () use ($lesson, $validated): Lesson {
+            Course::query()->lockForUpdate()->findOrFail($lesson->course_id);
+            $locked = Lesson::query()->lockForUpdate()->findOrFail($lesson->id);
+            if (isset($validated['course_id']) && $validated['course_id'] !== $locked->course_id) {
+                throw new HttpResponseException(ApiResponse::error(
+                    'VALIDATION_ERROR',
+                    'The given data was invalid.',
+                    422,
+                    ['errors' => ['course_id' => ['A lesson cannot be moved to another course.']]],
+                ));
+            }
+            $this->assertUnitCourse($validated['unit_id'] ?? $locked->unit_id, $locked->course_id);
+            $locked->applyLocalEdit($validated);
+
+            return $locked;
+        });
 
         Log::info('admin.lesson.updated', [
             'user_id' => $request->user()->id,
@@ -136,8 +161,23 @@ class LessonAdminController extends Controller
             'title' => $lesson->title,
         ]);
 
-        $lesson->delete();
+        DB::transaction(function () use ($lesson): void {
+            Course::query()->lockForUpdate()->findOrFail($lesson->course_id);
+            Lesson::query()->lockForUpdate()->findOrFail($lesson->id)->delete();
+        });
 
         return response()->json(null, 204);
+    }
+
+    private function assertUnitCourse(?int $unitId, int $courseId): void
+    {
+        if ($unitId && Unit::query()->whereKey($unitId)->where('course_id', $courseId)->doesntExist()) {
+            throw new HttpResponseException(ApiResponse::error(
+                'VALIDATION_ERROR',
+                'The given data was invalid.',
+                422,
+                ['errors' => ['unit_id' => ['The selected unit does not belong to the course.']]],
+            ));
+        }
     }
 }
