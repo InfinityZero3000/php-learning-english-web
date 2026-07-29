@@ -42,15 +42,15 @@ class SocialLoginTest extends TestCase
 
         $this->get('/api/v1/auth/oauth/google?next=%2Fprogress')
             ->assertRedirect('https://accounts.google.test')
-            ->assertSessionHas('google_oauth_return', '/progress');
+            ->assertSessionHas('auth.oauth_next', '/progress');
 
         $this->get('/api/v1/auth/oauth/google?next=https%3A%2F%2Fevil.test')
             ->assertRedirect('https://accounts.google.test')
-            ->assertSessionHas('google_oauth_return', '/profile');
+            ->assertSessionHas('auth.oauth_next', '/');
 
         $this->get('/api/v1/auth/oauth/google?next=%2F%2Fevil.test')
             ->assertRedirect('https://accounts.google.test')
-            ->assertSessionHas('google_oauth_return', '/profile');
+            ->assertSessionHas('auth.oauth_next', '/');
     }
 
     public function test_facebook_callback_uses_frontend_destination_and_safe_error_code(): void

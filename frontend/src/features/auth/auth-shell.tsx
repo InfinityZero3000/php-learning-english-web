@@ -19,6 +19,6 @@ export function AuthShell({ title, description, children }: { title: string; des
 export function AuthMessage({ error, success }: { error?: string; success?: string }) {
   return <>
     {error ? <p role="alert" className="mb-4 rounded-xl border-2 border-destructive/30 bg-destructive/10 p-3 text-sm font-semibold text-destructive">{error}</p> : null}
-    {success ? <p aria-live="polite" className="mb-4 rounded-xl border-2 border-primary/20 bg-accent p-3 text-sm font-semibold text-accent-foreground">{success}</p> : null}
+    {success ? <p role="status" aria-live="polite" className="mb-4 rounded-xl border-2 border-primary/20 bg-accent p-3 text-sm font-semibold text-accent-foreground">{success}</p> : null}
   </>;
 }

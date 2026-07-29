@@ -13,8 +13,9 @@ import { navigationIcons } from "@/components/icons/app-icons";
 import { Button } from "@/components/ui/button";
 import { CatLoader } from "@/components/ui/cat-loader";
 import { NotificationWidget } from "@/components/layout/notifications";
-import { api, ApiError, auth } from "@/lib/api";
+import { ApiError, auth } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { isProtectedPath, loginHref } from "@/features/auth/route-policy";
 import type { AppUser } from "@/types/api";
 
 const nav = [
@@ -42,7 +43,7 @@ const titles: Record<string, string> = {
   "/progress": "Progress",
   "/profile": "Profile"
 };
-const publicRoutes = new Set(["/login", "/register", "/forgot-password", "/reset-password", "/verify-email"]);
+const authRoutes = new Set(["/login", "/register", "/forgot-password", "/reset-password", "/verify-email"]);
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -51,7 +52,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [authChecked, setAuthChecked] = useState(false);
   const [authError, setAuthError] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const isPublicRoute = publicRoutes.has(pathname);
+  const isAuthRoute = authRoutes.has(pathname);
+  const protectedRoute = isProtectedPath(pathname);
 
   const pageTitle = useMemo(() => titles[pathname] || "FSRSpring", [pathname]);
   const visibleNav = useMemo(() => [
@@ -63,7 +65,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    if (isPublicRoute) {
+    if (isAuthRoute) {
       setAuthChecked(true);
       setAuthError(false);
       return () => { cancelled = true; };
@@ -71,16 +73,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setAuthChecked(false);
     setAuthError(false);
 
-    api.me()
+    auth.me()
       .then((data) => {
         if (!cancelled) setUser(data);
       })
       .catch((error) => {
         if (cancelled) return;
         if (error instanceof ApiError && error.status === 401) {
-          if (pathname !== "/login") window.location.replace("/login");
+          if (protectedRoute) router.replace(loginHref(pathname));
         } else {
-          setAuthError(true);
+          setAuthError(protectedRoute);
         }
       })
       .finally(() => {
@@ -89,7 +91,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [isPublicRoute, pathname, router]);
+  }, [isAuthRoute, pathname, protectedRoute, router]);
 
   async function logout() {
     await auth.logout().catch(() => undefined);
@@ -97,7 +99,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     router.refresh();
   }
 
-  if (isPublicRoute) return children;
+  if (isAuthRoute) return <div className="app-shell min-h-screen">{children}</div>;
   if (!authChecked) return <AppShellLoading label="Checking session..." />;
   if (authError) {
     return (

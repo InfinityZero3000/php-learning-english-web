@@ -27,4 +27,15 @@ class ProfileApiTest extends TestCase
 
         $this->assertDatabaseHas('users', ['id' => $user->id, 'name' => 'Deleted user']);
     }
+
+    public function test_guest_gets_401_on_profile_routes(): void
+    {
+        $this->putJson('/api/v1/profile', ['name' => 'Updated'])->assertUnauthorized();
+        $this->putJson('/api/v1/profile/password', [
+            'current_password' => 'password',
+            'password' => 'new-password',
+            'password_confirmation' => 'new-password',
+        ])->assertUnauthorized();
+        $this->deleteJson('/api/v1/profile', ['password' => 'password'])->assertUnauthorized();
+    }
 }

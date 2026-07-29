@@ -108,6 +108,7 @@ jobs:
       - name: Check code quality
         run: |
           pnpm lint
+          pnpm test
           node scripts/validate-lexilingo-schema.mjs
 
       - name: Build
@@ -129,7 +130,9 @@ jobs:
         run: npm ci
 
       - name: Check code quality
-        run: npm run lint
+        run: |
+          npm run lint
+          npm test
 
       - name: Build
         run: npm run build

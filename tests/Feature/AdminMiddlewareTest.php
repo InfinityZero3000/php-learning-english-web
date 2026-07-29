@@ -6,9 +6,10 @@ use Tests\TestCase;
 
 class AdminMiddlewareTest extends TestCase
 {
-    public function test_guest_admin_pages_redirect_to_the_named_login_route(): void
+    public function test_guest_admin_pages_redirect_to_the_admin_frontend_login(): void
     {
-        $this->get('/admin')->assertRedirect(route('login'));
-        $this->get('/admin/users')->assertRedirect(route('login'));
+        $login = rtrim((string) config('app.admin_frontend_url'), '/').'/login';
+        $this->get('/admin')->assertRedirect($login);
+        $this->get('/admin/users')->assertRedirect($login);
     }
 }

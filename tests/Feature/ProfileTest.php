@@ -22,6 +22,8 @@ class ProfileTest extends TestCase
 
     public function test_guest_profile_still_uses_the_named_login_redirect(): void
     {
-        $this->get('/profile')->assertRedirect(route('login'));
+        config(['app.frontend_url' => 'https://learner.test']);
+
+        $this->get('/profile')->assertRedirect('https://learner.test/login');
     }
 }

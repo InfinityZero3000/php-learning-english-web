@@ -44,5 +44,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('start-content-sync', [OperationsPolicy::class, 'startContentSync']);
         Gate::define('retry-content-sync', [OperationsPolicy::class, 'retryContentSync']);
         Gate::define('view-learning-evidence', [LearningPolicy::class, 'viewEvidence']);
+        Gate::define('upload-media', fn (User $user) => $user->hasRole('admin', 'super_admin'));
+        Gate::define('delete-media', fn (User $user) => $user->hasRole('admin', 'super_admin'));
     }
 }

@@ -1,32 +1,43 @@
 <?php
 
 use App\Http\Controllers\AdminGoogleAuthController;
+use App\Http\Controllers\Api\Admin\AuditLogController;
+use App\Http\Controllers\Api\Admin\UserController as LegacyAdminUserController;
 use App\Http\Controllers\Api\V1\Admin\CatalogController as AdminCatalogController;
 use App\Http\Controllers\Api\V1\Admin\ContentOperationsController as AdminContentOperationsController;
+use App\Http\Controllers\Api\V1\Admin\CourseCategoryController;
 use App\Http\Controllers\Api\V1\Admin\LearningController as AdminLearningController;
 use App\Http\Controllers\Api\V1\Admin\LessonController as AdminLessonController;
+use App\Http\Controllers\Api\V1\Admin\LevelController;
+use App\Http\Controllers\Api\V1\Admin\MediaController;
 use App\Http\Controllers\Api\V1\Admin\OperationsController;
 use App\Http\Controllers\Api\V1\Admin\QuizController as AdminQuizController;
+use App\Http\Controllers\Api\V1\Admin\TopicController;
 use App\Http\Controllers\Api\V1\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Api\V1\AiProxyController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\BookmarkApiController;
 use App\Http\Controllers\Api\V1\BookmarkController;
 use App\Http\Controllers\Api\V1\CatalogController;
 use App\Http\Controllers\Api\V1\EmailVerificationController;
 use App\Http\Controllers\Api\V1\EnrollmentController;
 use App\Http\Controllers\Api\V1\FsrsController;
+use App\Http\Controllers\Api\V1\LearnerToolsController;
 use App\Http\Controllers\Api\V1\LearningSessionController;
 use App\Http\Controllers\Api\V1\LessonQuizController;
-use App\Http\Controllers\Api\V1\LearnerToolsController;
+use App\Http\Controllers\Api\V1\LexiLingoContentController;
 use App\Http\Controllers\Api\V1\MediaListeningController;
+use App\Http\Controllers\Api\V1\OAuthController;
 use App\Http\Controllers\Api\V1\PasswordController;
 use App\Http\Controllers\Api\V1\ProfileController;
 use App\Http\Controllers\Api\V1\ProgressController;
+use App\Http\Controllers\Api\V1\QuizController;
 use App\Http\Controllers\Api\V1\TeacherController;
 use App\Http\Controllers\Api\V1\TraceCagController;
 use App\Http\Controllers\Api\V1\VocabularyController;
 use App\Http\Controllers\Api\V1\VocabularyQuizController;
-use App\Http\Controllers\SocialController;
+use App\Models\Vocabulary;
+use App\Services\VocabularyEnrichmentService;
 use App\Support\ApiResponse;
 use App\Support\HealthCheck;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
@@ -58,12 +69,14 @@ Route::prefix('api/v1')->group(function (): void {
     Route::get('/catalog/courses/{course}/lessons', [CatalogController::class, 'courseLessons']);
     Route::get('/catalog/lessons', [CatalogController::class, 'lessons']);
     Route::get('/catalog/lessons/{lesson}', [CatalogController::class, 'lesson']);
+    Route::get('/content/news', [LexiLingoContentController::class, 'news']);
+    Route::get('/content/youtube', [LexiLingoContentController::class, 'youtube']);
 
     Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
-    Route::get('/auth/oauth/google', [SocialController::class, 'google'])->middleware('throttle:10,1');
+    Route::get('/auth/oauth/{provider}', [OAuthController::class, 'redirect'])->middleware('throttle:10,1');
     Route::get('/auth/oauth/google/admin', [AdminGoogleAuthController::class, 'entry'])->middleware('throttle:10,1');
     Route::get('/auth/oauth/google/admin/start', [AdminGoogleAuthController::class, 'redirect'])->middleware('throttle:10,1');
-    Route::get('/auth/oauth/google/callback', [SocialController::class, 'googleCallback'])->middleware('throttle:10,1');
+    Route::get('/auth/oauth/{provider}/callback', [OAuthController::class, 'callback'])->middleware('throttle:10,1');
     Route::post('/auth/oauth/google/admin/handoff', [AdminGoogleAuthController::class, 'handoff'])->middleware('throttle:10,1');
     Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
     Route::post('/auth/email/resend', [EmailVerificationController::class, 'resend'])->middleware('throttle:3,1');
@@ -73,13 +86,30 @@ Route::prefix('api/v1')->group(function (): void {
     Route::post('/auth/password/forgot', [PasswordController::class, 'forgot'])->middleware('throttle:3,1');
     Route::post('/auth/password/reset', [PasswordController::class, 'reset']);
 
+    Route::middleware('auth')->prefix('admin')->group(function (): void {
+        Route::apiResource('topics', TopicController::class);
+        Route::apiResource('levels', LevelController::class);
+        Route::apiResource('categories', CourseCategoryController::class);
+        Route::post('/media/upload', [MediaController::class, 'upload']);
+        Route::delete('/media/{path?}', [MediaController::class, 'destroy'])->where('path', '.*');
+    });
+
     Route::middleware('auth')->group(function (): void {
+        Route::get('/bookmarks', [BookmarkApiController::class, 'index']);
+        Route::post('/bookmarks/vocabulary/{vocabulary}/toggle', [BookmarkApiController::class, 'toggleVocabulary']);
+        Route::post('/bookmarks/lesson/{lesson}/toggle', [BookmarkApiController::class, 'toggleLesson']);
+        Route::post('/enrichment/words/{vocabulary}', fn (Vocabulary $vocabulary, VocabularyEnrichmentService $service) => response()->json([
+            'data' => $service->enrich($vocabulary),
+        ]))->middleware('can:manage-content');
         Route::put('/vocabulary/{vocabulary}/bookmark', [BookmarkController::class, 'update']);
         Route::get('/lesson-quizzes', [LessonQuizController::class, 'index']);
         Route::post('/lesson-quizzes/{quiz}/attempts', [LessonQuizController::class, 'start']);
         Route::put('/lesson-quiz-attempts/{attempt}/answers/{question}', [LessonQuizController::class, 'answer']);
         Route::post('/lesson-quiz-attempts/{attempt}/complete', [LessonQuizController::class, 'complete']);
         Route::get('/lesson-quiz-attempts/{attempt}', [LessonQuizController::class, 'show']);
+        Route::get('/quizzes/{quiz}', [QuizController::class, 'show']);
+        Route::post('/quizzes/{quiz}/submit', [QuizController::class, 'submit']);
+        Route::get('/quizzes/{quiz}/history', [QuizController::class, 'history']);
         Route::post('/auth/logout', [AuthController::class, 'logout']);
         Route::get('/auth/me', [AuthController::class, 'me']);
         Route::put('/profile', [ProfileController::class, 'update']);
@@ -155,6 +185,7 @@ Route::prefix('api/v1')->group(function (): void {
             Route::get('/admin/operations/alert-rules', [OperationsController::class, 'rules']);
             Route::put('/admin/operations/alert-rules/{alertRule}', [OperationsController::class, 'updateRule']);
             Route::get('/admin/operations/audit-events', [OperationsController::class, 'audits']);
+            Route::get('/admin/audit-logs', [AuditLogController::class, 'index']);
             Route::get('/admin/users', [AdminUserController::class, 'index']);
             Route::get('/admin/users/{user}', [AdminUserController::class, 'show']);
             Route::put('/admin/users/{user}/role', [AdminUserController::class, 'updateRole']);
@@ -211,4 +242,16 @@ Route::prefix('api/v1')->group(function (): void {
             Route::post('/admin/users/{learner}/evidence', [TeacherController::class, 'operationalEvidence']);
         });
     });
+});
+
+// Compatibility for the existing admin client while it migrates to the v1 envelope.
+Route::prefix('api/admin')->middleware(['auth', 'role:admin'])->group(function (): void {
+    Route::get('/users', [LegacyAdminUserController::class, 'index']);
+    Route::get('/users/{user}', [LegacyAdminUserController::class, 'show']);
+    Route::get('/users/{user}/history', [LegacyAdminUserController::class, 'history']);
+    Route::put('/users/{user}/lock', [LegacyAdminUserController::class, 'lock']);
+    Route::put('/users/{user}/unlock', [LegacyAdminUserController::class, 'unlock']);
+    Route::post('/users/{user}/reset-password', [LegacyAdminUserController::class, 'resetPassword']);
+    Route::put('/users/{user}/role', [LegacyAdminUserController::class, 'updateRole']);
+    Route::get('/audit-logs', [AuditLogController::class, 'index']);
 });

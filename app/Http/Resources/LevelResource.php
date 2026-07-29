@@ -14,6 +14,7 @@ class LevelResource extends JsonResource
             'name' => $this->name,
             'slug' => $this->slug,
             'sort_order' => $this->sort_order,
+            'courses_count' => $this->whenCounted('courses'),
         ];
     }
 }

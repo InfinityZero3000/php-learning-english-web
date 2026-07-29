@@ -23,6 +23,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('supervision:evaluate')->dailyAt('02:00')->withoutOverlapping();
     })
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->redirectGuestsTo(fn (Request $request) => rtrim((string) config(
+            $request->is('admin/*') || $request->is('admin') ? 'app.admin_frontend_url' : 'app.frontend_url'
+        ), '/').'/login');
         $middleware->alias([
             'role' => CheckRole::class,
             'google.admin' => RequireGoogleAdmin::class,

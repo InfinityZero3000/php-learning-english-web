@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { auth, ApiError } from "@/lib/api";
+import { auth } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AuthMessage, AuthShell } from "./auth-shell";
+import { messageFor } from "./form-support";
 
 export function RegisterPage() {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -18,11 +21,12 @@ export function RegisterPage() {
 
   async function submit(event: React.FormEvent) {
     event.preventDefault(); setError(""); setSuccess(""); setSubmitting(true);
+    if (password !== confirmation) { setError("Mật khẩu xác nhận không khớp."); setSubmitting(false); return; }
     try {
-      const result = await auth.register(name, email, password, confirmation);
-      setSuccess(result.message); setPassword(""); setConfirmation("");
+      await auth.register(name, email, password, confirmation);
+      router.push(`/verify-email?email=${encodeURIComponent(email)}`);
     } catch (cause) {
-      setError(cause instanceof ApiError ? Object.values(cause.errors ?? {}).flat()[0] ?? cause.message : "Không thể tạo tài khoản.");
+      setError(messageFor(cause, "Không thể tạo tài khoản."));
     } finally { setSubmitting(false); }
   }
 

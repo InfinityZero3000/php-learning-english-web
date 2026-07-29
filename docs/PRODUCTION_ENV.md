@@ -76,6 +76,9 @@ Không sử dụng Mailtrap Sandbox ở production.
 | `LEXILINGO_IMPORT_KEY` | Khi sync lesson content protected | Có | Key chỉ có quyền `content:read`; không dùng admin token 30 phút |
 | `LEXILINGO_AI_SERVICE_SECRET` | Khi gọi internal AI | Có | Gửi bằng `X-AI-Service-Secret` |
 | `LEXILINGO_TIMEOUT` | Không | Không | `30`; code giới hạn trong khoảng 1–60 giây |
+| `LEXILINGO_AI_RETRY_TIMES` | Không | Không | `2`; số lần thử lại khi timeout/5xx trên proxy AI (`/api/v1/ai/*`, `/api/v1/stt/*`, `/api/v1/tts/*`), không retry lỗi 4xx |
+| `LEXILINGO_AI_RETRY_DELAY_MS` | Không | Không | `200`; thời gian chờ giữa các lần retry |
+| `LEXILINGO_AI_MAX_AUDIO_KB` | Không | Không | `10240` (10 MB); giới hạn dung lượng file audio gửi lên cho pronunciation/STT |
 
 Public category/course/vocabulary request không được gửi import key. Vocabulary
 được đồng bộ vào MySQL bằng:
@@ -86,6 +89,30 @@ fly ssh console -C "php artisan lexilingo:sync-vocabulary --limit=100"
 
 Page upstream được cache Redis 5 phút; dữ liệu vocabulary core được upsert vào
 MySQL theo `external_id`. API `/api/v1/vocabulary` chỉ đọc dữ liệu local.
+
+Category/course/unit/lesson (outline) dùng chung `LEXILINGO_*` ở trên, không
+cần biến mới:
+
+```bash
+fly ssh console -C "php artisan lexilingo:import categories --limit=50"
+fly ssh console -C "php artisan lexilingo:import courses --limit=50"
+fly ssh console -C "php artisan lexilingo:import all --dry-run"
+```
+
+`--dry-run` chỉ validate và không ghi DB (bao gồm không tạo/nâng checkpoint).
+`--reset` bỏ qua checkpoint đã lưu và chạy lại từ offset 0. Import idempotent
+theo `external_id`, an toàn khi chạy lại cùng payload. Hai bảng vận hành:
+
+- `lexilingo_import_checkpoints`: vị trí (`cursor`) đã đồng bộ theo từng
+  entity (`categories`/`courses`/`vocabulary`), dùng để resume.
+- `lexilingo_import_failures`: payload gốc + lỗi validate của các bản ghi bị
+  từ chối (không làm fail cả trang) — kiểm tra bảng này khi nghi ngờ dữ liệu
+  import thiếu.
+
+Nội dung đầy đủ của từng lesson (`description`/`prerequisites`/
+`estimated_minutes`/`pass_threshold` qua `/api/v1/learning/lessons/{id}/content`)
+chưa được đồng bộ — chỉ mới có outline (tiêu đề, thứ tự, loại, XP) từ course
+detail. Đây là việc tiếp theo, chưa triển khai.
 
 ### Khuyến nghị
 
@@ -135,13 +162,21 @@ Chỉ cấu hình khi bật social login:
 |---|---:|---|
 | `GOOGLE_CLIENT_ID` | Không | OAuth 2.0 Web client ID |
 | `GOOGLE_CLIENT_SECRET` | Có | Secret đã rotate, lưu bằng Fly secret |
-| `GOOGLE_REDIRECT_URI` | Không | `${APP_URL}/auth/google/callback` |
+| `GOOGLE_REDIRECT_URI` | Không | `${FRONTEND_URL}/api/v1/auth/oauth/google/callback` |
 | `FACEBOOK_CLIENT_ID` | Không | Facebook App ID |
 | `FACEBOOK_CLIENT_SECRET` | Có | Facebook App Secret |
-| `FACEBOOK_REDIRECT_URI` | Không | `${APP_URL}/auth/facebook/callback` |
+| `FACEBOOK_REDIRECT_URI` | Không | `${FRONTEND_URL}/api/v1/auth/oauth/facebook/callback` |
 
 Authorized redirect URI trong Google/Facebook Console phải khớp tuyệt đối với
-biến redirect tương ứng. Không tải hoặc commit file
+biến redirect tương ứng và đi qua domain frontend để giữ session cookie host-only.
+Production hiện dùng:
+
+```text
+https://linguist-nova.vercel.app/api/v1/auth/oauth/google/callback
+https://linguist-nova.vercel.app/api/v1/auth/oauth/facebook/callback
+```
+
+Không tải hoặc commit file
 `client_secret_*.json`; pattern này đã được chặn trong `.gitignore`.
 
 ## 2. Learner frontend trên Vercel

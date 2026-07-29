@@ -101,6 +101,10 @@ export type OperationsUsage = { last_24_hours: number; last_30_days: number; deg
 let adminSession: Promise<User> | undefined;
 
 export const auth = {
+  login: (email: string, password: string) => request<{ data: User }>('/api/v1/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  }).then(({ data }) => data),
   me: () => request<{ data: User }>('/api/v1/auth/me').then(({ data }) => data),
   adminMe: () => {
     adminSession ??= request<{ data: User }>('/api/v1/admin/session')
@@ -299,4 +303,9 @@ export const adminQuizzes = {
   create: (data: QuizWrite) => mutation<{ data: AdminQuiz }>('/api/v1/admin/catalog/quizzes', 'POST', data).then(({ data }) => data),
   update: (id: number, data: QuizWrite) => mutation<{ data: AdminQuiz }>(`/api/v1/admin/catalog/quizzes/${id}`, 'PUT', data).then(({ data }) => data),
   delete: (id: number) => mutation<void>(`/api/v1/admin/catalog/quizzes/${id}`, 'DELETE'),
+};
+
+// Admin – Audit Logs
+export const auditLogs = {
+  list: () => request('/api/v1/admin/audit-logs'),
 };

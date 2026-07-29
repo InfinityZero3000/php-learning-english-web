@@ -20,6 +20,7 @@ class CourseCategoryResource extends JsonResource
             'color' => $this->color,
             'sort_order' => $this->sort_order,
             'is_active' => $this->is_active,
+            'courses_count' => $this->whenCounted('courses'),
         ];
     }
 }

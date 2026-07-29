@@ -88,6 +88,7 @@ class AdminGoogleAuthController extends Controller
 
                 return $user;
             });
+            abort_if($user->locked_at, 423, 'Account is locked.');
 
             Cache::forget("admin-google-challenge:{$challenge}");
             $nonce = (string) Str::uuid();
@@ -124,6 +125,7 @@ class AdminGoogleAuthController extends Controller
         $nonce = (string) ($payload['nonce'] ?? '');
         abort_unless($nonce !== '' && Cache::pull("admin-google-handoff:{$nonce}"), 401);
         $user = User::query()->with('role')->findOrFail((int) ($payload['user_id'] ?? 0));
+        abort_if($user->locked_at, 423, 'Account is locked.');
         abort_unless(hash_equals((string) $user->google_id, (string) ($payload['subject'] ?? '')), 401);
         abort_unless(hash_equals(strtolower($user->email), (string) ($payload['email'] ?? '')), 401);
         abort_unless($access->role($user->email) === $user->role?->slug, 403);

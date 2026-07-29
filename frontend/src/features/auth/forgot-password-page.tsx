@@ -2,16 +2,17 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { auth, ApiError } from "@/lib/api";
+import { auth } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AuthMessage, AuthShell } from "./auth-shell";
+import { messageFor } from "./form-support";
 
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState(""); const [error, setError] = useState(""); const [success, setSuccess] = useState(""); const [submitting, setSubmitting] = useState(false);
   async function submit(event: React.FormEvent) {
     event.preventDefault(); setError(""); setSubmitting(true);
-    try { setSuccess((await auth.forgotPassword(email)).message); } catch (cause) { setError(cause instanceof ApiError ? cause.message : "Không thể gửi email đặt lại mật khẩu."); } finally { setSubmitting(false); }
+    try { await auth.forgotPassword(email); setSuccess("Nếu tài khoản tồn tại, liên kết đặt lại đã được gửi."); } catch (cause) { setError(messageFor(cause, "Không thể gửi email đặt lại mật khẩu.")); } finally { setSubmitting(false); }
   }
   return <AuthShell title="Quên mật khẩu?" description="Chúng tôi sẽ gửi liên kết đặt lại nếu email này có tài khoản.">
     <AuthMessage error={error} success={success} />

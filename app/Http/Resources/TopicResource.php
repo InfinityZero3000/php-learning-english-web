@@ -13,6 +13,8 @@ class TopicResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'slug' => $this->slug,
+            'courses_count' => $this->whenCounted('courses'),
+            'vocabularies_count' => $this->whenCounted('vocabularies'),
         ];
     }
 }

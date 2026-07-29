@@ -6,6 +6,7 @@ use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\User as SocialUser;
@@ -68,6 +69,33 @@ class AdminGoogleLoginTest extends TestCase
             ->assertSessionMissing('google_admin');
         $this->assertGuest();
         $this->assertDatabaseMissing('users', ['email' => 'other@example.com']);
+    }
+
+    public function test_locked_admin_cannot_complete_handoff(): void
+    {
+        $this->seed();
+        $role = Role::query()->where('slug', 'admin')->firstOrFail();
+        $user = User::factory()->create([
+            'role_id' => $role->id,
+            'email' => 'admin@example.com',
+            'google_id' => 'locked-google-subject',
+            'auth_provider' => 'google',
+            'locked_at' => now(),
+        ]);
+        config()->set('admin_access.admin_emails', [$user->email]);
+        $nonce = (string) Str::uuid();
+        Cache::put("admin-google-handoff:{$nonce}", true, now()->addMinute());
+        $handoff = Crypt::encryptString(json_encode([
+            'nonce' => $nonce,
+            'user_id' => $user->id,
+            'subject' => $user->google_id,
+            'email' => $user->email,
+            'return' => '/dashboard',
+            'expires_at' => now()->addMinute()->timestamp,
+        ], JSON_THROW_ON_ERROR));
+
+        $this->postJson('/api/v1/auth/oauth/google/admin/handoff', compact('handoff'))->assertStatus(423);
+        $this->assertGuest();
     }
 
     public function test_missing_whitelisted_role_is_reported_as_configuration_error(): void

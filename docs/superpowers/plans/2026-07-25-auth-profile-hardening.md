@@ -21,12 +21,12 @@
 - Test: `tests/Feature/ForgotPasswordTest.php`
 - Test: `tests/Feature/RegistrationTest.php`
 
-- [ ] Add failing feature tests for login throttling, reset-link throttling,
+- [x] Add failing feature tests for login throttling, reset-link throttling,
   verification resend throttling, and neutral unknown-email responses.
-- [ ] Run the focused tests and verify they fail.
-- [ ] Add built-in route middleware and return the same reset-link response for
+- [x] Run the focused tests and verify they fail.
+- [x] Add built-in route middleware and return the same reset-link response for
   known and unknown addresses.
-- [ ] Run the focused tests and verify they pass.
+- [x] Run the focused tests and verify they pass.
 
 ### Task 2: Password and email verification events
 
@@ -36,12 +36,12 @@
 - Test: `tests/Feature/ForgotPasswordTest.php`
 - Test: `tests/Feature/RegistrationTest.php`
 
-- [ ] Add failing tests for remember-token rotation, `PasswordReset`, and
+- [x] Add failing tests for remember-token rotation, `PasswordReset`, and
   `Verified`, including no duplicate event for an already verified user.
-- [ ] Run the focused tests and verify they fail.
-- [ ] Rotate the remember token, dispatch `PasswordReset`, and dispatch
+- [x] Run the focused tests and verify they fail.
+- [x] Rotate the remember token, dispatch `PasswordReset`, and dispatch
   `Verified` only when `markEmailAsVerified()` returns `true`.
-- [ ] Run the focused tests and verify they pass.
+- [x] Run the focused tests and verify they pass.
 
 ### Task 3: Required learner role
 
@@ -49,12 +49,12 @@
 - Modify: `app/Http/Controllers/AuthController.php`
 - Test: `tests/Feature/RegistrationTest.php`
 
-- [ ] Add a failing test proving registration does not create a role-less user.
-- [ ] Run the focused test and verify it fails.
-- [ ] Resolve the learner role before creating the user; if absent, throw
+- [x] Add a failing test proving registration does not create a role-less user.
+- [x] Run the focused test and verify it fails.
+- [x] Resolve the learner role before creating the user; if absent, throw
   `ValidationException::withMessages(...)`, otherwise create the user with the
   resolved role.
-- [ ] Run the focused test and verify it passes.
+- [x] Run the focused test and verify it passes.
 
 ## Chunk 2: Profile safety and branding
 
@@ -66,13 +66,13 @@
 - Modify: `resources/views/profile/index.blade.php`
 - Test: `tests/Feature/ProfileTest.php`
 
-- [ ] Add failing tests for new-password confirmation and account deletion with
+- [x] Add failing tests for new-password confirmation and account deletion with
   missing, incorrect, and correct current passwords.
-- [ ] Run the focused tests and verify they fail.
-- [ ] Add the `confirmed` rule and confirmation input. Validate deletion with
+- [x] Run the focused tests and verify they fail.
+- [x] Add the `confirmed` rule and confirmation input. Validate deletion with
   `['required', 'current_password']`; only a correct password may delete the
   account.
-- [ ] Run the focused tests and verify they pass.
+- [x] Run the focused tests and verify they pass.
 
 ### Task 5: Remove unapproved branding
 
@@ -81,13 +81,13 @@
 - Modify: `resources/views/auth/*.blade.php`
 - Modify: `resources/views/profile/index.blade.php`
 
-- [ ] Replace every user-visible `LexiLingo` occurrence with
+- [x] Replace every user-visible `LexiLingo` occurrence with
   `English Learning`.
-- [ ] Verify `rg -i lexilingo app config resources routes tests` returns no
-  matches.
+- [x] Verify `rg -i lexilingo resources/views` returns no user-visible branding
+  matches. Keep technical integration names such as `LexiLingoClient` unchanged.
 
 ### Task 6: Full verification
 
-- [ ] Run `php artisan test` and require all tests to pass.
-- [ ] Run `./vendor/bin/pint --test` and require it to pass.
-- [ ] Review the final diff for unrelated changes.
+- [x] Run `php artisan test` and require all tests to pass.
+- [x] Run `./vendor/bin/pint --test` and require it to pass.
+- [x] Review the final diff for unrelated changes.
