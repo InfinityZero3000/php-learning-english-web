@@ -17,14 +17,17 @@ class LogContextMiddleware
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $requestId = $request->header('X-Request-ID') ?: Str::uuid()->toString();
+        $incomingRequestId = $request->header('X-Request-ID');
+        $requestId = is_string($incomingRequestId) && Str::isUuid($incomingRequestId)
+            ? $incomingRequestId
+            : Str::uuid()->toString();
 
         try {
             Log::withContext([
                 'request_id' => $requestId,
                 'ip' => $request->ip(),
                 'method' => $request->method(),
-                'url' => $request->fullUrl(),
+                'url' => $request->url(),
                 'user_id' => $request->user()?->id,
             ]);
         } catch (\Throwable $e) {
