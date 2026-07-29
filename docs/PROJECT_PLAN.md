@@ -194,6 +194,39 @@ khi hai Next.js app được chuyển đổi. Giao diện production cuối cùn
   (theo đúng hợp đồng UI đã build sẵn) thay vì gửi email reset link — có thể
   cân nhắc đổi hướng này khi có yêu cầu bảo mật chặt hơn.
 
+### Trạng thái xác minh 29/07/2026 — Issue #28 (kiểm thử hồi quy REST API và Postman collection)
+
+- Rà soát toàn bộ route `/api/v1` và `/api/admin` (auth, catalog, learning,
+  admin taxonomy/media, admin user management, AI proxy) so với độ phủ test
+  hiện có; bổ sung test cho các gap thật sự tìm thấy: validation lỗi cho
+  register/login, 401 cho route `/api/v1/profile*`, 404 cho id không tồn tại
+  (catalog/bookmark/quiz/progress/taxonomy/media), validate answer không
+  khớp question khi submit quiz, cách ly dữ liệu giữa user ở dashboard tiến
+  độ, pagination shape (`per_page`/`last_page`) cho danh sách taxonomy, test
+  idempotent-theo-slug còn thiếu cho category, và 4 route hoàn toàn chưa có
+  test (`/`, `content/news`, `content/youtube`, `enrichment/words/{id}`).
+- `php artisan test`: **226 tests pass** (từ 218 trước đợt này, +8 test file
+  mới/mở rộng, không đụng test đã có).
+- `./vendor/bin/pint --test`: pass.
+- Postman collection + environment mới tại `postman/` — không dùng bearer
+  token mà dùng đúng cơ chế session + CSRF cookie của app (pre-request
+  script tự lấy `/api/v1/csrf-cookie` và gắn `X-XSRF-TOKEN`, giống hệt
+  `admin-frontend/src/lib/api.ts`). Đã chạy thật bằng `newman run` (không chỉ
+  đọc JSON) trên `migrate:fresh --seed` local — phát hiện và sửa 2 lỗi thiết
+  kế thật: (1) gộp login/logout vào chung 1 folder khiến chạy folder đó luôn
+  kết thúc ở trạng thái đăng xuất, đã tách thành 3 folder độc lập
+  `0a`/`0b`/`0c`; (2) request kiểm tra "non-admin bị 403" đặt trong folder
+  chỉ chạy được với session admin nên luôn tự fail — bỏ script test tự động,
+  giữ lại như request tham khảo có mô tả rõ cách chạy thủ công.
+- Gap giữa route thực tế và `docs/openapi/laravel-v1.yaml` được ghi lại tại
+  `docs/api/route-doc-gap-log.md` để bàn giao cho issue #26 — **không** tự
+  viết thêm OpenAPI path/schema trong đợt này, đúng phạm vi đã thống nhất.
+- README.md đã liên kết `postman/` làm nguồn Postman duy nhất.
+- Chưa làm trong đợt này (cố ý): tự viết OpenAPI cho các path còn thiếu
+  (việc của #26); một số route trong `4 - AI Proxy` của Postman collection
+  cần `LEXILINGO_AI_URL`/`LEXILINGO_BACKEND_URL` cấu hình thật mới chạy được
+  local, không đảm bảo chạy được ngay mặc định.
+
 ## Quy ước bàn giao
 
 - Biến môi trường production được quản lý tại `docs/PRODUCTION_ENV.md`; mọi thay
