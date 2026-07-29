@@ -4,12 +4,13 @@ namespace Tests\Feature\Api\V1;
 
 use App\Domain\Fsrs\FsrsConfig;
 use App\Models\Course;
+use App\Models\LearningEvent;
 use App\Models\LearningSession;
 use App\Models\User;
 use App\Models\UserVocabulary;
 use App\Models\Vocabulary;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -123,19 +124,20 @@ class FsrsApiTest extends TestCase
     public function test_event_failure_rolls_back_review_and_fsrs_state(): void
     {
         [$user, , , $state] = $this->context();
-        $trigger = DB::getDriverName() === 'mysql'
-            ? "CREATE TRIGGER fail_learning_event BEFORE INSERT ON learning_events FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'forced'"
-            : "CREATE TRIGGER fail_learning_event BEFORE INSERT ON learning_events BEGIN SELECT RAISE(ABORT, 'forced'); END";
-        DB::unprepared($trigger);
+        $event = 'eloquent.creating: '.LearningEvent::class;
+        Event::listen($event, static fn () => throw new \RuntimeException('forced'));
 
-        $response = $this->actingAs($user)
-            ->withHeader('X-Request-ID', (string) Str::uuid())
-            ->postJson('/api/v1/fsrs/review', [
-                'user_vocabulary_id' => $state->id,
-                'rating' => 'good',
-                'base_revision' => 0,
-            ]);
-        DB::unprepared('DROP TRIGGER IF EXISTS fail_learning_event');
+        try {
+            $response = $this->actingAs($user)
+                ->withHeader('X-Request-ID', (string) Str::uuid())
+                ->postJson('/api/v1/fsrs/review', [
+                    'user_vocabulary_id' => $state->id,
+                    'rating' => 'good',
+                    'base_revision' => 0,
+                ]);
+        } finally {
+            Event::forget($event);
+        }
 
         $response->assertServerError();
 
