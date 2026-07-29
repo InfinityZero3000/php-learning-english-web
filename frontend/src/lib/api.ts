@@ -1,7 +1,11 @@
 import type {
   AppUser,
   CourseLearningPath,
+  FsrsPreview,
+  FsrsRating,
+  SupervisedDashboard,
 } from "@/types/api";
+export type { FsrsPreview, FsrsRating, SupervisedDashboard } from "@/types/api";
 import { initializeCsrf, xsrfToken } from "@/lib/csrf";
 
 type Query = Record<string, string | number | boolean | null | undefined>;
@@ -154,7 +158,11 @@ export const api = {
     method: "POST", headers: { "X-Request-ID": crypto.randomUUID() }
   }),
   fsrsDue: (perPage = 20) => request<Envelope<FsrsCard[]> & { meta: { total: number } }>(`/api/v1/fsrs/due?per_page=${perPage}`),
-  fsrsReview: (card: FsrsCard, rating: "again" | "hard" | "good" | "easy") => apiRequest<FsrsCard>("/api/v1/fsrs/review", {
+  fsrsPreview: (card: FsrsCard) => apiRequest<FsrsPreview>("/api/v1/fsrs/preview", {
+    method: "POST",
+    body: JSON.stringify({ card_id: card.id, base_revision: card.revision })
+  }),
+  fsrsReview: (card: FsrsCard, rating: FsrsRating) => apiRequest<FsrsCard>("/api/v1/fsrs/review", {
     method: "POST",
     headers: { "X-Request-ID": crypto.randomUUID() },
     body: JSON.stringify({ user_vocabulary_id: card.id, rating, base_revision: card.revision })
@@ -259,7 +267,6 @@ export type TeacherAssignmentInput = { learner_id: number; lesson_id?: number; v
 export type TeacherLearnerProgress = { completed_lessons: number; recent_events: number };
 export type LearningEvidence = { id: number; event_type: string; is_correct?: boolean; hint_level?: number; pronunciation_score?: number; duration_ms?: number; occurred_at: string; metadata?: Record<string, unknown> };
 export type SupervisedProgress = { id: number; lesson_id: number; completed_at: string; lesson?: LessonCard };
-export type SupervisedDashboard = { overview: { completed_lessons: number; quiz_attempts: number; average_score: number }; recent_activity: SupervisedProgress[] };
 export type CourseProgress = { course: { id: number; title: string }; progress_percent: number; completed_lessons: number; total_lessons: number };
 export type CatalogTopic = { id: number; name: string; slug?: string };
 export type VocabularyItem = { type: "vocabulary"; id: number; external_id?: string; word: string; meaning: string; definition?: string; translation?: Record<string, string>; pronunciation?: string; part_of_speech?: string; difficulty_level?: string; tags?: string[]; external_audio_url?: string; image_url?: string; audio_url?: string; example?: string; topic?: { id: number; name: string } | null; lesson?: { id: number; title: string } | null; is_bookmarked: boolean };
