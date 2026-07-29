@@ -274,6 +274,73 @@ class AdminTaxonomyTest extends TestCase
             ->assertJsonValidationErrors('slug');
     }
 
+    // ── Not found ──────────────────────────────────────────────
+
+    public function test_topic_show_update_destroy_return_404_for_nonexistent_id(): void
+    {
+        $this->actingAs($this->adminUser);
+
+        $this->getJson('/api/v1/admin/topics/999999')->assertNotFound();
+        $this->putJson('/api/v1/admin/topics/999999', ['name' => 'X'])->assertNotFound();
+        $this->deleteJson('/api/v1/admin/topics/999999')->assertNotFound();
+    }
+
+    public function test_level_show_update_destroy_return_404_for_nonexistent_id(): void
+    {
+        $this->actingAs($this->adminUser);
+
+        $this->getJson('/api/v1/admin/levels/999999')->assertNotFound();
+        $this->putJson('/api/v1/admin/levels/999999', ['name' => 'X'])->assertNotFound();
+        $this->deleteJson('/api/v1/admin/levels/999999')->assertNotFound();
+    }
+
+    public function test_category_show_update_destroy_return_404_for_nonexistent_id(): void
+    {
+        $this->actingAs($this->adminUser);
+
+        $this->getJson('/api/v1/admin/categories/999999')->assertNotFound();
+        $this->putJson('/api/v1/admin/categories/999999', ['name' => 'X'])->assertNotFound();
+        $this->deleteJson('/api/v1/admin/categories/999999')->assertNotFound();
+    }
+
+    // ── Pagination ─────────────────────────────────────────────
+
+    public function test_topics_pagination_respects_per_page(): void
+    {
+        Topic::factory()->count(3)->create();
+
+        $this->actingAs($this->adminUser)
+            ->getJson('/api/v1/admin/topics?per_page=1')
+            ->assertOk()
+            ->assertJsonPath('meta.per_page', 1)
+            ->assertJsonPath('meta.last_page', 3)
+            ->assertJsonCount(1, 'data');
+    }
+
+    public function test_levels_pagination_respects_per_page(): void
+    {
+        Level::factory()->count(3)->create();
+
+        $this->actingAs($this->adminUser)
+            ->getJson('/api/v1/admin/levels?per_page=1')
+            ->assertOk()
+            ->assertJsonPath('meta.per_page', 1)
+            ->assertJsonPath('meta.last_page', 3)
+            ->assertJsonCount(1, 'data');
+    }
+
+    public function test_categories_pagination_respects_per_page(): void
+    {
+        CourseCategory::factory()->count(3)->create();
+
+        $this->actingAs($this->adminUser)
+            ->getJson('/api/v1/admin/categories?per_page=1')
+            ->assertOk()
+            ->assertJsonPath('meta.per_page', 1)
+            ->assertJsonPath('meta.last_page', 3)
+            ->assertJsonCount(1, 'data');
+    }
+
     // ── Idempotency ────────────────────────────────────────────
 
     public function test_topic_creation_is_idempotent_by_slug(): void
@@ -307,5 +374,18 @@ class AdminTaxonomyTest extends TestCase
             ->assertUnprocessable();
 
         $this->assertEquals(1, Level::where('slug', 'level-one')->count());
+    }
+
+    public function test_category_creation_is_idempotent_by_slug(): void
+    {
+        $this->actingAs($this->adminUser)
+            ->postJson('/api/v1/admin/categories', ['name' => 'Cat One', 'slug' => 'cat-one'])
+            ->assertCreated();
+
+        $this->actingAs($this->adminUser)
+            ->postJson('/api/v1/admin/categories', ['name' => 'Cat One Dup', 'slug' => 'cat-one'])
+            ->assertUnprocessable();
+
+        $this->assertEquals(1, CourseCategory::where('slug', 'cat-one')->count());
     }
 }
