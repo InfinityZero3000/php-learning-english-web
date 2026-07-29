@@ -1,5 +1,6 @@
-import { QuizPage } from "@/features/quiz/quiz-page";
+import { Suspense } from "react";
+import { QuizRoute } from "@/features/quiz/lesson-quiz";
 
 export default function Page() {
-  return <QuizPage />;
+  return <Suspense><QuizRoute /></Suspense>;
 }

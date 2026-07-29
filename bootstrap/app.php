@@ -2,12 +2,15 @@
 
 use App\Http\Middleware\CheckRole;
 use App\Http\Middleware\RequireGoogleAdmin;
+use App\Support\ApiResponse;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -26,6 +29,12 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->render(fn (ModelNotFoundException $exception, Request $request) => $request->is('api/*')
+            ? ApiResponse::error('NOT_FOUND', 'The requested resource was not found.', 404)
+            : null);
+        $exceptions->render(fn (NotFoundHttpException $exception, Request $request) => $request->is('api/*')
+            ? ApiResponse::error('NOT_FOUND', 'The requested resource was not found.', 404)
+            : null);
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );

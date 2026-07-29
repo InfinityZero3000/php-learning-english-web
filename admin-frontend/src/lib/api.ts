@@ -42,7 +42,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     credentials: 'include',
     headers: {
       Accept: 'application/json',
-      ...(options?.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(options?.body && !(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { 'X-XSRF-TOKEN': token } : {}),
       ...options?.headers,
     },
@@ -165,7 +165,7 @@ export type AdminVocabulary = {
   id: number; word: string; meaning: string; definition?: string | null; example?: string | null;
   topic_id?: number | null; topic?: Pick<AdminTopic, 'id' | 'name'> | null; pronunciation?: string | null;
   part_of_speech?: string | null; difficulty_level?: string | null; tags?: string[] | null;
-  translation?: Record<string, string> | null; decks_count?: number;
+  translation?: Record<string, string> | null; decks_count?: number; image_url?: string | null; audio_url?: string | null;
 };
 export type VocabularyDeck = { id: number; name: string; slug: string; description?: string | null; is_public: boolean; vocabularies_count?: number; vocabulary_ids?: number[] };
 export type DateBucket = { date: string; count: number };
@@ -212,9 +212,13 @@ export const adminCatalog = {
   updateTopic: (id: number, data: TopicWrite) => mutation<{ data: AdminTopic }>(`/api/v1/admin/catalog/topics/${id}`, 'PUT', data).then(({ data }) => data),
   deleteTopic: (id: number) => mutation<void>(`/api/v1/admin/catalog/topics/${id}`, 'DELETE'),
   vocabularies: (params: { search?: string; page?: number; perPage?: number } = {}) => request<{ data: AdminVocabulary[]; meta: PageMeta }>(`/api/v1/admin/catalog/vocabularies?${query({ search: params.search, page: params.page, per_page: params.perPage })}`),
+  vocabulary: (id: number) => request<{ data: AdminVocabulary }>(`/api/v1/admin/catalog/vocabularies/${id}`).then(({ data }) => data),
   createVocabulary: (data: VocabularyWrite) => mutation<{ data: AdminVocabulary }>('/api/v1/admin/catalog/vocabularies', 'POST', data).then(({ data }) => data),
   updateVocabulary: (id: number, data: VocabularyWrite) => mutation<{ data: AdminVocabulary }>(`/api/v1/admin/catalog/vocabularies/${id}`, 'PUT', data).then(({ data }) => data),
   deleteVocabulary: (id: number) => mutation<void>(`/api/v1/admin/catalog/vocabularies/${id}`, 'DELETE'),
+  uploadVocabularyMedia: (id: number, body: FormData) => request<{ data: AdminVocabulary }>(`/api/v1/admin/catalog/vocabularies/${id}/media`, {
+    method: 'POST', headers: { 'X-Request-ID': crypto.randomUUID() }, body,
+  }).then(({ data }) => data),
   decks: (params: { search?: string; page?: number; perPage?: number } = {}) => request<{ data: VocabularyDeck[]; meta: PageMeta }>(`/api/v1/admin/catalog/decks?${query({ search: params.search, page: params.page, per_page: params.perPage })}`),
   createDeck: (data: DeckWrite) => mutation<{ data: VocabularyDeck }>('/api/v1/admin/catalog/decks', 'POST', data).then(({ data }) => data),
   updateDeck: (id: number, data: DeckWrite) => mutation<{ data: VocabularyDeck }>(`/api/v1/admin/catalog/decks/${id}`, 'PUT', data).then(({ data }) => data),
@@ -257,14 +261,42 @@ export const adminPreferences = {
 };
 
 export const adminCourses = {
-  list: (search = '') => request<{ data: AdminCourse[]; meta: PageMeta }>(`/api/v1/admin/catalog/courses?search=${encodeURIComponent(search)}&per_page=100`),
+  list: (params: { search?: string; status?: string; levelId?: number; page?: number; perPage?: number } = {}) => request<{ data: AdminCourse[]; meta: PageMeta }>(`/api/v1/admin/catalog/courses?${query({ search: params.search, status: params.status, level_id: params.levelId, page: params.page, per_page: params.perPage ?? 100 })}`),
+  get: (id: number) => request<{ data: AdminCourse }>(`/api/v1/admin/catalog/courses/${id}`).then(({ data }) => data),
   create: (payload: CourseWrite) => request<{ data: AdminCourse }>('/api/v1/admin/catalog/courses', {
     method: 'POST', headers: { 'X-Request-ID': crypto.randomUUID() }, body: JSON.stringify(payload)
   }).then(({ data }) => data),
   update: (id: number, payload: CourseWrite) => request<{ data: AdminCourse }>(`/api/v1/admin/catalog/courses/${id}`, {
     method: 'PUT', headers: { 'X-Request-ID': crypto.randomUUID() }, body: JSON.stringify(payload)
   }).then(({ data }) => data),
+  publish: (id: number) => mutation<{ data: AdminCourse }>(`/api/v1/admin/catalog/courses/${id}/publish`, 'POST').then(({ data }) => data),
+  archive: (id: number) => mutation<{ data: AdminCourse }>(`/api/v1/admin/catalog/courses/${id}/archive`, 'POST').then(({ data }) => data),
+  delete: (id: number) => mutation<void>(`/api/v1/admin/catalog/courses/${id}`, 'DELETE'),
 };
 
-export type AdminCourse = { id: number; title: string; slug: string; description?: string; status: 'draft' | 'published' | 'archived'; language?: string; estimated_duration?: number; units_count?: number; lessons_count?: number };
-export type CourseWrite = Pick<AdminCourse, 'title' | 'slug' | 'status'> & Partial<Pick<AdminCourse, 'description' | 'language' | 'estimated_duration'>>;
+export type AdminCourse = { id: number; title: string; slug: string; description?: string; status: 'draft' | 'published' | 'archived'; language?: string; estimated_duration?: number; units_count?: number; lessons_count?: number; level?: AdminLevel | null; topics?: AdminTopic[] };
+export type CourseWrite = Pick<AdminCourse, 'title' | 'slug' | 'status'> & Partial<Pick<AdminCourse, 'description' | 'language' | 'estimated_duration'>> & { level_id?: number | null; topic_ids?: number[] };
+
+export type AdminLesson = { id: number; course: Pick<AdminCourse, 'id' | 'title'>; title: string; slug: string; content?: string | null; sort_order: number; estimated_minutes?: number | null; status: AdminCourse['status']; vocabularies_count: number; quizzes_count: number; quizzes?: Array<{ id: number; title: string; status: string; passing_score: number }> };
+export type LessonWrite = { course_id: number; title: string; slug: string; content?: string | null; sort_order: number; estimated_minutes?: number | null; status: AdminCourse['status'] };
+export const adminLessons = {
+  list: (params: { search?: string; courseId?: number; status?: string; page?: number; perPage?: number } = {}) => request<{ data: AdminLesson[]; meta: PageMeta }>(`/api/v1/admin/catalog/lessons?${query({ search: params.search, course_id: params.courseId, status: params.status, page: params.page, per_page: params.perPage })}`),
+  get: (id: number) => request<{ data: AdminLesson }>(`/api/v1/admin/catalog/lessons/${id}`).then(({ data }) => data),
+  create: (data: LessonWrite) => mutation<{ data: AdminLesson }>('/api/v1/admin/catalog/lessons', 'POST', data).then(({ data }) => data),
+  update: (id: number, data: LessonWrite) => mutation<{ data: AdminLesson }>(`/api/v1/admin/catalog/lessons/${id}`, 'PUT', data).then(({ data }) => data),
+  publish: (id: number) => mutation<{ data: AdminLesson }>(`/api/v1/admin/catalog/lessons/${id}/publish`, 'POST').then(({ data }) => data),
+  archive: (id: number) => mutation<{ data: AdminLesson }>(`/api/v1/admin/catalog/lessons/${id}/archive`, 'POST').then(({ data }) => data),
+  delete: (id: number) => mutation<void>(`/api/v1/admin/catalog/lessons/${id}`, 'DELETE'),
+};
+
+export type QuizAnswerWrite = { id?: number; content: string; is_correct: boolean };
+export type QuizQuestionWrite = { id?: number; content: string; explanation?: string | null; answers: QuizAnswerWrite[] };
+export type QuizWrite = { lesson_id: number; title: string; passing_score: number; status: AdminCourse['status']; questions: QuizQuestionWrite[] };
+export type AdminQuiz = QuizWrite & { id: number; lesson: { id: number; title: string }; questions_count?: number; attempts_count?: number };
+export const adminQuizzes = {
+  list: (params: { search?: string; lessonId?: number; status?: string; page?: number; perPage?: number } = {}) => request<{ data: AdminQuiz[]; meta: PageMeta }>(`/api/v1/admin/catalog/quizzes?${query({ search: params.search, lesson_id: params.lessonId, status: params.status, page: params.page, per_page: params.perPage })}`),
+  get: (id: number) => request<{ data: AdminQuiz }>(`/api/v1/admin/catalog/quizzes/${id}`).then(({ data }) => data),
+  create: (data: QuizWrite) => mutation<{ data: AdminQuiz }>('/api/v1/admin/catalog/quizzes', 'POST', data).then(({ data }) => data),
+  update: (id: number, data: QuizWrite) => mutation<{ data: AdminQuiz }>(`/api/v1/admin/catalog/quizzes/${id}`, 'PUT', data).then(({ data }) => data),
+  delete: (id: number) => mutation<void>(`/api/v1/admin/catalog/quizzes/${id}`, 'DELETE'),
+};

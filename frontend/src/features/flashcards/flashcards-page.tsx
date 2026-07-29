@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/toast";
 import { ApiError, api } from "@/lib/api";
-import type { TrustedFlashcard, UserProgress } from "@/types/api";
+import type { FsrsCard, QuizWord } from "@/lib/api";
 
 const TRUSTED_INITIAL = 3;
 const TRUSTED_BATCH = 3;
@@ -22,10 +22,10 @@ const ratings = [
   { value: 4, label: "Easy", hint: "~2 tuần", className: "bg-blue-500 hover:bg-blue-600 btn-press-sky" }
 ];
 
-function uniqueTrustedCards(cards: TrustedFlashcard[]) {
+function uniqueTrustedCards(cards: QuizWord[]) {
   const seen = new Set<string>();
   return cards.filter((card) => {
-    const key = (card.word || card.front || "").trim().toLowerCase();
+    const key = card.word.trim().toLowerCase();
     if (!key || seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -33,10 +33,10 @@ function uniqueTrustedCards(cards: TrustedFlashcard[]) {
 }
 
 export function FlashcardsPage() {
-  const [due, setDue] = useState<UserProgress[]>([]);
+  const [due, setDue] = useState<FsrsCard[]>([]);
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
-  const [trusted, setTrusted] = useState<TrustedFlashcard[]>([]);
+  const [trusted, setTrusted] = useState<QuizWord[]>([]);
   const [visibleCount, setVisibleCount] = useState(TRUSTED_INITIAL);
   const [search, setSearch] = useState("");
   // searchQuery is the committed value used in API calls.
@@ -49,7 +49,7 @@ export function FlashcardsPage() {
   const { toast } = useToast();
 
   const load = useCallback(async () => {
-    const [dueWords, cards] = await Promise.all([api.dueWords(30).catch(() => []), api.flashcards(searchQuery).catch(() => [])]);
+    const [dueWords, cards] = await Promise.all([api.fsrsDue(30).then((result) => result.data).catch(() => []), api.flashcardRecommendations(searchQuery).catch(() => [])]);
     setDue(dueWords);
     setTrusted(uniqueTrustedCards(cards));
     setVisibleCount(TRUSTED_INITIAL);
@@ -66,10 +66,9 @@ export function FlashcardsPage() {
   const progress = due.length ? (index / due.length) * 100 : 0;
 
   async function review(rating: number) {
-    if (!current?.word?.id) return;
+    if (!current) return;
     try {
-      await api.reviewWord(current.word.id, rating, 0);
-      api.checkInStreak().catch(() => undefined);
+      await api.fsrsReview(current, (["again", "hard", "good", "easy"] as const)[rating - 1]);
       toast(`Saved rating: ${rating}`, "success");
       setFlipped(false);
       setIndex((value) => Math.min(value + 1, due.length));
@@ -84,7 +83,7 @@ export function FlashcardsPage() {
     setTrusted([]);
     setVisibleCount(TRUSTED_INITIAL);
     try {
-      const cards = uniqueTrustedCards(await api.importFlashcards("Datamuse + Free Dictionary", searchQuery || "vocabulary"));
+      const cards = uniqueTrustedCards(await api.flashcardRecommendations(searchQuery));
       setTrusted(cards);
       toast(cards.length ? "Trusted flashcards imported." : "Không có flashcard mới từ API ngoài.", cards.length ? "success" : "warning");
     } catch {
@@ -98,10 +97,10 @@ export function FlashcardsPage() {
     if (savingId) return;
     setSavingId(id);
     try {
-      await api.saveFlashcard(id);
+      await api.saveFlashcardRecommendation(id);
       toast("Saved to vocabulary.", "success");
       setTrusted((cards) => uniqueTrustedCards(cards.filter((card) => card.id !== id)));
-      const dueWords = await api.dueWords(30).catch(() => due);
+      const dueWords = await api.fsrsDue(30).then((result) => result.data).catch(() => due);
       setDue(dueWords);
       setIndex(0);
       setFlipped(false);
@@ -167,16 +166,15 @@ export function FlashcardsPage() {
                   >
                     <span className={`relative block min-h-80 rounded-xl transition-transform duration-500 [transform-style:preserve-3d] ${flipped ? "[transform:rotateY(180deg)]" : ""}`}>
                       <div className="absolute inset-0 flex flex-col items-center justify-center rounded-xl border-2 bg-card p-8 text-center shadow-lifted [backface-visibility:hidden] transition-colors group-hover:border-primary">
-                        <p className="font-display text-3xl font-bold text-primary">{current.word.word}</p>
-                        {current.word.pronunciation ? <p className="mt-4 font-mono text-muted-foreground">{current.word.pronunciation}</p> : null}
+                        <p className="font-display text-3xl font-bold text-primary">{current.word}</p>
+                        {current.pronunciation ? <p className="mt-4 font-mono text-muted-foreground">{current.pronunciation}</p> : null}
                         <p className="mt-6 font-bold text-muted-foreground">Click to flip</p>
                       </div>
                       <div className="absolute inset-0 flex flex-col items-center justify-center rounded-xl border-2 border-primary bg-card p-8 text-center shadow-lifted [backface-visibility:hidden] [transform:rotateY(180deg)]">
-                        <p className="font-display text-3xl font-bold">{current.word.translation || "No translation yet"}</p>
-                        {current.word.example ? <p className="text-lg italic text-muted-foreground">&quot;{current.word.example}&quot;</p> : null}
+                        <p className="font-display text-3xl font-bold">{current.meaning || "No translation yet"}</p>
+                        {current.example ? <p className="text-lg italic text-muted-foreground">&quot;{current.example}&quot;</p> : null}
                         <div className="flex justify-center gap-2">
-                          {current.word.category ? <Badge variant="muted">{current.word.category}</Badge> : null}
-                          <Badge>{current.mastery || "NEW"}</Badge>
+                          <Badge>{current.state || "learning"}</Badge>
                         </div>
                       </div>
                     </span>
@@ -227,8 +225,8 @@ export function FlashcardsPage() {
                 <div className="overflow-y-auto space-y-3 p-1" style={{ maxHeight: "calc(3 * 136px + 2 * 12px)" }}>
                   {filteredTrusted.map((card) => (
                     <div key={card.id} className="rounded-xl border-2 bg-card p-4">
-                      <p className="font-display font-bold">{card.word || card.front}</p>
-                      <p className="text-sm font-semibold text-muted-foreground">{card.translation || card.definition || card.back}</p>
+                      <p className="font-display font-bold">{card.word}</p>
+                      <p className="text-sm font-semibold text-muted-foreground">{card.translation || card.definition}</p>
                       {card.example ? <p className="mt-2 text-sm italic text-muted-foreground">&quot;{card.example}&quot;</p> : null}
                       <Button className="mt-3" size="sm" variant="outline" onClick={() => saveTrusted(card.id)} disabled={savingId === card.id}>
                         {savingId === card.id ? "Saving..." : "Save to vocab"}

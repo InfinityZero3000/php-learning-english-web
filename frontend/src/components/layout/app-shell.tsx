@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from "react";
 import { navigationIcons } from "@/components/icons/app-icons";
 import { Button } from "@/components/ui/button";
 import { CatLoader } from "@/components/ui/cat-loader";
+import { NotificationWidget } from "@/components/layout/notifications";
 import { api, ApiError, auth } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { AppUser } from "@/types/api";
@@ -19,8 +20,11 @@ import type { AppUser } from "@/types/api";
 const nav = [
   { href: "/", label: "Today", icon: navigationIcons.home },
   { href: "/courses", label: "Courses", icon: navigationIcons.flashcards },
+  { href: "/listening", label: "Listening", icon: navigationIcons.quiz },
   { href: "/assignments", label: "Assignments", icon: navigationIcons.quiz },
-  { href: "/review", label: "Flashcards", icon: navigationIcons.flashcards },
+  { href: "/flashcards", label: "Flashcards", icon: navigationIcons.flashcards },
+  { href: "/quiz", label: "Quiz", icon: navigationIcons.quiz },
+  { href: "/import", label: "Import", icon: navigationIcons.words },
   { href: "/vocabulary", label: "Words", icon: navigationIcons.words },
   { href: "/progress", label: "Progress", icon: navigationIcons.progress },
 ];
@@ -28,12 +32,17 @@ const nav = [
 const titles: Record<string, string> = {
   "/": "Today",
   "/courses": "Course Path",
+  "/listening": "Listening practice",
   "/assignments": "Assignments",
-  "/review": "FSRS Flashcards",
+  "/review": "FSRS Review",
+  "/flashcards": "FSRS Flashcards",
+  "/quiz": "Vocabulary Quiz",
+  "/import": "Import Words",
   "/vocabulary": "Words",
   "/progress": "Progress",
   "/profile": "Profile"
 };
+const publicRoutes = new Set(["/login", "/register", "/forgot-password", "/reset-password", "/verify-email"]);
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -42,6 +51,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [authChecked, setAuthChecked] = useState(false);
   const [authError, setAuthError] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const isPublicRoute = publicRoutes.has(pathname);
 
   const pageTitle = useMemo(() => titles[pathname] || "FSRSpring", [pathname]);
   const visibleNav = useMemo(() => [
@@ -53,6 +63,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    if (isPublicRoute) {
+      setAuthChecked(true);
+      setAuthError(false);
+      return () => { cancelled = true; };
+    }
+    setAuthChecked(false);
+    setAuthError(false);
 
     api.me()
       .then((data) => {
@@ -72,7 +89,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [pathname, router]);
+  }, [isPublicRoute, pathname, router]);
 
   async function logout() {
     await auth.logout().catch(() => undefined);
@@ -80,7 +97,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     router.refresh();
   }
 
-  if (pathname === "/login") return children;
+  if (isPublicRoute) return children;
   if (!authChecked) return <AppShellLoading label="Checking session..." />;
   if (authError) {
     return (
@@ -173,6 +190,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </button>
             <h1 className="font-display text-2xl font-bold text-foreground">{pageTitle}</h1>
           </div>
+          <NotificationWidget />
         </div>
         {isMobileMenuOpen && (
           <nav className="mt-4 flex flex-col gap-2 rounded-xl border-2 border-border bg-card p-4 shadow-sm lg:hidden">
@@ -228,6 +246,8 @@ function Avatar({ user, size }: { user: AppUser; size: "sm" | "lg" }) {
       <img
         src={user.avatarUrl}
         alt={user.name || user.email}
+        width={40}
+        height={40}
         referrerPolicy="no-referrer"
         className={cn(box, "shrink-0 rounded-full border-primary object-cover")}
       />

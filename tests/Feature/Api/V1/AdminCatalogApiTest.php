@@ -3,8 +3,13 @@
 namespace Tests\Feature\Api\V1;
 
 use App\Models\Role;
+use App\Models\Level;
+use App\Models\Topic;
+use App\Models\Vocabulary;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -80,6 +85,8 @@ class AdminCatalogApiTest extends TestCase
         $vocabulary = $this->withHeader('X-Request-ID', (string) Str::uuid())
             ->postJson('/api/v1/admin/catalog/vocabularies', ['word' => 'deploy', 'meaning' => 'triển khai', 'topic_id' => $topic])
             ->assertCreated()->json('data.id');
+        $this->getJson("/api/v1/admin/catalog/vocabularies/{$vocabulary}")
+            ->assertOk()->assertJsonPath('data.word', 'deploy');
         $this->withHeader('X-Request-ID', (string) Str::uuid())
             ->deleteJson("/api/v1/admin/catalog/vocabularies/{$vocabulary}")->assertNoContent();
         $this->withHeader('X-Request-ID', (string) Str::uuid())
@@ -105,10 +112,69 @@ class AdminCatalogApiTest extends TestCase
         ])->assertCreated()->assertJsonPath('data.id', $courseId);
         $this->withHeader('X-Request-ID', (string) Str::uuid())->putJson("/api/v1/admin/catalog/courses/{$courseId}", [
             'title' => 'Business English', 'slug' => 'business-english', 'status' => 'published', 'language' => 'en',
-        ])->assertOk()->assertJsonPath('data.status', 'published');
+        ])->assertOk()->assertJsonPath('data.status', 'draft');
+        $this->withHeader('X-Request-ID', (string) Str::uuid())
+            ->postJson("/api/v1/admin/catalog/courses/{$courseId}/publish")
+            ->assertOk()->assertJsonPath('data.status', 'published');
+        $this->withHeader('X-Request-ID', (string) Str::uuid())
+            ->postJson("/api/v1/admin/catalog/courses/{$courseId}/publish")
+            ->assertConflict()->assertJsonPath('code', 'INVALID_STATE');
         $this->getJson('/api/v1/admin/catalog/courses?search=Business%20English')
             ->assertOk()->assertJsonPath('data.0.id', $courseId);
         $this->assertDatabaseHas('courses', ['id' => $courseId, 'status' => 'published']);
+    }
+
+    public function test_course_filters_and_relations_round_trip(): void
+    {
+        $this->seed();
+        $level = Level::create(['name' => 'B9', 'slug' => 'b9-admin', 'sort_order' => 9]);
+        $topic = Topic::create(['name' => 'Admin Work', 'slug' => 'admin-work']);
+        $this->actingAs($this->user('admin'));
+        $id = $this->withHeader('X-Request-ID', (string) Str::uuid())->postJson('/api/v1/admin/catalog/courses', [
+            'title' => 'Work English', 'slug' => 'work-english', 'status' => 'draft', 'language' => 'en',
+            'level_id' => $level->id, 'topic_ids' => [$topic->id],
+        ])->assertCreated()->assertJsonPath('data.level.id', $level->id)->assertJsonPath('data.topics.0.id', $topic->id)->json('data.id');
+        $this->getJson("/api/v1/admin/catalog/courses?status=draft&level_id={$level->id}")
+            ->assertOk()->assertJsonPath('data.0.id', $id);
+    }
+
+    public function test_only_an_unused_draft_course_can_be_deleted(): void
+    {
+        $this->seed();
+        $this->actingAs($this->user('admin'));
+        $draft = \App\Models\Course::create(['title' => 'Disposable', 'slug' => 'disposable', 'status' => 'draft']);
+        $published = \App\Models\Course::create(['title' => 'Protected', 'slug' => 'protected', 'status' => 'published']);
+
+        $this->deleteJson("/api/v1/admin/catalog/courses/{$published->id}")
+            ->assertConflict()->assertJsonPath('code', 'DEPENDENCY_EXISTS');
+        $this->deleteJson("/api/v1/admin/catalog/courses/{$draft->id}")->assertNoContent();
+
+        $this->assertModelMissing($draft);
+        $this->assertModelExists($published);
+    }
+
+    public function test_vocabulary_media_can_be_uploaded_replaced_and_removed(): void
+    {
+        $this->seed();
+        Storage::fake('public');
+        $word = Vocabulary::create(['word' => 'hello', 'meaning' => 'xin chào']);
+        $this->actingAs($this->user('admin'));
+        $this->post("/api/v1/admin/catalog/vocabularies/{$word->id}/media", [
+            'image' => UploadedFile::fake()->image('hello.jpg'),
+            'audio' => UploadedFile::fake()->create('hello.mp3', 100, 'audio/mpeg'),
+        ])->assertOk()->assertJsonPath('data.id', $word->id);
+        $word->refresh();
+        Storage::disk('public')->assertExists($word->image_path);
+        Storage::disk('public')->assertExists($word->audio_path);
+        $oldImage = $word->image_path;
+        $this->post("/api/v1/admin/catalog/vocabularies/{$word->id}/media", ['remove_image' => true])->assertOk();
+        Storage::disk('public')->assertMissing($oldImage);
+        $this->assertNull($word->fresh()->image_path);
+
+        Storage::disk('public')->put('shared/do-not-delete.jpg', 'shared');
+        $unmanaged = Vocabulary::create(['word' => 'shared', 'meaning' => 'chung', 'image_path' => 'shared/do-not-delete.jpg']);
+        $this->withHeader('X-Request-ID', (string) Str::uuid())->deleteJson("/api/v1/admin/catalog/vocabularies/{$unmanaged->id}")->assertNoContent();
+        Storage::disk('public')->assertExists('shared/do-not-delete.jpg');
     }
 
     private function user(string $role): User

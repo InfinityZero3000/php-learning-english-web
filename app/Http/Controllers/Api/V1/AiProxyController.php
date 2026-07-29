@@ -22,15 +22,6 @@ class AiProxyController extends Controller
 {
     public function __construct(private readonly LexiLingoClient $client) {}
 
-    /**
-     * Proxy: text translation.
-     *
-     * Request/response field names for the upstream AI service are a
-     * best-effort mapping - the real schema is only published on that
-     * service's own Swagger, which is not reachable from here. The upstream
-     * JSON body is relayed as-is inside our envelope; tighten field mapping
-     * once the actual contract is available.
-     */
     public function translate(Request $request): JsonResponse|Response
     {
         if (! config('features.ai')) {
@@ -46,7 +37,11 @@ class AiProxyController extends Controller
         return $this->callUpstream('translate', function () use ($validated) {
             $response = $this->retryable()->post('/api/v1/ai/translate', $validated);
 
-            return ApiResponse::success($response->json());
+            return ApiResponse::success([
+                'translated_text' => (string) data_get($response->json(), 'translated_text', data_get($response->json(), 'translation', '')),
+                'source_lang' => (string) ($validated['source_lang'] ?? data_get($response->json(), 'source_lang', 'auto')),
+                'target_lang' => $validated['target_lang'],
+            ]);
         });
     }
 
@@ -107,9 +102,13 @@ class AiProxyController extends Controller
                     'language' => $request->input('language'),
                 ]);
 
-            $payload = $response->json();
+            $raw = $response->json();
+            $score = data_get($raw, 'score', data_get($raw, 'pronunciation_score'));
+            $payload = [
+                'score' => is_numeric($score) ? min(100, max(0, (float) $score)) : 0,
+                'feedback' => (string) data_get($raw, 'feedback', data_get($raw, 'message', '')),
+            ];
             if ($session) {
-                $score = data_get($payload, 'pronunciation_score', data_get($payload, 'score'));
                 LearningEvent::create([
                     'request_id' => $requestId,
                     'learning_session_id' => $session->id,
@@ -155,7 +154,11 @@ class AiProxyController extends Controller
                     'language' => $request->input('language'),
                 ]);
 
-            $payload = $response->json();
+            $raw = $response->json();
+            $payload = [
+                'transcript' => (string) data_get($raw, 'transcript', data_get($raw, 'text', '')),
+                'confidence' => is_numeric(data_get($raw, 'confidence')) ? (float) data_get($raw, 'confidence') : null,
+            ];
             if ($request->filled('session_id')) {
                 $session = LearningSession::query()->whereKey($request->integer('session_id'))
                     ->where('user_id', $request->user()->id)->where('status', 'active')->firstOrFail();

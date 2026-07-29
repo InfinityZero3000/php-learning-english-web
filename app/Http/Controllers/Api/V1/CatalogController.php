@@ -6,15 +6,24 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\CourseCategoryResource;
 use App\Http\Resources\CourseResource;
 use App\Http\Resources\LessonResource;
+use App\Http\Resources\TopicResource;
 use App\Models\Course;
 use App\Models\CourseCategory;
 use App\Models\Lesson;
+use App\Models\Topic;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class CatalogController extends Controller
 {
+    public function topics(): JsonResponse
+    {
+        return ApiResponse::success(TopicResource::collection(
+            Topic::query()->orderBy('name')->get(),
+        ));
+    }
+
     public function categories(Request $request): JsonResponse
     {
         $perPage = min(100, max(1, $request->integer('per_page', 20)));

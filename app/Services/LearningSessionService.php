@@ -199,6 +199,10 @@ class LearningSessionService
                 $summary = [
                     ...($session->summary ?? []),
                     'events' => $activityCount,
+                    'correct_answers' => $session->events()->where('event_type', 'answer')->where('is_correct', true)->count(),
+                    'duration_seconds' => max(0, (int) $session->started_at?->diffInSeconds(now('UTC'))),
+                    'best_pronunciation_score' => $session->events()->where('event_type', 'pronunciation')->max('pronunciation_score'),
+                    'next_step' => 'review',
                     'completed_lesson_id' => $practiceOnly ? null : $session->lesson_id,
                 ];
                 $session->update(['status' => 'completed', 'completed_at' => now('UTC'), 'summary' => $summary]);

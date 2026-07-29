@@ -3,7 +3,7 @@
 import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { IconArrowLeft, IconCircleCheck, IconLock } from "@tabler/icons-react";
-import { api, type CourseDetail, type CourseProgress, type Enrollment, type LessonCard } from "@/lib/api";
+import { api, lessonQuizzes, type CourseDetail, type CourseProgress, type Enrollment, type LessonCard, type LessonQuizSummary } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
@@ -13,6 +13,7 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
   const [lessons, setLessons] = useState<LessonCard[]>([]);
   const [progress, setProgress] = useState<CourseProgress>();
   const [enrollment, setEnrollment] = useState<Enrollment>();
+  const [quizzes, setQuizzes] = useState<Record<number, LessonQuizSummary[]>>({});
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState("");
 
@@ -26,7 +27,12 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
       setLessons(lessonPage.data);
       const current = mine.find((item) => item.course_id === courseId);
       setEnrollment(current);
-      if (current) setProgress(await api.courseProgress(courseId));
+      if (current) {
+        const currentProgress = await api.courseProgress(courseId);
+        setProgress(currentProgress);
+        const available = await Promise.all(lessonPage.data.filter((_, index) => index <= currentProgress.completed_lessons).map(async (lesson) => [lesson.id, await lessonQuizzes.list(lesson.id).catch(() => [])] as const));
+        setQuizzes(Object.fromEntries(available));
+      }
       setState("ready");
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : "Không thể tải lộ trình.");
@@ -76,7 +82,8 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
         const available = Boolean(enrollment) && index <= completed;
         return <article key={lesson.id} className={`flex items-center gap-4 rounded-2xl border-2 p-5 ${available ? "border-primary/30 bg-card" : "border-border bg-muted/60"}`}>
           <span aria-hidden="true" className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${done ? "bg-emerald-100 text-emerald-700" : available ? "bg-accent text-primary" : "bg-muted text-muted-foreground"}`}>{done ? <IconCircleCheck /> : available ? index + 1 : <IconLock />}</span>
-          <div className="min-w-0"><h4 className="truncate font-display text-lg font-bold">{lesson.title}</h4><p className="text-sm text-muted-foreground">{lesson.vocabularies_count ?? 0} từ · {lesson.estimated_minutes ?? 0} phút</p></div>
+          <div className="min-w-0 flex-1"><h4 className="truncate font-display text-lg font-bold">{lesson.title}</h4><p className="text-sm text-muted-foreground">{lesson.vocabularies_count ?? 0} từ · {lesson.estimated_minutes ?? 0} phút</p></div>
+          {available && quizzes[lesson.id]?.[0] ? <Button asChildCompat="a" variant="outline" size="sm"><Link href={`/quiz?lesson_quiz=${quizzes[lesson.id][0].id}&course=${courseId}&lesson=${lesson.id}`}>Làm quiz</Link></Button> : null}
         </article>;
       })}
       {lessons.length === 0 && <Card className="p-8 text-center"><p>Khóa học chưa có lesson đã xuất bản.</p></Card>}

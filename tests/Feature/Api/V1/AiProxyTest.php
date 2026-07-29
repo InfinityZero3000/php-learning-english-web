@@ -210,7 +210,8 @@ class AiProxyTest extends TestCase
                 'activity_id' => "vocabulary:{$vocabulary->id}",
             ])
             ->assertOk()
-            ->assertJsonPath('data.pronunciation_score', 82);
+            ->assertJsonPath('data.score', 82)
+            ->assertJsonPath('data.feedback', '');
 
         $this->assertDatabaseHas('learning_events', [
             'learning_session_id' => $session->id,
@@ -232,7 +233,8 @@ class AiProxyTest extends TestCase
                 'audio' => UploadedFile::fake()->create('word.wav', 100, 'audio/wav'),
             ])
             ->assertOk()
-            ->assertJsonPath('data.text', 'hello world');
+            ->assertJsonPath('data.transcript', 'hello world')
+            ->assertJsonPath('data.confidence', 0.97);
 
         Http::assertSent(fn ($request) => $request->method() === 'POST'
             && $request->url() === 'https://ai.lexilingo.test/api/v1/stt/transcribe'

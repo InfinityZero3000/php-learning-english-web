@@ -38,6 +38,7 @@ export default function CoursesPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-7">
       <div><p className="font-bold uppercase tracking-[.14em] text-primary">Nội dung từ LexiLingo</p><h2 className="font-display text-4xl font-bold">Chọn con đường phù hợp</h2><p className="mt-2 text-muted-foreground">Nội dung được lưu cục bộ; tiến độ và lịch ôn thuộc tài khoản của bạn.</p></div>
+      <Card className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-bold text-primary">Listening practice · Luyện nghe</p><p className="text-sm text-muted-foreground">Bổ sung video có caption vào lộ trình hôm nay.</p></div><Button asChildCompat="a"><Link href="/listening">Khám phá</Link></Button></Card>
       {message && <p role="alert" className="rounded-xl border-2 border-red-200 bg-red-50 p-4 text-red-800">{message}</p>}
       {state === "loading" && <Card className="p-10 text-center"><p aria-live="polite" className="font-bold">Đang tải khóa học…</p></Card>}
       {state === "error" && <Button onClick={load}>Thử lại</Button>}

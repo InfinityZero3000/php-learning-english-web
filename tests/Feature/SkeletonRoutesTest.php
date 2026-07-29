@@ -2,36 +2,29 @@
 
 namespace Tests\Feature;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class SkeletonRoutesTest extends TestCase
 {
-    use RefreshDatabase;
-
-    public function test_home_page_is_available(): void
+    public function test_home_redirects_to_the_learner_frontend(): void
     {
-        $this->get('/')
-            ->assertOk()
-            ->assertSee('LexiLingo');
+        config(['app.frontend_url' => 'https://learner.test']);
+
+        $this->get('/')->assertRedirect('https://learner.test/');
     }
 
     public function test_health_endpoint_is_available(): void
     {
-        $this->getJson('/health')
-            ->assertOk()
-            ->assertExactJson(['status' => 'ok']);
+        $this->getJson('/health')->assertOk()->assertExactJson(['status' => 'ok']);
     }
 
-    public function test_admin_requires_an_authenticated_admin(): void
+    public function test_admin_requires_authentication(): void
     {
         $this->get('/admin')->assertRedirect('/login');
     }
 
     public function test_api_status_endpoint_is_available(): void
     {
-        $this->getJson('/api/status')
-            ->assertOk()
-            ->assertExactJson(['status' => 'ok', 'version' => 'v1']);
+        $this->getJson('/api/status')->assertOk()->assertExactJson(['status' => 'ok', 'version' => 'v1']);
     }
 }

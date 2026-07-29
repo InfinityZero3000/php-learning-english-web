@@ -4,16 +4,7 @@ import { useEffect, useState } from "react";
 import { IconBell, IconBellFilled } from "@tabler/icons-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { api } from "@/lib/api";
-
-type Notification = {
-  id: number;
-  title: string;
-  message: string;
-  type: "REVIEW_REMINDER" | "DAILY_DUE_REMINDER" | "EVENING_REVIEW_REMINDER" | "OVERDUE_REMINDER" | "STREAK_ALERT" | "ACHIEVEMENT" | "SYSTEM";
-  deepLink?: string;
-  isRead: boolean;
-  createdAt: string;
-};
+import type { LearnerNotification as Notification } from "@/lib/api";
 
 const formatRelative = (dateStr: string) => {
   if (!dateStr) return "";
@@ -33,12 +24,9 @@ export function NotificationWidget() {
 
   const fetchNotifs = async () => {
     try {
-      const [countData, list] = await Promise.all([
-        api.unreadNotifications().catch(() => ({ unread: 0 })),
-        api.notifications().catch(() => [])
-      ]);
-      setUnreadCount((countData as any).unread ?? 0);
-      setNotifications((list as any) || []);
+      const list = await api.notifications().catch(() => []);
+      setUnreadCount(list.filter((item) => !item.isRead).length);
+      setNotifications(list);
     } catch {
       // Ignore
     }
@@ -58,14 +46,11 @@ export function NotificationWidget() {
   };
 
   const markAllRead = async () => {
-    const unread = notifications.filter(n => !n.isRead);
-    await Promise.allSettled(
-      unread.map(n => api.markNotificationRead(n.id).catch(() => {}))
-    );
+    await api.markAllNotificationsRead().catch(() => undefined);
     fetchNotifs();
   };
 
-  const handleRead = async (id: number, deepLink?: string) => {
+  const handleRead = async (id: string, deepLink?: string) => {
     const n = notifications.find(n => n.id === id);
     if (n && !n.isRead) {
       await api.markNotificationRead(id).catch(() => {});
@@ -118,10 +103,11 @@ export function NotificationWidget() {
             notifications.map((n) => {
               const unread = !n.isRead;
               return (
-                <div
+                <button
+                  type="button"
                   key={n.id}
                   onClick={() => handleRead(n.id, n.deepLink)}
-                  className={`flex cursor-pointer items-start gap-4 border-b border-border px-5 py-3 transition ${
+                  className={`flex w-full cursor-pointer items-start gap-4 border-b border-border px-5 py-3 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${
                     unread ? "bg-accent/50 hover:bg-accent/70" : "bg-card hover:bg-muted"
                   }`}
                 >
@@ -142,7 +128,7 @@ export function NotificationWidget() {
                   {unread && (
                     <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary shadow-[0_0_8px_rgba(0,101,144,0.6)]" />
                   )}
-                </div>
+                </button>
               );
             })
           )}

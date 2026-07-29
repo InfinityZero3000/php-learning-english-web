@@ -10,6 +10,7 @@ export const adminNavigation = [
     label: 'Content',
     items: [
       { href: '/courses', icon: 'auto_stories', label: 'Courses' },
+      { href: '/lessons', icon: 'menu_book', label: 'Lessons' },
       { href: '/levels', icon: 'layers', label: 'Levels' },
       { href: '/topics', icon: 'topic', label: 'Topics' },
       { href: '/flashcards', icon: 'translate', label: 'Vocabulary' },
@@ -22,6 +23,7 @@ export const adminNavigation = [
     label: 'Learning',
     items: [
       { href: '/quizzes', icon: 'quiz', label: 'Quizzes' },
+      { href: '/quiz-management', icon: 'edit_note', label: 'Quiz Management' },
       { href: '/spaced-repetition', icon: 'event_repeat', label: 'Spaced Repetition' },
       { href: '/user-progress', icon: 'school', label: 'Learner Progress' },
       { href: '/reports', icon: 'bar_chart', label: 'Reports' },

@@ -1,11 +1,13 @@
 "use client";
 
-import { IconBellRinging, IconCheck, IconDoorEnter, IconPhoto, IconUser } from "@tabler/icons-react";
+import { IconCheck, IconDoorEnter, IconKey, IconPhoto, IconTrash, IconUser } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AppShellLoading } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Dialog } from "@/components/ui/dialog";
 import {
   backgroundOptions,
   cacheBackgroundImage,
@@ -15,55 +17,38 @@ import {
   saveSelectedBackground,
   type BackgroundOption
 } from "@/lib/background-settings";
-import { api, profile } from "@/lib/api";
+import { api, ApiError, profile } from "@/lib/api";
 import { cn, formatDateTime } from "@/lib/utils";
-import type { AppUser, ReminderSettings } from "@/types/api";
-
-const defaultReminderSettings: ReminderSettings = {
-  reviewRemindersEnabled: true,
-  preferredReminderTime: "20:00",
-  eveningReminderEnabled: true,
-  eveningReminderTime: "21:30",
-  comebackReminderEnabled: true,
-  comebackReminderIntervalDays: 3,
-  eveningRemainingThreshold: 10
-};
-
-function toTimeInput(value?: string) {
-  return value ? value.slice(0, 5) : "";
-}
+import type { AppUser } from "@/types/api";
 
 export function ProfilePage() {
+  const router = useRouter();
   const [user, setUser] = useState<AppUser | null>(null);
-  const [summary, setSummary] = useState({ words: 0, streak: 0 });
+  const [wordCount, setWordCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [selectedBackgroundId, setSelectedBackgroundId] = useState<string | null>(null);
   const [cachedBackgroundIds, setCachedBackgroundIds] = useState<Set<string>>(new Set());
   const [savingBackgroundId, setSavingBackgroundId] = useState<string | null>(null);
-  const [reminderSettings, setReminderSettings] = useState<ReminderSettings>(defaultReminderSettings);
-  const [savingReminders, setSavingReminders] = useState(false);
-  const [reminderStatus, setReminderStatus] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [profileStatus, setProfileStatus] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = useState("");
+  const [passwordStatus, setPasswordStatus] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteStatus, setDeleteStatus] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     Promise.all([
       api.me().catch(() => null),
-      api.wordCount().catch(() => ({ count: 0 })),
-      api.streak().catch(() => ({} as Record<string, number>)),
-      api.reminderSettings().catch(() => null),
-    ]).then(([me, words, streak, reminders]) => {
+      api.vocabulary({ perPage: 1 }).catch(() => null),
+    ]).then(([me, words]) => {
       setUser(me);
       setDisplayName(me?.name ?? "");
-      setSummary({ words: words.count ?? 0, streak: streak.currentStreak ?? 0 });
-      if (reminders) {
-        setReminderSettings({
-          ...defaultReminderSettings,
-          ...reminders,
-          preferredReminderTime: toTimeInput(reminders.preferredReminderTime),
-          eveningReminderTime: toTimeInput(reminders.eveningReminderTime)
-        });
-      }
+      setWordCount(words?.meta.total ?? 0);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
@@ -78,6 +63,19 @@ export function ProfilePage() {
     } catch {
       setProfileStatus("Could not save");
     }
+  }
+
+  async function changePassword(event: React.FormEvent) {
+    event.preventDefault(); setPasswordStatus(""); setChangingPassword(true);
+    try { await profile.changePassword(currentPassword, newPassword, passwordConfirmation); setCurrentPassword(""); setNewPassword(""); setPasswordConfirmation(""); setPasswordStatus("Đã đổi mật khẩu."); }
+    catch (cause) { setPasswordStatus(cause instanceof ApiError ? Object.values(cause.errors ?? {}).flat()[0] ?? cause.message : "Không thể đổi mật khẩu."); }
+    finally { setChangingPassword(false); }
+  }
+
+  async function deleteAccount(event: React.FormEvent) {
+    event.preventDefault(); setDeleteStatus(""); setDeleting(true);
+    try { await profile.destroy(deletePassword); router.replace("/login"); router.refresh(); }
+    catch (cause) { setDeleteStatus(cause instanceof ApiError ? Object.values(cause.errors ?? {}).flat()[0] ?? cause.message : "Không thể xóa tài khoản."); setDeleting(false); }
   }
 
   useEffect(() => {
@@ -112,30 +110,6 @@ export function ProfilePage() {
     setSelectedBackgroundId(null);
   }
 
-  function updateReminderSetting<K extends keyof ReminderSettings>(key: K, value: ReminderSettings[K]) {
-    setReminderStatus(null);
-    setReminderSettings((current) => ({ ...current, [key]: value }));
-  }
-
-  async function saveReminderSettings() {
-    setSavingReminders(true);
-    setReminderStatus(null);
-    try {
-      const saved = await api.updateReminderSettings(reminderSettings);
-      setReminderSettings({
-        ...defaultReminderSettings,
-        ...saved,
-        preferredReminderTime: toTimeInput(saved.preferredReminderTime),
-        eveningReminderTime: toTimeInput(saved.eveningReminderTime)
-      });
-      setReminderStatus("Saved");
-    } catch {
-      setReminderStatus("Could not save");
-    } finally {
-      setSavingReminders(false);
-    }
-  }
-
   if (loading) return <AppShellLoading label="Loading profile..." />;
 
   return (
@@ -150,6 +124,8 @@ export function ProfilePage() {
                       <img
                         src={user.avatarUrl}
                         alt={user.name || user.email}
+                        width={112}
+                        height={112}
                         referrerPolicy="no-referrer"
                         className="h-28 w-28 rounded-full border-4 border-primary object-cover"
                       />
@@ -176,23 +152,14 @@ export function ProfilePage() {
             </CardContent>
           </Card>
 
-          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-1">
+          <div className="grid gap-5">
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle>Total Words</CardTitle>
                 <CardDescription>Vocabulary in your collection</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="font-display text-4xl font-bold text-primary">{summary.words}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle>Current Streak</CardTitle>
-                <CardDescription>Consecutive study days</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="font-display text-4xl font-bold text-primary">{summary.streak}</p>
+                <p className="font-display text-4xl font-bold text-primary">{wordCount}</p>
               </CardContent>
             </Card>
           </div>
@@ -237,98 +204,20 @@ export function ProfilePage() {
           </Card>
         )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <IconBellRinging className="h-5 w-5 text-primary" />
-              Review Reminders
-            </CardTitle>
-            <CardDescription>Choose when due-card reminders appear.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="grid gap-5 lg:grid-cols-3">
-              <div className="flex min-h-[132px] flex-col justify-between rounded-xl border-2 border-border bg-muted/40 p-4">
-                <span className="flex items-start gap-3">
-                  <input
-                    id="daily-reminder-enabled"
-                    type="checkbox"
-                    className="mt-1 h-5 w-5 accent-primary"
-                    checked={reminderSettings.reviewRemindersEnabled}
-                    onChange={(event) => updateReminderSetting("reviewRemindersEnabled", event.target.checked)}
-                  />
-                  <label htmlFor="daily-reminder-enabled">
-                    <span className="block font-display text-sm font-bold uppercase tracking-[0.05em]">Daily due</span>
-                    <span className="mt-1 block text-sm font-medium text-muted-foreground">Today&apos;s due queue</span>
-                  </label>
-                </span>
-                <Input
-                  type="time"
-                  value={reminderSettings.preferredReminderTime}
-                  onChange={(event) => updateReminderSetting("preferredReminderTime", event.target.value)}
-                  disabled={!reminderSettings.reviewRemindersEnabled}
-                  aria-label="Daily due reminder time"
-                />
-              </div>
+        {user && <section className="grid gap-6 xl:grid-cols-2">
+          <Card>
+            <CardHeader><CardTitle className="flex items-center gap-2"><IconKey className="h-5 w-5 text-primary" />Bảo mật</CardTitle><CardDescription>Đổi mật khẩu đăng nhập của bạn.</CardDescription></CardHeader>
+            <CardContent><form onSubmit={changePassword} className="space-y-4"><label className="block text-sm font-bold">Mật khẩu hiện tại<Input type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required /></label><label className="block text-sm font-bold">Mật khẩu mới<Input type="password" autoComplete="new-password" minLength={8} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /></label><label className="block text-sm font-bold">Xác nhận mật khẩu mới<Input type="password" autoComplete="new-password" minLength={8} value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} required /></label><Button type="submit" disabled={changingPassword}>{changingPassword ? "Đang lưu..." : "Đổi mật khẩu"}</Button></form>{passwordStatus ? <p aria-live="polite" className="mt-3 text-sm font-semibold text-muted-foreground">{passwordStatus}</p> : null}</CardContent>
+          </Card>
+          <Card className="border-destructive/30">
+            <CardHeader><CardTitle className="flex items-center gap-2 text-destructive"><IconTrash className="h-5 w-5" />Xóa tài khoản</CardTitle><CardDescription>Thao tác này ẩn danh dữ liệu tài khoản và không thể hoàn tác.</CardDescription></CardHeader>
+            <CardContent><Button type="button" variant="destructive" onClick={() => setDeleteOpen(true)}>Xóa tài khoản</Button></CardContent>
+          </Card>
+        </section>}
 
-              <div className="flex min-h-[132px] flex-col justify-between rounded-xl border-2 border-border bg-muted/40 p-4">
-                <span className="flex items-start gap-3">
-                  <input
-                    id="evening-reminder-enabled"
-                    type="checkbox"
-                    className="mt-1 h-5 w-5 accent-primary"
-                    checked={reminderSettings.eveningReminderEnabled}
-                    onChange={(event) => updateReminderSetting("eveningReminderEnabled", event.target.checked)}
-                  />
-                  <label htmlFor="evening-reminder-enabled">
-                    <span className="block font-display text-sm font-bold uppercase tracking-[0.05em]">Evening fallback</span>
-                    <span className="mt-1 block text-sm font-medium text-muted-foreground">If reviews remain</span>
-                  </label>
-                </span>
-                <Input
-                  type="time"
-                  value={reminderSettings.eveningReminderTime}
-                  onChange={(event) => updateReminderSetting("eveningReminderTime", event.target.value)}
-                  disabled={!reminderSettings.eveningReminderEnabled}
-                  aria-label="Evening reminder time"
-                />
-              </div>
-
-              <div className="flex min-h-[132px] flex-col justify-between rounded-xl border-2 border-border bg-muted/40 p-4">
-                <span className="flex items-start gap-3">
-                  <input
-                    id="comeback-reminder-enabled"
-                    type="checkbox"
-                    className="mt-1 h-5 w-5 accent-primary"
-                    checked={reminderSettings.comebackReminderEnabled}
-                    onChange={(event) => updateReminderSetting("comebackReminderEnabled", event.target.checked)}
-                  />
-                  <label htmlFor="comeback-reminder-enabled">
-                    <span className="block font-display text-sm font-bold uppercase tracking-[0.05em]">Comeback</span>
-                    <span className="mt-1 block text-sm font-medium text-muted-foreground">Every few inactive days</span>
-                  </label>
-                </span>
-                <Input
-                  type="number"
-                  min={2}
-                  max={3}
-                  value={reminderSettings.comebackReminderIntervalDays}
-                  onChange={(event) => updateReminderSetting("comebackReminderIntervalDays", Number(event.target.value))}
-                  disabled={!reminderSettings.comebackReminderEnabled}
-                  aria-label="Comeback reminder interval days"
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <Button type="button" onClick={saveReminderSettings} disabled={savingReminders}>
-                {savingReminders ? "Saving..." : "Save Reminders"}
-              </Button>
-              {reminderStatus ? (
-                <span className="font-display text-sm font-bold text-muted-foreground">{reminderStatus}</span>
-              ) : null}
-            </div>
-          </CardContent>
-        </Card>
+        <Dialog open={deleteOpen} onClose={() => { if (!deleting) { setDeleteOpen(false); setDeleteStatus(""); } }} title="Xóa tài khoản?" description="Dữ liệu cá nhân của bạn sẽ được ẩn danh và không thể khôi phục." className="max-w-md">
+          <form onSubmit={deleteAccount} className="space-y-4"><p className="text-sm text-muted-foreground">Nhập mật khẩu để xác nhận thao tác không thể hoàn tác này.</p><label className="block text-sm font-bold">Mật khẩu<Input autoFocus type="password" autoComplete="current-password" value={deletePassword} onChange={(event) => setDeletePassword(event.target.value)} required disabled={deleting} /></label>{deleteStatus ? <p role="alert" className="text-sm font-semibold text-destructive">{deleteStatus}</p> : null}<div className="flex justify-end gap-3"><Button type="button" variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>Hủy</Button><Button type="submit" variant="destructive" disabled={deleting}>{deleting ? "Đang xóa..." : "Xóa vĩnh viễn"}</Button></div></form>
+        </Dialog>
 
         <Card>
           <CardHeader>
@@ -379,6 +268,8 @@ export function ProfilePage() {
                     <img
                       src={option.previewUrl}
                       alt=""
+                      width={640}
+                      height={480}
                       className="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-105"
                       loading="lazy"
                       decoding="async"

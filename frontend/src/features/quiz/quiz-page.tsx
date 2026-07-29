@@ -1,28 +1,19 @@
 "use client";
 
 import { IconArrowLeft, IconCircleCheck, IconCircleX, IconPlayerPlay, IconPuzzle } from "@tabler/icons-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppShellLoading } from "@/components/layout/app-shell";
 import { Dialog } from "@/components/ui/dialog";
 import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/api";
-import type { Topic, Word } from "@/types/api";
+import type { CatalogTopic as Topic, QuizAnswerFeedback, QuizQuestion } from "@/lib/api";
 
 const AUTO_ADVANCE_MS = 1600;
 const LETTERS = ["A", "B", "C", "D"] as const;
 
 type Screen = "setup" | "playing" | "done";
 type QuizType = "en-vi" | "vi-en";
-
-function shuffled<T>(arr: T[]): T[] {
-  const out = [...arr];
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
-}
 
 function QuizHero() {
   return (
@@ -49,10 +40,11 @@ export function QuizPage() {
   const [quizType, setQuizType] = useState<QuizType>("en-vi");
   const [screen, setScreen] = useState<Screen>("setup");
   const [sessionId, setSessionId] = useState<number | null>(null);
-  const [words, setWords] = useState<Word[]>([]);
-  const [distractors, setDistractors] = useState<Word[]>([]);
+  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [index, setIndex] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<QuizAnswerFeedback | null>(null);
+  const [resultScore, setResultScore] = useState<number | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
   const [incorrectCount, setIncorrectCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -63,8 +55,8 @@ export function QuizPage() {
 
   useEffect(() => {
     Promise.all([
-      api.categories().catch(() => [] as string[]),
-      api.topics().catch(() => [] as Topic[]),
+      api.vocabularyFilters().catch(() => [] as string[]),
+      api.catalogTopics().catch(() => [] as Topic[]),
     ]).then(([cats, tops]) => {
       setCategories(cats);
       setTopics(tops);
@@ -73,35 +65,13 @@ export function QuizPage() {
     return () => clearTimeout(timerRef.current);
   }, []);
 
-  const current = words[index];
-
-  const correctAnswer = useMemo(() => {
-    if (!current) return "";
-    return quizType === "en-vi" ? current.translation || "" : current.word;
-  }, [current, quizType]);
-
-  const choices = useMemo(() => {
-    if (!current) return [];
-    const extract = (w: Word) => (quizType === "en-vi" ? w.translation : w.word);
-    const sessionPool = words
-      .filter((w) => w.id !== current.id)
-      .map(extract)
-      .filter((v): v is string => Boolean(v));
-    const distractorPool = distractors
-      .filter((w) => w.id !== current.id)
-      .map(extract)
-      .filter((v): v is string => Boolean(v));
-    const unique = [...new Set([...sessionPool, ...distractorPool])].filter(
-      (v) => v !== correctAnswer
-    );
-    return shuffled([correctAnswer, ...shuffled(unique).slice(0, 3)]);
-  }, [current, words, distractors, quizType, correctAnswer]);
+  const current = questions[index];
 
   async function start() {
     if (starting) return;
     setStarting(true);
     try {
-      const data = await api.startQuiz({
+      const data = await api.startVocabularyQuiz({
         count,
         category,
         difficulty,
@@ -110,7 +80,7 @@ export function QuizPage() {
         type: quizType
       });
       // The backend already filtered for valid words matching the type
-      const validWords = data.words;
+      const validWords = data.questions;
 
       if (!validWords.length) {
         toast("Không có từ phù hợp với bộ lọc quiz này.", "warning");
@@ -118,10 +88,11 @@ export function QuizPage() {
       }
 
       setSessionId(data.sessionId);
-      setWords(validWords);
-      setDistractors(data.distractors ?? []);
+      setQuestions(validWords);
       setIndex(0);
       setSelected(null);
+      setFeedback(null);
+      setResultScore(null);
       setCorrectCount(0);
       setIncorrectCount(0);
       setScreen("playing");
@@ -134,22 +105,26 @@ export function QuizPage() {
 
   async function answer(choice: string) {
     if (!current || !sessionId || selected !== null) return;
-    const isCorrect = choice === correctAnswer;
     setSelected(choice);
-    if (isCorrect) setCorrectCount((v) => v + 1);
-    else setIncorrectCount((v) => v + 1);
-    await api.submitQuizAnswer(sessionId, current.id, isCorrect);
-    // Removed duplicate api.reviewWord call as backend does it implicitly.
+    try {
+      const response = await api.answerVocabularyQuiz(sessionId, current.id, choice);
+      setFeedback(response);
+      if (response.isCorrect) setCorrectCount((v) => v + 1);
+      else setIncorrectCount((v) => v + 1);
+    } catch {
+      setSelected(null);
+      toast("Không thể lưu câu trả lời. Vui lòng thử lại.", "error");
+      return;
+    }
 
     const nextIndex = index + 1;
     timerRef.current = setTimeout(async () => {
-      if (nextIndex >= words.length) {
-        await api.completeQuiz(sessionId).catch(() => undefined);
-        api.checkInStreak().catch(() => undefined);
-        setScreen("done");
+      if (nextIndex >= questions.length) {
+        await finish(sessionId);
       } else {
         setIndex(nextIndex);
         setSelected(null);
+        setFeedback(null);
       }
     }, AUTO_ADVANCE_MS);
   }
@@ -157,14 +132,27 @@ export function QuizPage() {
   async function advance() {
     clearTimeout(timerRef.current);
     const nextIndex = index + 1;
-    if (nextIndex >= words.length) {
-      if (sessionId) await api.completeQuiz(sessionId).catch(() => undefined);
-      api.checkInStreak().catch(() => undefined);
-      setScreen("done");
+    if (nextIndex >= questions.length) {
+      if (sessionId) await finish(sessionId);
       return;
     }
     setIndex(nextIndex);
     setSelected(null);
+    setFeedback(null);
+  }
+
+  async function finish(id: number) {
+    try {
+      const result = await api.completeVocabularyQuiz(id);
+      setCorrectCount(result.correctCount);
+      setIncorrectCount(result.incorrectCount);
+      setResultScore(result.score);
+      setScreen("done");
+    } catch {
+      setSelected(null);
+      setFeedback(null);
+      toast("Không thể hoàn tất quiz. Hãy thử lại.", "error");
+    }
   }
 
   // ──── SETUP SCREEN ────
@@ -278,7 +266,7 @@ export function QuizPage() {
   // ──── DONE SCREEN ────
   if (screen === "done") {
     const total = correctCount + incorrectCount;
-    const pct = total > 0 ? Math.round((correctCount / total) * 100) : 0;
+    const pct = resultScore ?? (total > 0 ? Math.round((correctCount / total) * 100) : 0);
     const scoreCls =
       pct >= 80
         ? "border-primary bg-accent text-primary"
@@ -333,14 +321,14 @@ export function QuizPage() {
   // ──── PLAYING SCREEN ────
   if (!current) return null;
 
-  const isAnswered = selected !== null;
-  const isCorrectAnswer = selected === correctAnswer;
-  const questionText = quizType === "en-vi" ? current.word : current.translation || "—";
+  const isAnswered = feedback !== null;
+  const isCorrectAnswer = feedback?.isCorrect ?? false;
+  const questionText = current.prompt;
   const instruction =
     quizType === "en-vi"
       ? "Choose the correct Vietnamese translation"
       : "Choose the correct English word";
-  const progressPct = (index / words.length) * 100;
+  const progressPct = (index / questions.length) * 100;
 
   if (loading) return <AppShellLoading label="Loading quiz..." />;
 
@@ -366,7 +354,7 @@ export function QuizPage() {
             </div>
           </div>
           <span className="font-display text-[15px] font-bold text-muted-foreground">
-            {index + 1} / {words.length}
+            {index + 1} / {questions.length}
           </span>
         </div>
 
@@ -408,8 +396,8 @@ export function QuizPage() {
 
         {/* Options Grid */}
         <div className="grid grid-cols-2 gap-3">
-          {choices.map((choice, i) => {
-            const isThisCorrect = choice === correctAnswer;
+          {current.choices.map((choice, i) => {
+            const isThisCorrect = feedback?.correctAnswer === choice;
             const isThisSelected = choice === selected;
             const btnCls = isAnswered
               ? isThisCorrect
@@ -430,7 +418,7 @@ export function QuizPage() {
                 key={`${choice}-${i}`}
                 type="button"
                 onClick={() => answer(choice)}
-                disabled={isAnswered}
+                disabled={selected !== null}
                 className={`flex items-center gap-3 rounded-xl border-2 p-4 text-left font-body text-[17px] font-medium transition ${btnCls}`}
               >
                 <span
@@ -447,7 +435,7 @@ export function QuizPage() {
         </div>
 
         {/* Feedback */}
-        {isAnswered ? (
+        {feedback ? (
           <div
             className={`rounded-xl border-2 p-4 ${
               isCorrectAnswer ? "border-primary bg-accent" : "border-destructive bg-destructive/10"
@@ -464,7 +452,7 @@ export function QuizPage() {
                   isCorrectAnswer ? "text-accent-foreground" : "text-destructive"
                 }`}
               >
-                {isCorrectAnswer ? "Correct!" : `Incorrect. Answer: ${correctAnswer}`}
+                {isCorrectAnswer ? "Correct!" : `Incorrect. Answer: ${feedback?.correctAnswer ?? "—"}`}
               </p>
             </div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/10">
@@ -478,13 +466,13 @@ export function QuizPage() {
         ) : null}
 
         {/* Next Button */}
-        {isAnswered ? (
+        {feedback ? (
           <button
             type="button"
             onClick={advance}
             className="btn-press w-full rounded-xl bg-primary py-3 font-display text-[17px] font-bold uppercase tracking-[0.02em] text-primary-foreground"
           >
-            {index + 1 >= words.length ? "See Results" : "Next Question"}
+            {index + 1 >= questions.length ? "See Results" : "Next Question"}
           </button>
         ) : null}
     </div>

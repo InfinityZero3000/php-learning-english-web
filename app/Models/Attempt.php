@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Attempt extends Model
 {
-    protected $fillable = ['user_id', 'quiz_id', 'score', 'started_at', 'completed_at'];
+    protected $fillable = ['user_id', 'quiz_id', 'score', 'status', 'correct_answers', 'total_questions', 'active_quiz_id', 'started_at', 'completed_at'];
 
     protected function casts(): array
     {
@@ -22,5 +23,10 @@ class Attempt extends Model
     public function quiz(): BelongsTo
     {
         return $this->belongsTo(Quiz::class);
+    }
+
+    public function answers(): HasMany
+    {
+        return $this->hasMany(AttemptAnswer::class);
     }
 }

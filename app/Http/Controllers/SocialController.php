@@ -33,15 +33,21 @@ class SocialController extends Controller
         if ($adminMode === 'login') {
             return app(AdminGoogleAuthController::class)->callback($request, app(AdminGoogleAccess::class));
         }
-        $googleUser = Socialite::driver('google')->user();
-        $user = $this->loginSocialUser(
-            $googleUser->getEmail(),
-            $googleUser->getName(),
-        );
+        try {
+            $googleUser = Socialite::driver('google')->user();
+            if (! $googleUser->getEmail()) {
+                return $this->oauthError('oauth_email_missing');
+            }
+            $user = $this->loginSocialUser($googleUser->getEmail(), $googleUser->getName());
+        } catch (\Throwable) {
+            return $this->oauthError('oauth_failed');
+        }
         Auth::login($user);
         $request->session()->regenerate();
 
-        return redirect($request->session()->pull('google_oauth_return', '/profile'));
+        $path = $request->session()->pull('google_oauth_return', '/profile');
+
+        return redirect()->away(rtrim((string) config('app.frontend_url'), '/').$path);
     }
 
     /*
@@ -57,15 +63,19 @@ class SocialController extends Controller
 
     public function facebookCallback(Request $request)
     {
-        $facebookUser = Socialite::driver('facebook')->user();
-        $user = $this->loginSocialUser(
-            $facebookUser->getEmail(),
-            $facebookUser->getName(),
-        );
+        try {
+            $facebookUser = Socialite::driver('facebook')->user();
+            if (! $facebookUser->getEmail()) {
+                return $this->oauthError('oauth_email_missing');
+            }
+            $user = $this->loginSocialUser($facebookUser->getEmail(), $facebookUser->getName());
+        } catch (\Throwable) {
+            return $this->oauthError('oauth_failed');
+        }
         Auth::login($user);
         $request->session()->regenerate();
 
-        return redirect('/profile');
+        return redirect()->away(rtrim((string) config('app.frontend_url'), '/').'/profile');
     }
 
     private function loginSocialUser(?string $email, ?string $name): User
@@ -105,5 +115,13 @@ class SocialController extends Controller
         return $path !== '' && strlen($path) <= 256 && str_starts_with($path, '/') && ! str_starts_with($path, '//')
             ? $path
             : '/profile';
+    }
+
+    private function oauthError(string $code)
+    {
+        $safeCode = in_array($code, ['oauth_cancelled', 'oauth_email_missing', 'oauth_failed'], true)
+            ? $code : 'oauth_failed';
+
+        return redirect()->away(rtrim((string) config('app.frontend_url'), '/').'/login?error='.$safeCode);
     }
 }

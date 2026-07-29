@@ -14,8 +14,10 @@ use App\Support\ApiResponse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
@@ -44,6 +46,13 @@ class CatalogController extends Controller
     public function vocabularies(Request $request): JsonResponse
     {
         return $this->paginated($request, Vocabulary::query()->with(['topic:id,name'])->withCount('decks'), ['word', 'meaning', 'definition']);
+    }
+
+    public function vocabulary(Request $request, Vocabulary $vocabulary): JsonResponse
+    {
+        $this->authorizeCatalog($request);
+
+        return ApiResponse::success((new \App\Http\Resources\VocabularyResource($vocabulary->load('topic:id,name')->loadCount('decks')))->resolve());
     }
 
     public function decks(Request $request): JsonResponse
@@ -101,7 +110,42 @@ class CatalogController extends Controller
 
     public function deleteVocabulary(Request $request, int $vocabulary): JsonResponse
     {
-        return $this->delete($request, Vocabulary::class, $vocabulary, 'vocabulary');
+        $model = Vocabulary::findOrFail($vocabulary);
+        $paths = $this->ownedVocabularyMediaPaths([$model->image_path, $model->audio_path]);
+        $response = $this->delete($request, Vocabulary::class, $vocabulary, 'vocabulary');
+        Storage::disk('public')->delete($paths);
+        return $response;
+    }
+
+    public function uploadVocabularyMedia(Request $request, Vocabulary $vocabulary): JsonResponse
+    {
+        $this->authorizeCatalog($request);
+        $data = $this->validateOrFail($request->all(), [
+            'image' => ['nullable', 'image', 'max:5120'],
+            'audio' => ['nullable', 'file', 'mimetypes:audio/mpeg,audio/wav,audio/x-wav,audio/mp4,audio/ogg', 'max:10240'],
+            'remove_image' => ['nullable', 'boolean'], 'remove_audio' => ['nullable', 'boolean'],
+        ]);
+        if (! $request->hasFile('image') && ! $request->hasFile('audio') && ! ($data['remove_image'] ?? false) && ! ($data['remove_audio'] ?? false)) {
+            return ApiResponse::error('VALIDATION_ERROR', 'At least one media operation is required.', 422);
+        }
+        $new = [];
+        if ($request->hasFile('image') && ! ($data['remove_image'] ?? false)) $new['image_path'] = $request->file('image')->store('vocabularies/images', 'public');
+        if ($request->hasFile('audio') && ! ($data['remove_audio'] ?? false)) $new['audio_path'] = $request->file('audio')->store('vocabularies/audio', 'public');
+        $old = ['image_path' => $vocabulary->image_path, 'audio_path' => $vocabulary->audio_path];
+        $updates = $new;
+        if ($data['remove_image'] ?? false) $updates['image_path'] = null;
+        if ($data['remove_audio'] ?? false) $updates['audio_path'] = null;
+        try {
+            DB::transaction(fn () => $vocabulary->update($updates));
+        } catch (\Throwable $exception) {
+            Storage::disk('public')->delete($this->ownedVocabularyMediaPaths($new));
+            throw $exception;
+        }
+        foreach ($updates as $field => $path) {
+            if ($old[$field] && $old[$field] !== $path && $this->ownedVocabularyMediaPaths([$old[$field]])) Storage::disk('public')->delete($old[$field]);
+        }
+
+        return ApiResponse::success((new \App\Http\Resources\VocabularyResource($vocabulary->fresh()->load('topic')))->resolve());
     }
 
     public function createDeck(Request $request): JsonResponse
@@ -136,8 +180,15 @@ class CatalogController extends Controller
     public function courses(Request $request): JsonResponse
     {
         abort_unless($request->user()->can('manage-content'), 403);
-        $page = Course::query()->withCount(['units', 'lessons'])
-            ->when($request->string('search')->toString(), fn ($query, string $search) => $query->where('title', 'like', "%{$search}%"))
+        $validated = $this->validateOrFail($request->query(), [
+            'search' => ['nullable', 'string', 'max:255'], 'status' => ['nullable', 'in:draft,published,archived'],
+            'level_id' => ['nullable', 'integer', 'exists:levels,id'], 'page' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+        $page = Course::query()->with(['level', 'topics'])->withCount(['units', 'lessons'])
+            ->when($validated['search'] ?? null, fn ($query, string $search) => $query->where('title', 'like', "%{$search}%"))
+            ->when($validated['status'] ?? null, fn ($query, string $status) => $query->where('status', $status))
+            ->when($validated['level_id'] ?? null, fn ($query, int $level) => $query->where('level_id', $level))
             ->latest()->paginate(min(100, max(1, $request->integer('per_page', 20))));
 
         return ApiResponse::success(CourseResource::collection(collect($page->items()))->resolve(), meta: [
@@ -150,15 +201,18 @@ class CatalogController extends Controller
     {
         abort_unless($request->user()->can('manage-content'), 403);
         $fingerprint = $this->fingerprint(['create', $request->only([
-            'title', 'slug', 'description', 'status', 'language', 'estimated_duration',
+            'title', 'slug', 'description', 'status', 'language', 'estimated_duration', 'level_id', 'topic_ids',
         ])]);
         if ($course = $this->replay($request, 'course.created', $fingerprint)) {
-            return ApiResponse::success((new CourseResource($course->loadCount(['units', 'lessons'])))->resolve(), status: 201);
+            return ApiResponse::success($this->courseResource($course), status: 201);
         }
         $data = $this->validated($request);
+        $topicIds = $data['topic_ids'] ?? [];
+        unset($data['topic_ids']);
         try {
-            $course = DB::transaction(function () use ($request, $data, $fingerprint): Course {
+            $course = DB::transaction(function () use ($request, $data, $fingerprint, $topicIds): Course {
                 $course = Course::create($data);
+                $course->topics()->sync($topicIds);
                 $this->audit($request, 'course.created', $course, $fingerprint, null);
 
                 return $course;
@@ -170,28 +224,32 @@ class CatalogController extends Controller
             }
         }
 
-        return ApiResponse::success((new CourseResource($course->loadCount(['units', 'lessons'])))->resolve(), status: 201);
+        return ApiResponse::success($this->courseResource($course), status: 201);
     }
 
     public function course(Request $request, Course $course): JsonResponse
     {
         abort_unless($request->user()->can('manage-content'), 403);
 
-        return ApiResponse::success((new CourseResource($course->loadCount(['units', 'lessons'])))->resolve());
+        return ApiResponse::success($this->courseResource($course));
     }
 
     public function updateCourse(Request $request, Course $course): JsonResponse
     {
         abort_unless($request->user()->can('manage-content'), 403);
         $data = $this->validated($request, $course);
-        $fingerprint = $this->fingerprint(['update', $course->id, $data]);
+        unset($data['status']);
+        $topicIds = $data['topic_ids'] ?? null;
+        unset($data['topic_ids']);
+        $fingerprint = $this->fingerprint(['update', $course->id, $data, $topicIds]);
         if ($replayed = $this->replay($request, 'course.updated', $fingerprint)) {
-            return ApiResponse::success((new CourseResource($replayed->loadCount(['units', 'lessons'])))->resolve());
+            return ApiResponse::success($this->courseResource($replayed));
         }
         try {
-            DB::transaction(function () use ($request, $course, $data, $fingerprint): void {
+            DB::transaction(function () use ($request, $course, $data, $fingerprint, $topicIds): void {
                 $before = $course->toArray();
                 $course->update($data);
+                if ($topicIds !== null) $course->topics()->sync($topicIds);
                 $this->audit($request, 'course.updated', $course, $fingerprint, $before);
             });
         } catch (QueryException $exception) {
@@ -201,7 +259,7 @@ class CatalogController extends Controller
             }
         }
 
-        return ApiResponse::success((new CourseResource($course->loadCount(['units', 'lessons'])))->resolve());
+        return ApiResponse::success($this->courseResource($course));
     }
 
     public function publishCourse(Request $request, Course $course): JsonResponse
@@ -214,16 +272,58 @@ class CatalogController extends Controller
         return $this->setStatus($request, $course, 'archived');
     }
 
+    public function deleteCourse(Request $request, Course $course): JsonResponse
+    {
+        abort_unless($request->user()->can('manage-content'), 403);
+
+        $dependencies = DB::transaction(function () use ($course): ?array {
+            $locked = Course::query()->lockForUpdate()->findOrFail($course->id);
+            $lessonIds = $locked->lessons()->select('id');
+            $quizIds = DB::table('quizzes')->whereIn('lesson_id', $lessonIds)->select('id');
+            $counts = [
+                'enrollments' => DB::table('enrollments')->where('course_id', $locked->id)->count(),
+                'progress' => DB::table('progress')->whereIn('lesson_id', $lessonIds)->count(),
+                'attempts' => DB::table('attempts')->whereIn('quiz_id', $quizIds)->count(),
+                'assignments' => DB::table('assignments')->whereIn('lesson_id', $lessonIds)->count(),
+                'learning_sessions' => DB::table('learning_sessions')->whereIn('lesson_id', $lessonIds)->count(),
+            ];
+
+            if ($locked->status !== 'draft' || array_sum($counts) > 0) {
+                return $counts;
+            }
+
+            $locked->delete();
+
+            return null;
+        });
+
+        if ($dependencies !== null) {
+            return ApiResponse::error('DEPENDENCY_EXISTS', 'The course has protected learning evidence.', 409, [
+                'dependencies' => $dependencies,
+            ]);
+        }
+
+        return response()->json(null, 204);
+    }
+
     private function validated(Request $request, ?Course $course = null): array
     {
-        return $request->validate([
+        return $this->validateOrFail($request->all(), [
             'title' => ['required', 'string', 'max:255'],
             'slug' => ['required', 'string', 'max:255', Rule::unique('courses', 'slug')->ignore($course)],
             'description' => ['nullable', 'string', 'max:5000'],
             'status' => ['required', 'string', 'in:draft,published,archived'],
             'language' => ['nullable', 'string', 'size:2'],
             'estimated_duration' => ['nullable', 'integer', 'min:0', 'max:100000'],
+            'level_id' => ['nullable', 'integer', 'exists:levels,id'],
+            'topic_ids' => ['sometimes', 'array', 'distinct'],
+            'topic_ids.*' => ['integer', 'exists:topics,id'],
         ]);
+    }
+
+    private function courseResource(Course $course): array
+    {
+        return (new CourseResource($course->load(['level', 'topics'])->loadCount(['units', 'lessons'])))->resolve();
     }
 
     private function setStatus(Request $request, Course $course, string $status): JsonResponse
@@ -232,13 +332,19 @@ class CatalogController extends Controller
         $action = "course.{$status}";
         $fingerprint = $this->fingerprint([$action, $course->id]);
         if ($replayed = $this->replay($request, $action, $fingerprint)) {
-            return ApiResponse::success((new CourseResource($replayed->loadCount(['units', 'lessons'])))->resolve());
+            return ApiResponse::success($this->courseResource($replayed));
         }
         try {
-            DB::transaction(function () use ($request, $course, $status, $action, $fingerprint): void {
-                $before = $course->toArray();
-                $course->update(['status' => $status]);
-                $this->audit($request, $action, $course, $fingerprint, $before);
+            $course = DB::transaction(function () use ($request, $course, $status, $action, $fingerprint): Course|false {
+                $locked = Course::query()->lockForUpdate()->findOrFail($course->id);
+                if (($status === 'published' && $locked->status !== 'draft') || ($status === 'archived' && $locked->status === 'archived')) {
+                    return false;
+                }
+                $before = $locked->toArray();
+                $locked->update(['status' => $status]);
+                $this->audit($request, $action, $locked, $fingerprint, $before);
+
+                return $locked;
             });
         } catch (QueryException $exception) {
             $course = $this->replay($request, $action, $fingerprint);
@@ -247,7 +353,11 @@ class CatalogController extends Controller
             }
         }
 
-        return ApiResponse::success((new CourseResource($course->loadCount(['units', 'lessons'])))->resolve());
+        if ($course === false) {
+            return ApiResponse::error('INVALID_STATE', 'Invalid course state transition.', 409);
+        }
+
+        return ApiResponse::success($this->courseResource($course));
     }
 
     private function replay(Request $request, string $action, string $fingerprint): ?Course
@@ -465,6 +575,24 @@ class CatalogController extends Controller
     private function orderedPivot(array $ids): array
     {
         return collect($ids)->mapWithKeys(fn (int $id, int $index) => [$id => ['sort_order' => $index]])->all();
+    }
+
+    private function ownedVocabularyMediaPaths(array $paths): array
+    {
+        return array_values(array_filter($paths, fn (?string $path) => $path !== null
+            && (str_starts_with($path, 'vocabularies/images/') || str_starts_with($path, 'vocabularies/audio/'))));
+    }
+
+    private function validateOrFail(array $input, array $rules): array
+    {
+        $validator = validator($input, $rules);
+        if ($validator->fails()) {
+            throw new HttpResponseException(ApiResponse::error('VALIDATION_ERROR', 'The given data was invalid.', 422, [
+                'errors' => $validator->errors(),
+            ]));
+        }
+
+        return $validator->validated();
     }
 
     private function replayCreate(Request $request, string $type, array $data, array $relatedIds = []): ?JsonResponse

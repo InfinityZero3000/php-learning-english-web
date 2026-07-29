@@ -5,6 +5,7 @@ namespace Tests\Feature\Api\V1;
 use App\Models\Course;
 use App\Models\Lesson;
 use App\Models\Level;
+use App\Models\Topic;
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\LessonQuizSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -111,5 +112,16 @@ class CatalogApiTest extends TestCase
             ->assertJsonPath('meta.per_page', 1)
             ->assertJsonPath('meta.last_page', 2)
             ->assertJsonCount(1, 'data');
+    }
+
+    public function test_topics_are_public_and_ordered_for_vocabulary_filters(): void
+    {
+        Topic::create(['name' => 'Zebra', 'slug' => 'zebra']);
+        Topic::create(['name' => 'Aardvark', 'slug' => 'aardvark']);
+
+        $this->getJson('/api/v1/catalog/topics')
+            ->assertOk()
+            ->assertJsonStructure(['data' => [['id', 'name', 'slug']], 'meta'])
+            ->assertJsonPath('data.0.name', 'Aardvark');
     }
 }

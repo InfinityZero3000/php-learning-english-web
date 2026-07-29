@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { Suspense, useEffect, useState, useCallback } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import AdminLayout from '@/components/AdminLayout';
+import AccessibleDialog from '@/components/AccessibleDialog';
 import { adminCatalog, type AdminVocabulary, type VocabularyWrite } from '@/lib/api';
 
 interface Word {
@@ -15,6 +17,12 @@ interface Word {
   difficulty?: string;
   example?: string;
   pronunciation?: string;
+  imageUrl?: string | null;
+  audioUrl?: string | null;
+  image?: File;
+  audio?: File;
+  removeImage?: boolean;
+  removeAudio?: boolean;
 }
 
 interface WordsPage {
@@ -57,21 +65,12 @@ function WordModal({ word, onClose, onSave }: {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}>
-      <div className="w-full max-w-lg rounded-3xl" style={{ backgroundColor: '#ffffff', border: '2px solid #bdc8d2', borderBottom: '6px solid #bdc8d2' }}>
-        <div className="p-6 flex justify-between items-center rounded-t-[22px]" style={{ borderBottom: '2px solid #bdc8d2', backgroundColor: '#f5f3f3' }}>
-          <h3 className="text-lg font-extrabold" style={{ color: '#1b1c1c' }}>
-            {form.id ? 'Edit Flashcard' : 'New Flashcard'}
-          </h3>
-          <button onClick={onClose} className="p-2 rounded-xl" onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#e9e8e7')} onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
-            <span className="material-symbols-outlined">close</span>
-          </button>
-        </div>
-        <form onSubmit={submit} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+    <AccessibleDialog title={form.id ? 'Edit Flashcard' : 'New Flashcard'} onClose={onClose} className="max-w-lg">
+        <form onSubmit={submit} className="mt-5 space-y-4">
           {error && <div className="p-3 rounded-xl text-sm font-semibold" style={{ backgroundColor: '#ffdad6', color: '#93000a' }}>{error}</div>}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider mb-1.5" style={{ color: '#3e4850' }}>Word / Phrase *</label>
-            <input required value={form.word ?? ''} onChange={e => set('word', e.target.value)} className="w-full p-3.5 rounded-xl outline-none text-sm font-medium" style={{ border: '2px solid #bdc8d2', backgroundColor: '#fbf9f9', color: '#1b1c1c' }} onFocus={e => (e.target.style.borderColor = '#006590')} onBlur={e => (e.target.style.borderColor = '#bdc8d2')} placeholder="e.g. Ephemeral" />
+            <input autoFocus required value={form.word ?? ''} onChange={e => set('word', e.target.value)} className="w-full p-3.5 rounded-xl outline-none text-sm font-medium" style={{ border: '2px solid #bdc8d2', backgroundColor: '#fbf9f9', color: '#1b1c1c' }} onFocus={e => (e.target.style.borderColor = '#006590')} onBlur={e => (e.target.style.borderColor = '#bdc8d2')} placeholder="e.g. Ephemeral" />
           </div>
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider mb-1.5" style={{ color: '#3e4850' }}>Translation / Meaning</label>
@@ -101,6 +100,7 @@ function WordModal({ word, onClose, onSave }: {
             <label className="block text-xs font-bold uppercase tracking-wider mb-1.5" style={{ color: '#3e4850' }}>Example Sentence</label>
             <input value={form.example ?? ''} onChange={e => set('example', e.target.value)} className="w-full p-3.5 rounded-xl outline-none text-sm font-medium" style={{ border: '2px solid #bdc8d2', backgroundColor: '#fbf9f9', color: '#1b1c1c' }} onFocus={e => (e.target.style.borderColor = '#006590')} onBlur={e => (e.target.style.borderColor = '#bdc8d2')} placeholder="e.g. The ephemeral beauty of cherry blossoms..." />
           </div>
+          {form.id && <fieldset className="rounded-xl border-2 border-[#bdc8d2] p-4"><legend className="px-2 text-xs font-bold uppercase tracking-wider">Media</legend><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-bold">Image<input type="file" accept="image/*" onChange={e => setForm({...form,image:e.target.files?.[0]})} className="mt-2 block w-full text-sm"/></label><label className="text-sm font-bold">Audio<input type="file" accept="audio/*" onChange={e => setForm({...form,audio:e.target.files?.[0]})} className="mt-2 block w-full text-sm"/></label></div>{form.imageUrl&&<label className="mt-3 flex gap-2 text-sm"><input type="checkbox" checked={form.removeImage??false} onChange={e=>setForm({...form,removeImage:e.target.checked})}/>Remove current image</label>}{form.audioUrl&&<label className="mt-2 flex gap-2 text-sm"><input type="checkbox" checked={form.removeAudio??false} onChange={e=>setForm({...form,removeAudio:e.target.checked})}/>Remove current audio</label>}</fieldset>}
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="btn-tactile flex-1 py-3 rounded-xl font-bold text-sm uppercase tracking-wide" style={{ backgroundColor: '#efeded', color: '#1b1c1c', borderBottom: '4px solid #bdc8d2' }}>Cancel</button>
             <button type="submit" disabled={saving} className="btn-tactile flex-1 py-3 rounded-xl font-bold text-sm uppercase tracking-wide" style={{ backgroundColor: saving ? '#bdc8d2' : '#006590', color: '#ffffff', borderBottom: '4px solid #004c6e' }}>
@@ -108,20 +108,22 @@ function WordModal({ word, onClose, onSave }: {
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </AccessibleDialog>
   );
 }
 
 export default function FlashcardsPage() {
-  return <AdminLayout title="Flashcards"><PageContent /></AdminLayout>;
+  return <AdminLayout title="Flashcards"><Suspense fallback={<p>Loading flashcards…</p>}><PageContent /></Suspense></AdminLayout>;
 }
 
 function PageContent() {
+  const query = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const [data, setData] = useState<WordsPage | null>(null);
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
-  const [searchInput, setSearchInput] = useState('');
+  const [page, setPage] = useState(Math.max(1, Number(query.get('page')) || 1));
+  const [search, setSearch] = useState(query.get('search') ?? '');
+  const [searchInput, setSearchInput] = useState(query.get('search') ?? '');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [difficultyFilter, setDifficultyFilter] = useState('');
   const [categories, setCategories] = useState<string[]>([]);
@@ -130,6 +132,8 @@ function PageContent() {
   const [deleting, setDeleting] = useState<number | null>(null);
   const [totalElements, setTotalElements] = useState(0);
   const [error, setError] = useState('');
+  const mode = query.get('mode');
+  const setQuery = useCallback((patch: Record<string, string>) => { const next = new URLSearchParams(query); Object.entries(patch).forEach(([key, value]) => value ? next.set(key, value) : next.delete(key)); router.replace(`${pathname}?${next}`); }, [pathname, query, router]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -152,6 +156,14 @@ function PageContent() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
 
+  useEffect(() => {
+    if (mode === 'create') { void Promise.resolve().then(() => setModal({ open: true, word: {} })); return; }
+    const id = Number(query.get('word'));
+    if (id > 0) void adminCatalog.vocabulary(id).then(item => setModal({ open: true, word: toWord(item) })).catch(reason => setError(reason instanceof Error ? reason.message : 'Could not load flashcard.'));
+  }, [mode, query]);
+
+  useEffect(() => { setQuery({ search, page: page > 1 ? String(page) : '' }); }, [page, search, setQuery]);
+
   const handleSave = async (formData: Partial<Word>) => {
     const payload: VocabularyWrite = {
       word: formData.word?.trim() ?? '', meaning: (formData.meaning ?? formData.translation ?? '').trim(),
@@ -159,8 +171,15 @@ function PageContent() {
       pronunciation: formData.pronunciation || null, part_of_speech: formData.partOfSpeech || null,
       difficulty_level: formData.difficulty || null,
     };
-    if (formData.id) await adminCatalog.updateVocabulary(formData.id, payload);
-    else await adminCatalog.createVocabulary(payload);
+    const saved = formData.id ? await adminCatalog.updateVocabulary(formData.id, payload) : await adminCatalog.createVocabulary(payload);
+    if (formData.image || formData.audio || formData.removeImage || formData.removeAudio) {
+      const media = new FormData();
+      if (formData.image) media.append('image', formData.image);
+      if (formData.audio) media.append('audio', formData.audio);
+      if (formData.removeImage) media.append('remove_image', '1');
+      if (formData.removeAudio) media.append('remove_audio', '1');
+      await adminCatalog.uploadVocabularyMedia(saved.id, media);
+    }
     await load();
   };
 
@@ -183,7 +202,7 @@ function PageContent() {
               {loading ? '...' : `${totalElements.toLocaleString()} cards total`}
             </p>
           </div>
-          <button onClick={() => setModal({ open: true, word: {} })} className="btn-tactile flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-sm uppercase tracking-wide" style={{ backgroundColor: '#006590', color: '#ffffff', borderBottom: '4px solid #004c6e' }}>
+          <button onClick={() => setQuery({ mode: 'create', word: '' })} className="btn-tactile flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-sm uppercase tracking-wide" style={{ backgroundColor: '#006590', color: '#ffffff', borderBottom: '4px solid #004c6e' }}>
             <span className="material-symbols-outlined text-base">add</span>
             New Flashcard
           </button>
@@ -247,7 +266,7 @@ function PageContent() {
                       <td className="px-5 py-4 text-sm" style={{ color: '#3e4850' }}>{w.partOfSpeech ?? '—'}</td>
                       <td className="px-5 py-4">
                         <div className="flex gap-2">
-                          <button onClick={() => setModal({ open: true, word: w })} className="p-1.5 rounded-lg" style={{ color: '#006590' }} onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#e8f4ff')} onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
+                          <button aria-label={`Edit ${w.word}`} onClick={() => setQuery({ word: String(w.id), mode: 'edit' })} className="p-1.5 rounded-lg" style={{ color: '#006590' }} onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#e8f4ff')} onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
                             <span className="material-symbols-outlined text-base">edit</span>
                           </button>
                           <button onClick={() => handleDelete(w.id)} disabled={deleting === w.id} className="p-1.5 rounded-lg" style={{ color: '#ba1a1a' }} onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#ffdad6')} onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
@@ -273,12 +292,13 @@ function PageContent() {
         </div>
       </div>
 
-      {modal.open && <WordModal word={modal.word} onClose={() => setModal({ open: false, word: null })} onSave={handleSave} />}
+      {modal.open && mode === 'view' && modal.word ? <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="word-detail-title"><article className="w-full max-w-lg rounded-3xl bg-white p-7"><h2 id="word-detail-title" className="text-3xl font-black">{modal.word.word}</h2><p className="mt-2 text-lg">{modal.word.meaning ?? modal.word.translation}</p><p className="mt-4 text-[#3e4850]">{modal.word.definition}</p><button autoFocus onClick={() => { setModal({ open: false, word: null }); setQuery({ word: '', mode: '' }); }} className="mt-6 rounded-xl border-2 px-5 py-3 font-bold">Close</button></article></div> : modal.open && <WordModal word={modal.word} onClose={() => { setModal({ open: false, word: null }); setQuery({ word: '', mode: '' }); }} onSave={handleSave} />}
     </>;
 }
 
 function toWord(item: AdminVocabulary): Word {
   return { id: item.id, word: item.word, meaning: item.meaning, definition: item.definition ?? undefined,
     category: item.topic?.name, partOfSpeech: item.part_of_speech ?? undefined,
-    difficulty: item.difficulty_level ?? undefined, example: item.example ?? undefined, pronunciation: item.pronunciation ?? undefined };
+    difficulty: item.difficulty_level ?? undefined, example: item.example ?? undefined, pronunciation: item.pronunciation ?? undefined,
+    imageUrl: item.image_url, audioUrl: item.audio_url };
 }

@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { FlashcardsPage } from "@/features/flashcards/flashcards-page";
 
 export default function Page() {
-  redirect("/review");
+  return <FlashcardsPage />;
 }

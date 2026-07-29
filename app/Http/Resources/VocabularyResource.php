@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Storage;
 
 class VocabularyResource extends JsonResource
 {
@@ -22,6 +23,18 @@ class VocabularyResource extends JsonResource
             'difficulty_level' => $this->difficulty_level,
             'tags' => $this->tags,
             'external_audio_url' => $this->external_audio_url,
+            'example' => $this->example,
+            'image_url' => $this->image_path ? Storage::disk('public')->url($this->image_path) : null,
+            'audio_url' => $this->audio_path ? Storage::disk('public')->url($this->audio_path) : null,
+            'topic' => $this->whenLoaded('topic', fn () => $this->topic ? [
+                'id' => $this->topic->id,
+                'name' => $this->topic->name,
+            ] : null),
+            'lesson' => $this->whenLoaded('lesson', fn () => $this->lesson ? [
+                'id' => $this->lesson->id,
+                'title' => $this->lesson->title,
+            ] : null),
+            'is_bookmarked' => (bool) ($this->is_bookmarked ?? false),
         ];
     }
 }
