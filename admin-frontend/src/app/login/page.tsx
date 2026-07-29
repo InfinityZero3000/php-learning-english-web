@@ -1,177 +1,75 @@
 'use client';
 
-import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
 import { auth } from '@/lib/api';
 
-function LoginForm() {
+const errors: Record<string, string> = {
+  denied: 'Tài khoản Google này không có quyền truy cập trang quản trị.',
+  configuration: 'Đăng nhập quản trị chưa được cấu hình. Vui lòng liên hệ người vận hành.',
+};
+
+function LoginCard() {
+  const params = useSearchParams();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const isForbidden = searchParams.get('forbidden') === '1';
+  const [handoffError, setHandoffError] = useState('');
+  const handoff = params.get('handoff');
+  const message = errors[params.get('error') ?? ''] || (params.has('forbidden') ? errors.denied : '');
 
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    try {
-      await auth.login(username, password);
-      router.push('/dashboard');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    if (!handoff) return;
+    window.history.replaceState({}, '', '/login');
+    auth.completeGoogleAdmin(handoff)
+      .then(({ return: target }) => router.replace(target))
+      .catch(() => setHandoffError('Không thể hoàn tất phiên Google. Vui lòng đăng nhập lại.'));
+  }, [handoff, router]);
 
   return (
-    <div
-      className="p-8 rounded-3xl"
-      style={{
-        backgroundColor: '#ffffff',
-        border: '2px solid #bdc8d2',
-        borderBottom: '6px solid #bdc8d2',
-      }}
-    >
-      <h2 className="text-2xl font-extrabold mb-6" style={{ color: '#1b1c1c' }}>
-        Sign in
-      </h2>
-
-      {/* Thông báo Cảnh báo khi truy cập không đúng quyền Admin */}
-      {isForbidden && (
-        <div
-          className="mb-4 p-3.5 rounded-xl text-sm font-bold flex items-center gap-2"
-          style={{
-            backgroundColor: '#fff3cd',
-            color: '#664d03',
-            border: '1px solid #ffecb5',
-          }}
-        >
-          <span>⚠️</span>
-          <span>Tài khoản của bạn không có quyền truy cập trang Quản trị (Admin).</span>
+    <main className="relative grid min-h-screen overflow-hidden bg-[#fbf9f9] lg:grid-cols-[1.05fr_.95fr]">
+      <section className="relative hidden overflow-hidden bg-[#006590] p-12 text-white lg:flex lg:flex-col lg:justify-between">
+        <div className="absolute -right-24 -top-24 h-96 w-96 rounded-full border-[70px] border-white/10" />
+        <div className="absolute -bottom-28 -left-16 h-80 w-80 rounded-full bg-[#1cb0f6]/45" />
+        <div className="relative z-10">
+          <p className="font-display text-4xl font-bold">Linguist</p>
+          <p className="mt-2 text-xs font-black uppercase tracking-[0.22em] text-sky-100">Admin control center</p>
         </div>
-      )}
-
-      {/* Thông báo lỗi đăng nhập */}
-      {error && (
-        <div
-          className="mb-4 p-3.5 rounded-xl text-sm font-bold"
-          style={{
-            backgroundColor: '#ffdad6',
-            color: '#93000a',
-            border: '1px solid #ba1a1a',
-          }}
-        >
-          {error}
+        <div className="relative z-10 max-w-xl">
+          <span className="material-symbols-outlined text-[76px] text-[#ffdf92]">admin_panel_settings</span>
+          <h1 className="mt-5 font-display text-5xl font-bold leading-[1.08]">Vận hành việc học,<br />không làm gián đoạn người học.</h1>
+          <p className="mt-6 max-w-lg text-lg font-semibold leading-relaxed text-sky-100">Quản lý khóa học, người dùng và hệ thống AI từ một không gian bảo mật riêng.</p>
         </div>
-      )}
+      </section>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <div>
-          <label
-            className="block text-xs font-bold uppercase tracking-wider mb-2"
-            style={{ color: '#3e4850' }}
-          >
-            Email
-          </label>
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-            className="w-full p-4 rounded-xl text-base font-medium outline-none transition-all"
-            style={{
-              border: '2px solid #bdc8d2',
-              backgroundColor: '#fbf9f9',
-              color: '#1b1c1c',
-            }}
-            onFocus={(e) => (e.target.style.borderColor = '#006590')}
-            onBlur={(e) => (e.target.style.borderColor = '#bdc8d2')}
-            placeholder="admin@example.com"
-          />
-        </div>
-        <div>
-          <label
-            className="block text-xs font-bold uppercase tracking-wider mb-2"
-            style={{ color: '#3e4850' }}
-          >
-            Password
-          </label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            className="w-full p-4 rounded-xl text-base font-medium outline-none transition-all"
-            style={{
-              border: '2px solid #bdc8d2',
-              backgroundColor: '#fbf9f9',
-              color: '#1b1c1c',
-            }}
-            onFocus={(e) => (e.target.style.borderColor = '#006590')}
-            onBlur={(e) => (e.target.style.borderColor = '#bdc8d2')}
-            placeholder="••••••••"
-          />
-        </div>
-        <button
-          type="submit"
-          disabled={loading}
-          className="btn-tactile w-full py-4 rounded-2xl font-bold text-base uppercase tracking-wider transition-all"
-          style={{
-            backgroundColor: loading ? '#bdc8d2' : '#006590',
-            color: '#ffffff',
-            borderBottom: '4px solid #004c6e',
-            cursor: loading ? 'not-allowed' : 'pointer',
-          }}
-        >
-          {loading ? 'Signing in...' : 'Sign In'}
-        </button>
-      </form>
+      <section className="flex items-center justify-center p-5 sm:p-10">
+        <div className="w-full max-w-md">
+          <div className="mb-8 lg:hidden">
+            <p className="font-display text-4xl font-bold text-[#006590]">Linguist</p>
+            <p className="mt-2 text-[10px] font-black uppercase tracking-[0.2em] text-[#56636d]">Admin control center</p>
+          </div>
 
-      <div
-        className="mt-6 pt-6 text-center"
-        style={{ borderTop: '2px solid #bdc8d2' }}
-      >
-        <p className="text-xs font-medium" style={{ color: '#3e4850' }}>
-          Linguist Admin — powered by FSRS
-        </p>
-      </div>
-    </div>
+          <div className="learning-card p-6 sm:p-8">
+            <div className="grid h-12 w-12 place-items-center rounded-xl bg-[#e8f4ff] text-[#006590]">
+              <span className="material-symbols-outlined text-3xl">shield_lock</span>
+            </div>
+            <h2 className="mt-6 font-display text-3xl font-bold text-[#1b1c1c]">Đăng nhập quản trị</h2>
+            <p className="mt-3 text-sm font-semibold leading-relaxed text-[#56636d]">Tiếp tục bằng tài khoản Google được cấp quyền quản trị.</p>
+
+            {(message || handoffError) && (
+              <div role="alert" className="mt-5 rounded-xl border-2 border-[#ffb4ab] bg-[#fff0ee] p-4 text-sm font-bold text-[#93000a]">{message || handoffError}</div>
+            )}
+
+            <a href="/api/v1/auth/oauth/google/admin" aria-disabled={Boolean(handoff)} className="btn-tactile mt-7 flex w-full items-center justify-center gap-3 rounded-xl border-2 border-[#bdc8d2] bg-white px-5 py-4 font-display font-bold text-[#1b1c1c] shadow-[0_4px_0_#9ca7b0] transition hover:border-[#006590] disabled:opacity-60">
+              <span className="grid h-8 w-8 place-items-center rounded-full bg-[#4285f4] text-sm font-black text-white">G</span>
+              {handoff ? 'Đang hoàn tất đăng nhập…' : 'Tiếp tục với Google'}
+            </a>
+
+          </div>
+        </div>
+      </section>
+    </main>
   );
 }
 
 export default function LoginPage() {
-  return (
-    <div
-      className="min-h-screen flex items-center justify-center p-6"
-      style={{ backgroundColor: '#fbf9f9' }}
-    >
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-10">
-          <h1
-            className="text-5xl font-black"
-            style={{ color: '#006590', letterSpacing: '-0.02em' }}
-          >
-            Linguist
-          </h1>
-          <p
-            className="text-sm font-bold uppercase tracking-widest mt-2"
-            style={{ color: '#3e4850' }}
-          >
-            Admin Dashboard
-          </p>
-        </div>
-
-        {/* Form Đăng nhập bọc Suspense */}
-        <Suspense fallback={<div className="text-center p-8 font-bold">Loading...</div>}>
-          <LoginForm />
-        </Suspense>
-      </div>
-    </div>
-  );
+  return <Suspense><LoginCard /></Suspense>;
 }

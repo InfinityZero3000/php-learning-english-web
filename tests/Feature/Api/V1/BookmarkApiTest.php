@@ -29,7 +29,7 @@ class BookmarkApiTest extends TestCase
         $this->seed(CatalogSeeder::class);
         $this->seed(LessonQuizSeeder::class);
 
-        $this->user = User::where('email', 'user@example.com')->first();
+        $this->user = User::factory()->create();
         $this->otherUser = User::factory()->create();
         $this->lesson1Id = Lesson::where('slug', 'dong-vat-hoang-da')->value('id');
     }

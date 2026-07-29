@@ -43,7 +43,7 @@ class OAuthApiTest extends TestCase
 
     public function test_callback_creates_verified_learner_and_consumes_destination(): void
     {
-        $learner = Role::create(['name' => 'Learner', 'slug' => 'learner']);
+        $learner = Role::firstOrCreate(['slug' => 'learner'], ['name' => 'Learner']);
         $this->mockSocialUser('google', 'new@example.com', 'New Learner');
         $this->withSession(['auth.oauth_next' => '/profile?tab=words']);
         $oldSessionId = session()->getId();
@@ -61,7 +61,7 @@ class OAuthApiTest extends TestCase
 
     public function test_callback_logs_in_existing_learner(): void
     {
-        $learner = Role::create(['name' => 'Learner', 'slug' => 'learner']);
+        $learner = Role::firstOrCreate(['slug' => 'learner'], ['name' => 'Learner']);
         $user = User::factory()->create(['role_id' => $learner->id, 'email' => 'known@example.com']);
         $this->mockSocialUser('facebook', $user->email, 'Ignored Name');
 
@@ -70,9 +70,21 @@ class OAuthApiTest extends TestCase
         $this->assertSame('known@example.com', $user->fresh()->email);
     }
 
+    public function test_callback_rejects_locked_learner(): void
+    {
+        $learner = Role::firstOrCreate(['slug' => 'learner'], ['name' => 'Learner']);
+        $user = User::factory()->create(['role_id' => $learner->id, 'email' => 'locked@example.com', 'locked_at' => now()]);
+        $this->mockSocialUser('google', $user->email, $user->name);
+
+        $this->get('/api/v1/auth/oauth/google/callback')
+            ->assertRedirect('http://localhost:3000/login?oauth_error=locked');
+
+        $this->assertGuest();
+    }
+
     public function test_callback_rejects_existing_non_learner_without_mutation(): void
     {
-        $admin = Role::create(['name' => 'Admin', 'slug' => 'admin']);
+        $admin = Role::firstOrCreate(['slug' => 'admin'], ['name' => 'Admin']);
         $user = User::factory()->create(['role_id' => $admin->id, 'email' => 'admin@example.com', 'name' => 'Admin']);
         $this->mockSocialUser('google', $user->email, 'Changed');
 

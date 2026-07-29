@@ -27,7 +27,7 @@ class ProductionFrontendRedirectTest extends TestCase
 
     public function test_learner_pages_redirect_to_frontend(): void
     {
-        $this->get('/')->assertRedirect('https://frontend.example');
+        $this->get('/')->assertRedirect('https://frontend.example/');
         $this->get('/login')->assertRedirect('https://frontend.example/login');
         $this->get('/register')->assertRedirect('https://frontend.example/register');
         $this->get('/forgot-password')->assertRedirect('https://frontend.example/forgot-password');
@@ -39,7 +39,7 @@ class ProductionFrontendRedirectTest extends TestCase
         $this->actingAs($user)->get('/profile')->assertRedirect('https://frontend.example/profile');
         $this->actingAs($user)->get('/progress')->assertRedirect('https://frontend.example/progress');
         $this->actingAs($user)->get('/words')->assertRedirect('https://frontend.example/vocabulary');
-        $this->actingAs($user)->get('/words/999')->assertRedirect('https://frontend.example/vocabulary');
+        $this->actingAs($user)->get('/words/999')->assertNotFound();
     }
 
     public function test_api_and_admin_boundaries_remain_on_laravel(): void
@@ -59,7 +59,7 @@ class ProductionFrontendRedirectTest extends TestCase
 
     public function test_oauth_callback_reaches_api_controller(): void
     {
-        Role::create(['name' => 'Learner', 'slug' => 'learner']);
+        Role::firstOrCreate(['slug' => 'learner'], ['name' => 'Learner']);
         $provider = Mockery::mock();
         $provider->shouldReceive('user')->once()->andReturn(
             (new SocialUser)->map(['name' => 'Learner', 'email' => 'oauth@example.com']),

@@ -24,4 +24,9 @@ class Quiz extends Model
     {
         return $this->hasMany(Attempt::class);
     }
+
+    public function hasActiveAttempts(): bool
+    {
+        return $this->attempts()->where('status', 'active')->exists();
+    }
 }

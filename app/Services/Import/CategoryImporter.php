@@ -12,16 +12,19 @@ class CategoryImporter extends AbstractLexiLingoImporter
         return 'categories';
     }
 
-    public function import(int $limit, bool $dryRun = false, bool $reset = false): ImportResult
+    public function import(int $limit, bool $dryRun = false, bool $reset = false, ?int $cursor = null): ImportResult
     {
-        $offset = $this->startingCursor($reset);
+        $offset = $this->startingCursor($reset, $cursor);
 
-        $payload = $this->client->backend()
-            ->get('/api/v1/categories', ['limit' => $limit, 'offset' => $offset])
+        $payload = $this->client->partner()
+            ->get('/api/v1/integrations/categories', [
+                'page' => intdiv($offset, $limit) + 1,
+                'page_size' => $limit,
+            ])
             ->throw()
             ->json();
 
-        $items = is_array($payload) ? $payload : ($payload['data'] ?? []);
+        $items = $this->items($payload);
 
         $processed = 0;
         $skipped = 0;
@@ -70,7 +73,7 @@ class CategoryImporter extends AbstractLexiLingoImporter
         $nextCursor = $offset + count($items);
 
         if (! $dryRun) {
-            $this->advanceCheckpoint($nextCursor);
+            $this->advanceCheckpoint($nextCursor, $reset);
         }
 
         $this->logInfo('Category import page complete', [

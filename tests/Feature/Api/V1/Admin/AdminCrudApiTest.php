@@ -33,7 +33,9 @@ class AdminCrudApiTest extends TestCase
         $this->adminRoleId = Role::where('slug', 'admin')->value('id');
         $this->learnerRoleId = Role::where('slug', 'learner')->value('id');
 
-        $this->admin = User::factory()->create(['role_id' => $this->adminRoleId]);
+        $this->admin = User::factory()->create([
+            'role_id' => Role::where('slug', 'super_admin')->value('id'),
+        ]);
         $this->learner = User::factory()->create(['role_id' => $this->learnerRoleId]);
     }
 
@@ -418,8 +420,9 @@ class AdminCrudApiTest extends TestCase
 
         // 3. Update Role
         $this->actingAs($this->admin)
+            ->withHeader('X-Request-ID', '00000000-0000-4000-8000-000000000001')
             ->putJson("/api/v1/admin/users/{$user->id}/role", [
-                'role_id' => $this->adminRoleId,
+                'role' => 'admin',
             ])
             ->assertStatus(200);
 
@@ -432,17 +435,18 @@ class AdminCrudApiTest extends TestCase
     public function test_admin_cannot_demote_self_or_last_admin(): void
     {
         $this->actingAs($this->admin)
+            ->withHeader('X-Request-ID', '00000000-0000-4000-8000-000000000002')
             ->putJson("/api/v1/admin/users/{$this->learner->id}/role", [
-                'role_id' => $this->learnerRoleId,
+                'role' => 'learner',
             ])
             ->assertOk();
 
         // Self demote
         $this->actingAs($this->admin)
+            ->withHeader('X-Request-ID', '00000000-0000-4000-8000-000000000003')
             ->putJson("/api/v1/admin/users/{$this->admin->id}/role", [
-                'role_id' => $this->learnerRoleId,
+                'role' => 'learner',
             ])
-            ->assertStatus(422)
-            ->assertJsonValidationErrors('role_id');
+            ->assertForbidden();
     }
 }

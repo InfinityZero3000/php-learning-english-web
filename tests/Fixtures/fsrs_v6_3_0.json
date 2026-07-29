@@ -1,0 +1,495 @@
+{
+  "package": "fsrs",
+  "version": "6.3.0",
+  "cases": [
+    {
+      "name": "new_again",
+      "at": "2026-01-01T12:00:00+00:00",
+      "rating": 1,
+      "before": {
+        "state": "learning",
+        "step": 0,
+        "stability": null,
+        "difficulty": null,
+        "due": "2026-01-01T12:00:00+00:00",
+        "last_review": null
+      },
+      "after": {
+        "state": "learning",
+        "step": 0,
+        "stability": 0.212,
+        "difficulty": 6.4133,
+        "due": "2026-01-01T12:01:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      }
+    },
+    {
+      "name": "new_hard",
+      "at": "2026-01-01T12:00:00+00:00",
+      "rating": 2,
+      "before": {
+        "state": "learning",
+        "step": 0,
+        "stability": null,
+        "difficulty": null,
+        "due": "2026-01-01T12:00:00+00:00",
+        "last_review": null
+      },
+      "after": {
+        "state": "learning",
+        "step": 0,
+        "stability": 1.2931,
+        "difficulty": 5.112170705601056,
+        "due": "2026-01-01T12:05:30+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      }
+    },
+    {
+      "name": "new_good",
+      "at": "2026-01-01T12:00:00+00:00",
+      "rating": 3,
+      "before": {
+        "state": "learning",
+        "step": 0,
+        "stability": null,
+        "difficulty": null,
+        "due": "2026-01-01T12:00:00+00:00",
+        "last_review": null
+      },
+      "after": {
+        "state": "learning",
+        "step": 1,
+        "stability": 2.3065,
+        "difficulty": 2.118103970459016,
+        "due": "2026-01-01T12:10:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      }
+    },
+    {
+      "name": "new_easy",
+      "at": "2026-01-01T12:00:00+00:00",
+      "rating": 4,
+      "before": {
+        "state": "learning",
+        "step": 0,
+        "stability": null,
+        "difficulty": null,
+        "due": "2026-01-01T12:00:00+00:00",
+        "last_review": null
+      },
+      "after": {
+        "state": "review",
+        "step": null,
+        "stability": 8.2956,
+        "difficulty": 1.0,
+        "due": "2026-01-09T12:00:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      }
+    },
+    {
+      "name": "sequence_1",
+      "at": "2026-01-01T12:00:00+00:00",
+      "rating": 3,
+      "before": {
+        "state": "learning",
+        "step": 0,
+        "stability": null,
+        "difficulty": null,
+        "due": "2026-01-01T12:00:00+00:00",
+        "last_review": null
+      },
+      "after": {
+        "state": "learning",
+        "step": 1,
+        "stability": 2.3065,
+        "difficulty": 2.118103970459016,
+        "due": "2026-01-01T12:10:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      }
+    },
+    {
+      "name": "sequence_2",
+      "at": "2026-01-01T12:00:00+00:00",
+      "rating": 3,
+      "before": {
+        "state": "learning",
+        "step": 1,
+        "stability": 2.3065,
+        "difficulty": 2.118103970459016,
+        "due": "2026-01-01T12:10:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      },
+      "after": {
+        "state": "review",
+        "step": null,
+        "stability": 2.3065,
+        "difficulty": 2.111214235785395,
+        "due": "2026-01-03T12:00:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      }
+    },
+    {
+      "name": "sequence_3",
+      "at": "2026-01-08T12:00:00+00:00",
+      "rating": 2,
+      "before": {
+        "state": "review",
+        "step": null,
+        "stability": 2.3065,
+        "difficulty": 2.111214235785395,
+        "due": "2026-01-03T12:00:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      },
+      "after": {
+        "state": "review",
+        "step": null,
+        "stability": 13.805094645111256,
+        "difficulty": 4.748284761594571,
+        "due": "2026-01-22T12:00:00+00:00",
+        "last_review": "2026-01-08T12:00:00+00:00"
+      }
+    },
+    {
+      "name": "sequence_4",
+      "at": "2026-01-22T12:00:00+00:00",
+      "rating": 1,
+      "before": {
+        "state": "review",
+        "step": null,
+        "stability": 13.805094645111256,
+        "difficulty": 4.748284761594571,
+        "due": "2026-01-22T12:00:00+00:00",
+        "last_review": "2026-01-08T12:00:00+00:00"
+      },
+      "after": {
+        "state": "relearning",
+        "step": 0,
+        "stability": 1.6415941275776065,
+        "difficulty": 8.259025282096594,
+        "due": "2026-01-22T12:10:00+00:00",
+        "last_review": "2026-01-22T12:00:00+00:00"
+      }
+    },
+    {
+      "name": "sequence_5",
+      "at": "2026-01-22T12:00:00+00:00",
+      "rating": 3,
+      "before": {
+        "state": "relearning",
+        "step": 0,
+        "stability": 1.6415941275776065,
+        "difficulty": 8.259025282096594,
+        "due": "2026-01-22T12:10:00+00:00",
+        "last_review": "2026-01-22T12:00:00+00:00"
+      },
+      "after": {
+        "state": "review",
+        "step": null,
+        "stability": 1.6695078085608948,
+        "difficulty": 8.245994626111335,
+        "due": "2026-01-24T12:00:00+00:00",
+        "last_review": "2026-01-22T12:00:00+00:00"
+      }
+    },
+    {
+      "name": "sequence_6",
+      "at": "2026-02-21T12:00:00+00:00",
+      "rating": 4,
+      "before": {
+        "state": "review",
+        "step": null,
+        "stability": 1.6695078085608948,
+        "difficulty": 8.245994626111335,
+        "due": "2026-01-24T12:00:00+00:00",
+        "last_review": "2026-01-22T12:00:00+00:00"
+      },
+      "after": {
+        "state": "review",
+        "step": null,
+        "stability": 18.890447710524843,
+        "difficulty": 7.645116136105004,
+        "due": "2026-03-12T12:00:00+00:00",
+        "last_review": "2026-02-21T12:00:00+00:00"
+      }
+    },
+    {
+      "name": "learning_step_0_again",
+      "at": "2026-01-01T12:00:00+00:00",
+      "rating": 1,
+      "before": {
+        "state": "learning",
+        "step": 0,
+        "stability": 2.25,
+        "difficulty": 5.5,
+        "due": "2026-01-01T12:00:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      },
+      "after": {
+        "state": "learning",
+        "step": 0,
+        "stability": 0.7573324213519459,
+        "difficulty": 8.506108969296838,
+        "due": "2026-01-01T12:01:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      }
+    },
+    {
+      "name": "learning_step_0_hard",
+      "at": "2026-01-01T12:00:00+00:00",
+      "rating": 2,
+      "before": {
+        "state": "learning",
+        "step": 0,
+        "stability": 2.25,
+        "difficulty": 5.5,
+        "due": "2026-01-01T12:00:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      },
+      "after": {
+        "state": "learning",
+        "step": 0,
+        "stability": 1.3028406656728102,
+        "difficulty": 6.997918669296839,
+        "due": "2026-01-01T12:05:30+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      }
+    },
+    {
+      "name": "learning_step_0_good",
+      "at": "2026-01-01T12:00:00+00:00",
+      "rating": 3,
+      "before": {
+        "state": "learning",
+        "step": 0,
+        "stability": 2.25,
+        "difficulty": 5.5,
+        "due": "2026-01-01T12:00:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      },
+      "after": {
+        "state": "learning",
+        "step": 1,
+        "stability": 2.25,
+        "difficulty": 5.489728369296839,
+        "due": "2026-01-01T12:10:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      }
+    },
+    {
+      "name": "learning_step_0_easy",
+      "at": "2026-01-01T12:00:00+00:00",
+      "rating": 4,
+      "before": {
+        "state": "learning",
+        "step": 0,
+        "stability": 2.25,
+        "difficulty": 5.5,
+        "due": "2026-01-01T12:00:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      },
+      "after": {
+        "state": "review",
+        "step": null,
+        "stability": 3.8556785434651792,
+        "difficulty": 3.9815380692968385,
+        "due": "2026-01-05T12:00:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      }
+    },
+    {
+      "name": "learning_step_1_again",
+      "at": "2026-01-01T12:00:00+00:00",
+      "rating": 1,
+      "before": {
+        "state": "learning",
+        "step": 1,
+        "stability": 2.25,
+        "difficulty": 5.5,
+        "due": "2026-01-01T12:00:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      },
+      "after": {
+        "state": "learning",
+        "step": 0,
+        "stability": 0.7573324213519459,
+        "difficulty": 8.506108969296838,
+        "due": "2026-01-01T12:01:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      }
+    },
+    {
+      "name": "learning_step_1_hard",
+      "at": "2026-01-01T12:00:00+00:00",
+      "rating": 2,
+      "before": {
+        "state": "learning",
+        "step": 1,
+        "stability": 2.25,
+        "difficulty": 5.5,
+        "due": "2026-01-01T12:00:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      },
+      "after": {
+        "state": "learning",
+        "step": 1,
+        "stability": 1.3028406656728102,
+        "difficulty": 6.997918669296839,
+        "due": "2026-01-01T12:10:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      }
+    },
+    {
+      "name": "learning_step_1_good",
+      "at": "2026-01-01T12:00:00+00:00",
+      "rating": 3,
+      "before": {
+        "state": "learning",
+        "step": 1,
+        "stability": 2.25,
+        "difficulty": 5.5,
+        "due": "2026-01-01T12:00:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      },
+      "after": {
+        "state": "review",
+        "step": null,
+        "stability": 2.25,
+        "difficulty": 5.489728369296839,
+        "due": "2026-01-03T12:00:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      }
+    },
+    {
+      "name": "learning_step_1_easy",
+      "at": "2026-01-01T12:00:00+00:00",
+      "rating": 4,
+      "before": {
+        "state": "learning",
+        "step": 1,
+        "stability": 2.25,
+        "difficulty": 5.5,
+        "due": "2026-01-01T12:00:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      },
+      "after": {
+        "state": "review",
+        "step": null,
+        "stability": 3.8556785434651792,
+        "difficulty": 3.9815380692968385,
+        "due": "2026-01-05T12:00:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      }
+    },
+    {
+      "name": "relearning_step_0_again",
+      "at": "2026-01-01T12:00:00+00:00",
+      "rating": 1,
+      "before": {
+        "state": "relearning",
+        "step": 0,
+        "stability": 2.25,
+        "difficulty": 5.5,
+        "due": "2026-01-01T12:00:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      },
+      "after": {
+        "state": "relearning",
+        "step": 0,
+        "stability": 0.7573324213519459,
+        "difficulty": 8.506108969296838,
+        "due": "2026-01-01T12:10:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      }
+    },
+    {
+      "name": "relearning_step_0_hard",
+      "at": "2026-01-01T12:00:00+00:00",
+      "rating": 2,
+      "before": {
+        "state": "relearning",
+        "step": 0,
+        "stability": 2.25,
+        "difficulty": 5.5,
+        "due": "2026-01-01T12:00:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      },
+      "after": {
+        "state": "relearning",
+        "step": 0,
+        "stability": 1.3028406656728102,
+        "difficulty": 6.997918669296839,
+        "due": "2026-01-01T12:15:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      }
+    },
+    {
+      "name": "relearning_step_0_good",
+      "at": "2026-01-01T12:00:00+00:00",
+      "rating": 3,
+      "before": {
+        "state": "relearning",
+        "step": 0,
+        "stability": 2.25,
+        "difficulty": 5.5,
+        "due": "2026-01-01T12:00:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      },
+      "after": {
+        "state": "review",
+        "step": null,
+        "stability": 2.25,
+        "difficulty": 5.489728369296839,
+        "due": "2026-01-03T12:00:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      }
+    },
+    {
+      "name": "relearning_step_0_easy",
+      "at": "2026-01-01T12:00:00+00:00",
+      "rating": 4,
+      "before": {
+        "state": "relearning",
+        "step": 0,
+        "stability": 2.25,
+        "difficulty": 5.5,
+        "due": "2026-01-01T12:00:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      },
+      "after": {
+        "state": "review",
+        "step": null,
+        "stability": 3.8556785434651792,
+        "difficulty": 3.9815380692968385,
+        "due": "2026-01-05T12:00:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      }
+    },
+    {
+      "name": "maximum_interval",
+      "at": "2026-01-01T12:00:00+00:00",
+      "rating": 4,
+      "before": {
+        "state": "review",
+        "step": null,
+        "stability": 100000,
+        "difficulty": 1,
+        "due": "2026-01-01T12:00:00+00:00",
+        "last_review": "2025-01-01T12:00:00+00:00"
+      },
+      "after": {
+        "state": "review",
+        "step": null,
+        "stability": 100784.27858134932,
+        "difficulty": 1.0,
+        "due": "2125-12-08T12:00:00+00:00",
+        "last_review": "2026-01-01T12:00:00+00:00"
+      }
+    }
+  ],
+  "interval_cases": [
+    {
+      "stability": 2.5,
+      "days": 2
+    }
+  ]
+}

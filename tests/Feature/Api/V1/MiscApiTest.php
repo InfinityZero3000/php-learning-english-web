@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Api\V1;
 
+use App\Models\Role;
 use App\Models\User;
 use App\Models\Vocabulary;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -66,8 +67,17 @@ class MiscApiTest extends TestCase
 
     public function test_enrichment_word_returns_404_for_nonexistent_vocabulary(): void
     {
-        $this->actingAs(User::factory()->create());
+        $admin = Role::firstOrCreate(['slug' => 'admin'], ['name' => 'Admin']);
+        $this->actingAs(User::factory()->create(['role_id' => $admin->id]));
 
         $this->postJson('/api/v1/enrichment/words/999999')->assertNotFound();
+    }
+
+    public function test_learner_cannot_mutate_shared_vocabulary_through_enrichment(): void
+    {
+        $vocabulary = Vocabulary::create(['word' => 'test', 'meaning' => 'test']);
+        $this->actingAs(User::factory()->create());
+
+        $this->postJson("/api/v1/enrichment/words/{$vocabulary->id}")->assertForbidden();
     }
 }

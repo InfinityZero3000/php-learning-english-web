@@ -26,9 +26,9 @@ describe("ForgotPasswordPage", () => {
     vi.mocked(auth.forgotPassword).mockResolvedValue({ message: "backend detail" } as never);
     render(<ForgotPasswordPage />);
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.test" } });
-    fireEvent.click(screen.getByRole("button", { name: "Send reset link" }));
+    fireEvent.click(screen.getByRole("button", { name: "Gửi liên kết" }));
     await waitFor(() => expect(auth.forgotPassword).toHaveBeenCalledWith("a@b.test"));
-    expect(screen.getByRole("status")).toHaveTextContent("If an account exists");
+    expect(screen.getByRole("status")).toHaveTextContent("Nếu tài khoản tồn tại");
   });
 
   it("shows ApiError field error and preserves email", async () => {
@@ -37,7 +37,7 @@ describe("ForgotPasswordPage", () => {
     });
     render(<ForgotPasswordPage />);
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.test" } });
-    fireEvent.click(screen.getByRole("button", { name: "Send reset link" }));
+    fireEvent.click(screen.getByRole("button", { name: "Gửi liên kết" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Invalid email");
     expect(screen.getByLabelText("Email")).toHaveValue("a@b.test");
   });
@@ -48,8 +48,8 @@ describe("ForgotPasswordPage", () => {
     });
     render(<ForgotPasswordPage />);
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.test" } });
-    fireEvent.click(screen.getByRole("button", { name: "Send reset link" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Could not reach");
+    fireEvent.click(screen.getByRole("button", { name: "Gửi liên kết" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Không thể gửi");
     expect(screen.getByLabelText("Email")).toHaveValue("a@b.test");
   });
 });

@@ -29,6 +29,6 @@ describe('admin session API client', () => {
         status: 401,
         headers: { 'Content-Type': 'application/json' },
       }));
-    await expect(auth.login('admin@example.com', 'bad')).rejects.toMatchObject<ApiError>({ status: 401, message: 'Unauthorized' });
+    await expect(auth.login('admin@example.com', 'bad')).rejects.toMatchObject({ status: 401, message: 'Unauthorized' } as Partial<ApiError>);
   });
 });

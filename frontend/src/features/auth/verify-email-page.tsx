@@ -1,3 +1,14 @@
 "use client";
-import { useState } from "react"; import { useSearchParams } from "next/navigation"; import { auth } from "@/lib/api"; import { AuthLayout } from "./auth-layout"; import { AuthLink, Notice, messageFor } from "./form-support"; import { Button } from "@/components/ui/button";
-export function VerifyEmailPage(){const email=useSearchParams().get("email")??"your email address";const[error,setError]=useState(""),[status,setStatus]=useState(""),[pending,setPending]=useState(false);async function resend(){setError("");setStatus("");setPending(true);try{await auth.resendVerification();setStatus("A new verification link has been sent.")}catch(c){setError(messageFor(c))}finally{setPending(false)}}return <AuthLayout title="Check your inbox" description={`We sent a verification link to ${email}.`}><Notice>{status}</Notice><Notice error>{error}</Notice><p className="mb-6 text-sm leading-6 text-muted-foreground">Open the link in your email to activate your account. It may take a minute to arrive.</p><Button className="w-full" variant="outline" size="lg" onClick={resend} disabled={pending}>{pending?"Sending...":"Resend verification email"}</Button><p className="mt-7 text-center text-sm"><AuthLink href="/login">Return to sign in</AuthLink></p></AuthLayout>}
+
+import Link from "next/link";
+import { useState } from "react";
+import { auth } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { AuthMessage, AuthShell } from "./auth-shell";
+import { messageFor } from "./form-support";
+
+export function VerifyEmailPage() {
+  const [error, setError] = useState(""); const [success, setSuccess] = useState(""); const [sending, setSending] = useState(false);
+  async function resend() { setError(""); setSending(true); try { setSuccess((await auth.resendVerification()).message); } catch (cause) { setError(messageFor(cause, "Không thể gửi lại email.")); } finally { setSending(false); } }
+  return <AuthShell title="Xác minh email" description="Mở email của bạn và nhấn liên kết xác minh để đăng nhập."><AuthMessage error={error} success={success} /><Button type="button" className="w-full" variant="outline" onClick={resend} disabled={sending}>{sending ? "Đang gửi..." : "Gửi lại email xác minh"}</Button><p className="mt-5 text-center text-sm"><Link href="/login" className="font-bold text-primary hover:underline">Quay lại đăng nhập</Link></p></AuthShell>;
+}

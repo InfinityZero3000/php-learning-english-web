@@ -4,148 +4,26 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class ProfileTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_authenticated_user_can_view_profile(): void
+    public function test_profile_ui_lives_in_nextjs_and_web_mutations_are_retired(): void
     {
-        $user = User::factory()->create(['name' => 'Nguyen Van A']);
-
-        $response = $this->actingAs($user)->get(route('profile'));
-
-        $response->assertOk();
-        $response->assertSee('Nguyen Van A');
-    }
-
-    public function test_guest_cannot_view_profile(): void
-    {
-        $response = $this->get(route('profile'));
-
-        $response->assertRedirect(config('app.frontend_url').'/login');
-    }
-
-    public function test_user_can_update_name(): void
-    {
+        config(['app.frontend_url' => 'https://learner.test']);
         $user = User::factory()->create();
 
-        $response = $this->actingAs($user)->put(route('profile.update'), [
-            'name' => 'Updated Name',
-        ]);
-
-        $response->assertRedirect(route('profile'));
-        $response->assertSessionHas('success');
-
-        $this->assertSame('Updated Name', $user->fresh()->name);
+        $this->actingAs($user)->get('/profile')->assertRedirect('https://learner.test/profile');
+        $this->actingAs($user)->put('/profile')->assertMethodNotAllowed();
+        $this->actingAs($user)->delete('/profile')->assertMethodNotAllowed();
     }
 
-    public function test_email_cannot_be_changed_via_profile_update(): void
+    public function test_guest_profile_still_uses_the_named_login_redirect(): void
     {
-        $user = User::factory()->create(['email' => 'original@example.com']);
+        config(['app.frontend_url' => 'https://learner.test']);
 
-        $response = $this->actingAs($user)->put(route('profile.update'), [
-            'name' => $user->name,
-            'email' => 'attacker@example.com',
-        ]);
-
-        $response->assertRedirect(route('profile'));
-        $this->assertSame('original@example.com', $user->fresh()->email);
-    }
-
-    public function test_user_can_change_password_with_correct_current_password(): void
-    {
-        $user = User::factory()->create(['password' => Hash::make('old-password123')]);
-
-        $response = $this->actingAs($user)->put(route('profile.update'), [
-            'name' => $user->name,
-            'current_password' => 'old-password123',
-            'new_password' => 'new-password123',
-            'new_password_confirmation' => 'new-password123',
-        ]);
-
-        $response->assertRedirect(route('profile'));
-        $this->assertTrue(Hash::check('new-password123', $user->fresh()->password));
-    }
-
-    public function test_password_change_rejected_with_wrong_current_password(): void
-    {
-        $user = User::factory()->create(['password' => Hash::make('old-password123')]);
-
-        $response = $this->actingAs($user)->put(route('profile.update'), [
-            'name' => $user->name,
-            'current_password' => 'wrong-password',
-            'new_password' => 'new-password123',
-        ]);
-
-        $response->assertSessionHasErrors('current_password');
-        $this->assertTrue(Hash::check('old-password123', $user->fresh()->password));
-    }
-
-    public function test_password_change_requires_confirmation(): void
-    {
-        $user = User::factory()->create(['password' => Hash::make('old-password123')]);
-
-        $response = $this->actingAs($user)->put(route('profile.update'), [
-            'name' => $user->name,
-            'current_password' => 'old-password123',
-            'new_password' => 'new-password123',
-            'new_password_confirmation' => 'different-password',
-        ]);
-
-        $response->assertSessionHasErrors('new_password');
-        $this->assertTrue(Hash::check('old-password123', $user->fresh()->password));
-    }
-
-    public function test_new_password_required_when_current_password_given(): void
-    {
-        $user = User::factory()->create(['password' => Hash::make('old-password123')]);
-
-        $response = $this->actingAs($user)->put(route('profile.update'), [
-            'name' => $user->name,
-            'current_password' => 'old-password123',
-        ]);
-
-        $response->assertSessionHasErrors('new_password');
-        $this->assertTrue(Hash::check('old-password123', $user->fresh()->password));
-    }
-
-    public function test_user_can_delete_own_account(): void
-    {
-        $user = User::factory()->create(['password' => Hash::make('password123')]);
-
-        $response = $this->actingAs($user)->delete(route('profile.destroy'), [
-            'password' => 'password123',
-        ]);
-
-        $response->assertRedirect(route('login'));
-        $response->assertSessionHas('success');
-
-        $this->assertGuest();
-        $this->assertModelMissing($user);
-    }
-
-    public function test_account_deletion_requires_current_password(): void
-    {
-        $user = User::factory()->create(['password' => Hash::make('password123')]);
-
-        $this->actingAs($user)
-            ->delete(route('profile.destroy'))
-            ->assertSessionHasErrors('password');
-        $this->assertModelExists($user);
-
-        $this->actingAs($user)
-            ->delete(route('profile.destroy'), ['password' => 'wrong-password'])
-            ->assertSessionHasErrors('password');
-        $this->assertModelExists($user);
-    }
-
-    public function test_guest_cannot_delete_account(): void
-    {
-        $response = $this->delete(route('profile.destroy'));
-
-        $response->assertRedirect(config('app.frontend_url').'/login');
+        $this->get('/profile')->assertRedirect('https://learner.test/login');
     }
 }

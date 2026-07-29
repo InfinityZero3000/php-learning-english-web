@@ -3,10 +3,8 @@
 namespace App\Services\Import;
 
 use App\Models\Course;
-use App\Models\CourseCategory;
 use App\Models\Lesson;
 use App\Models\Level;
-use App\Models\Topic;
 use App\Models\Unit;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -19,16 +17,19 @@ class CourseImporter extends AbstractLexiLingoImporter
         return 'courses';
     }
 
-    public function import(int $limit, bool $dryRun = false, bool $reset = false): ImportResult
+    public function import(int $limit, bool $dryRun = false, bool $reset = false, ?int $cursor = null): ImportResult
     {
-        $offset = $this->startingCursor($reset);
+        $offset = $this->startingCursor($reset, $cursor);
 
-        $payload = $this->client->backend()
-            ->get('/api/v1/courses', ['limit' => $limit, 'offset' => $offset])
+        $payload = $this->client->partner()
+            ->get('/api/v1/integrations/courses', [
+                'page' => intdiv($offset, $limit) + 1,
+                'page_size' => $limit,
+            ])
             ->throw()
             ->json();
 
-        $items = is_array($payload) ? $payload : ($payload['data'] ?? []);
+        $items = $this->items($payload);
 
         $processed = 0;
         $skipped = 0;
@@ -58,8 +59,8 @@ class CourseImporter extends AbstractLexiLingoImporter
 
             $externalId = (string) $item['id'];
 
-            $detail = $this->client->backend()
-                ->get("/api/v1/courses/{$externalId}")
+            $detail = $this->client->partner()
+                ->get("/api/v1/integrations/courses/{$externalId}")
                 ->throw()
                 ->json();
 
@@ -87,7 +88,7 @@ class CourseImporter extends AbstractLexiLingoImporter
         $nextCursor = $offset + count($items);
 
         if (! $dryRun) {
-            $this->advanceCheckpoint($nextCursor);
+            $this->advanceCheckpoint($nextCursor, $reset);
         }
 
         $this->logInfo('Course import page complete', [
@@ -110,25 +111,6 @@ class CourseImporter extends AbstractLexiLingoImporter
         $courseSlug = Str::slug($item['title']).'-'.substr(md5($externalId), 0, 8);
         $levelId = Level::query()->where('slug', $item['level'])->value('id');
 
-        // Resolve category_id from payload (if category_id is provided)
-        $categoryId = null;
-        if (! empty($item['category_id'])) {
-            $categoryId = CourseCategory::query()
-                ->where('external_id', (string) $item['category_id'])
-                ->orWhere('id', $item['category_id'])
-                ->value('id');
-        }
-
-        // Resolve topic IDs from payload tags (if present)
-        $topicIds = [];
-        if (! empty($item['tags']) && is_array($item['tags'])) {
-            $topicIds = Topic::query()
-                ->whereIn('external_id', $item['tags'])
-                ->orWhereIn('slug', array_map(fn ($tag) => Str::slug((string) $tag), $item['tags']))
-                ->pluck('id')
-                ->toArray();
-        }
-
         $course = null;
 
         if (! $dryRun) {
@@ -136,7 +118,6 @@ class CourseImporter extends AbstractLexiLingoImporter
                 ['external_id' => $externalId],
                 [
                     'level_id' => $levelId,
-                    'category_id' => $categoryId,
                     'title' => $item['title'],
                     'slug' => $courseSlug,
                     'description' => $item['description'] ?? null,
@@ -146,10 +127,6 @@ class CourseImporter extends AbstractLexiLingoImporter
                     'total_xp' => $item['total_xp'] ?? 0,
                 ]
             );
-
-            if ($topicIds !== []) {
-                $course->topics()->syncWithoutDetaching($topicIds);
-            }
         }
 
         foreach ($units as $unit) {
@@ -193,7 +170,7 @@ class CourseImporter extends AbstractLexiLingoImporter
                 $lessonExternalId = (string) $lesson['id'];
                 $lessonSlug = Str::slug($lesson['title']).'-'.substr(md5($lessonExternalId), 0, 8);
 
-                Lesson::updateOrCreate(
+                $lessonModel = Lesson::updateOrCreate(
                     ['external_id' => $lessonExternalId],
                     [
                         'course_id' => $course->id,
@@ -205,6 +182,19 @@ class CourseImporter extends AbstractLexiLingoImporter
                         'xp_reward' => $lesson['xp_reward'],
                     ]
                 );
+
+                $contentResponse = $this->client->partner()
+                    ->get("/api/v1/integrations/lessons/{$lessonExternalId}/content");
+                if ($contentResponse->successful()) {
+                    $content = $contentResponse->json('data') ?? $contentResponse->json();
+                    if (is_array($content) && $content !== []) {
+                        $lessonModel->update([
+                            'content' => $content['content'] ?? null,
+                            'estimated_minutes' => $content['estimated_minutes'] ?? null,
+                            'pass_threshold' => $content['pass_threshold'] ?? null,
+                        ]);
+                    }
+                }
             }
         }
     }

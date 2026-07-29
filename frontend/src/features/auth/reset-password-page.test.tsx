@@ -27,8 +27,8 @@ vi.mock("@/lib/api", async (importOriginal) => {
 });
 
 function fill() {
-  fireEvent.change(screen.getByLabelText("New password"), { target: { value: "new-password" } });
-  fireEvent.change(screen.getByLabelText("Confirm new password"), { target: { value: "new-password" } });
+  fireEvent.change(screen.getByLabelText("Mật khẩu mới"), { target: { value: "new-password" } });
+  fireEvent.change(screen.getByLabelText("Xác nhận mật khẩu"), { target: { value: "new-password" } });
 }
 
 describe("ResetPasswordPage", () => {
@@ -41,14 +41,14 @@ describe("ResetPasswordPage", () => {
     query = "";
     render(<ResetPasswordPage />);
     screen.getByRole("alert");
-    screen.getByRole("link", { name: "Request a new link" });
+    screen.getByRole("link", { name: "Quên mật khẩu" });
   });
 
   it("submits token and navigates to login", async () => {
     vi.mocked(auth.resetPassword).mockResolvedValue({ message: "ok" } as never);
     render(<ResetPasswordPage />);
     fill();
-    fireEvent.click(screen.getByRole("button", { name: "Reset password" }));
+    fireEvent.click(screen.getByRole("button", { name: "Đặt lại mật khẩu" }));
     await waitFor(() =>
       expect(auth.resetPassword).toHaveBeenCalledWith({
         token: "abc",
@@ -66,9 +66,9 @@ describe("ResetPasswordPage", () => {
     });
     render(<ResetPasswordPage />);
     fill();
-    fireEvent.click(screen.getByRole("button", { name: "Reset password" }));
+    fireEvent.click(screen.getByRole("button", { name: "Đặt lại mật khẩu" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Password is too short");
-    expect(screen.getByLabelText("New password")).toHaveValue("new-password");
+    expect(screen.getByLabelText("Mật khẩu mới")).toHaveValue("new-password");
   });
 
   it("shows generic error fallback on non-ApiError and preserves passwords", async () => {
@@ -77,8 +77,8 @@ describe("ResetPasswordPage", () => {
     });
     render(<ResetPasswordPage />);
     fill();
-    fireEvent.click(screen.getByRole("button", { name: "Reset password" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Could not reach");
-    expect(screen.getByLabelText("New password")).toHaveValue("new-password");
+    fireEvent.click(screen.getByRole("button", { name: "Đặt lại mật khẩu" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Không thể đặt lại");
+    expect(screen.getByLabelText("Mật khẩu mới")).toHaveValue("new-password");
   });
 });

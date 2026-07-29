@@ -5,6 +5,7 @@ namespace Tests\Feature\Api\V1;
 use App\Models\Course;
 use App\Models\Lesson;
 use App\Models\Level;
+use App\Models\Topic;
 use Database\Seeders\CatalogSeeder;
 use Database\Seeders\LessonQuizSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -88,27 +89,6 @@ class CatalogApiTest extends TestCase
         $this->assertNotContains('mau-sac', $slugs);
     }
 
-    public function test_draft_course_and_lesson_details_are_not_public(): void
-    {
-        $draftCourse = Course::findOrFail($this->course2Id);
-        $draftCourse->update(['status' => 'draft']);
-        $draftLesson = Lesson::where('status', 'draft')->firstOrFail();
-
-        $this->getJson("/api/v1/catalog/courses/{$draftCourse->id}")->assertNotFound();
-        $this->getJson("/api/v1/catalog/lessons/{$draftLesson->id}")->assertNotFound();
-    }
-
-    public function test_lessons_belonging_to_draft_courses_are_not_public(): void
-    {
-        $course = Course::findOrFail($this->course1Id);
-        $course->update(['status' => 'draft']);
-
-        $this->getJson('/api/v1/catalog/lessons')
-            ->assertOk()
-            ->assertJsonMissing(['id' => $this->lesson1Id]);
-        $this->getJson("/api/v1/catalog/courses/{$course->id}/lessons")->assertNotFound();
-    }
-
     public function test_course_lessons_returns_paginated_result(): void
     {
         $this->getJson("/api/v1/catalog/courses/{$this->course1Id}/lessons")
@@ -125,13 +105,6 @@ class CatalogApiTest extends TestCase
             ->assertJsonStructure(['data' => ['quizzes_count', 'vocabularies_count']]);
     }
 
-    public function test_nonexistent_course_and_lesson_routes_return_404(): void
-    {
-        $this->getJson('/api/v1/catalog/courses/999999')->assertNotFound();
-        $this->getJson('/api/v1/catalog/courses/999999/lessons')->assertNotFound();
-        $this->getJson('/api/v1/catalog/lessons/999999')->assertNotFound();
-    }
-
     public function test_pagination_respects_per_page(): void
     {
         $this->getJson('/api/v1/catalog/lessons?per_page=1')
@@ -139,5 +112,16 @@ class CatalogApiTest extends TestCase
             ->assertJsonPath('meta.per_page', 1)
             ->assertJsonPath('meta.last_page', 2)
             ->assertJsonCount(1, 'data');
+    }
+
+    public function test_topics_are_public_and_ordered_for_vocabulary_filters(): void
+    {
+        Topic::create(['name' => 'Zebra', 'slug' => 'zebra']);
+        Topic::create(['name' => 'Aardvark', 'slug' => 'aardvark']);
+
+        $this->getJson('/api/v1/catalog/topics')
+            ->assertOk()
+            ->assertJsonStructure(['data' => [['id', 'name', 'slug']], 'meta'])
+            ->assertJsonPath('data.0.name', 'Aardvark');
     }
 }

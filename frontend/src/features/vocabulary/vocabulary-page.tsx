@@ -1,273 +1,69 @@
 "use client";
 
-import {
-  IconBookmark,
-  IconBookmarkFilled,
-  IconLanguage,
-  IconSearch,
-  IconVolume,
-} from "@tabler/icons-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { IconBookmark, IconBookmarkFilled, IconPlayerPlay, IconSearch } from "@tabler/icons-react";
+import { api, type CatalogTopic, type VocabularyItem } from "@/lib/api";
 import { AppShellLoading } from "@/components/layout/app-shell";
-import { useToast } from "@/components/ui/toast";
-import { ApiError, fetchBookmarks, toggleBookmarkVocabulary } from "@/lib/api";
-import type { BookmarkResource } from "@/lib/api";
-import { useAuth } from "@/features/auth/auth-context";
-import { loginHref } from "@/features/auth/route-policy";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Dialog } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 
-const INITIAL_COUNT = 40;
-const SCROLL_BATCH = 40;
-const MAX_VISIBLE = 600;
+function positive(value: string | null) { const number = Number(value); return Number.isInteger(number) && number > 0 ? number : 1; }
+function optionalPositive(value: string | null) { const number = Number(value); return Number.isInteger(number) && number > 0 ? number : undefined; }
 
 export function VocabularyPage() {
-  const router = useRouter();
-  const { status } = useAuth();
-  const { toast } = useToast();
+  const router = useRouter(); const pathname = usePathname(); const params = useSearchParams();
+  const view = params.get("view") === "saved" ? "saved" : "all";
+  const query = params.get("search") ?? "";
+  const topicId = optionalPositive(params.get("topic_id"));
+  const page = positive(params.get("page"));
+  const [words, setWords] = useState<VocabularyItem[]>([]); const [topics, setTopics] = useState<CatalogTopic[]>([]);
+  const [search, setSearch] = useState(query); const [lastPage, setLastPage] = useState(1);
+  const [state, setState] = useState<"loading" | "ready" | "error">("loading"); const [message, setMessage] = useState(""); const [playing, setPlaying] = useState<number>(); const [detail, setDetail] = useState<VocabularyItem>(); const [savingId, setSavingId] = useState<number>();
 
-  const [bookmarks, setBookmarks] = useState<BookmarkResource[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [hasMore, setHasMore] = useState(false);
-  const [total, setTotal] = useState(0);
-  const [query, setQuery] = useState("");
-  const [toggling, setToggling] = useState<Set<number>>(new Set());
-  const loadingMoreRef = useRef(false);
-  const hasMoreRef = useRef(false);
-  const loadedCountRef = useRef(0);
+  const updateQuery = useCallback((changes: Record<string, string | null>) => {
+    const next = new URLSearchParams(params.toString());
+    Object.entries(changes).forEach(([key, value]) => value ? next.set(key, value) : next.delete(key));
+    router.replace(`${pathname}${next.size ? `?${next}` : ""}`);
+  }, [params, pathname, router]);
 
-  // Only show vocabulary bookmarks
-  const vocabBookmarks = useMemo(
-    () => bookmarks.filter((b) => b.bookmark_type === "vocabulary"),
-    [bookmarks],
-  );
-
-  const filtered = useMemo(() => {
-    if (!query.trim()) return vocabBookmarks;
-    const q = query.toLowerCase();
-    return vocabBookmarks.filter((b) => {
-      const word = b.vocabulary?.word?.toLowerCase() ?? "";
-      const meaning = b.vocabulary?.meaning?.toLowerCase() ?? "";
-      return word.includes(q) || meaning.includes(q);
-    });
-  }, [vocabBookmarks, query]);
-
-  const load = useCallback(
-    async (offset: number, size: number, mode: "replace" | "append") => {
-      try {
-        const page = Math.floor(offset / size) + 1;
-        const res = await fetchBookmarks({ bookmark_type: "vocabulary", page, per_page: size });
-        const newBookmarks = res.data ?? [];
-        const meta = res.meta;
-
-        setBookmarks((current) => {
-          const merged = mode === "append" ? [...current, ...newBookmarks] : newBookmarks;
-          loadedCountRef.current = merged.length;
-          return merged;
-        });
-
-        const lastPage = meta?.last_page ?? 1;
-        const currentPage = meta?.current_page ?? 1;
-        const more = currentPage < lastPage && loadedCountRef.current < MAX_VISIBLE;
-        setHasMore(more);
-        hasMoreRef.current = currentPage < lastPage;
-        setTotal(meta?.total ?? 0);
-      } catch (err) {
-        if (err instanceof ApiError && err.status === 401) {
-          router.push(loginHref("/vocabulary"));
-        } else {
-          toast("Could not load vocabulary bookmarks.", "error");
-        }
-      } finally {
-        setLoading(false);
-        loadingMoreRef.current = false;
-      }
-    },
-    [router, toast],
-  );
-
-  const loadNextBatch = useCallback(() => {
-    if (loadingMoreRef.current || !hasMoreRef.current) return;
-    if (loadedCountRef.current >= MAX_VISIBLE) return;
-    loadingMoreRef.current = true;
-    void load(loadedCountRef.current, SCROLL_BATCH, "append");
-  }, [load]);
-
-  // Initial load
-  useEffect(() => {
-    setLoading(true);
-    void load(0, INITIAL_COUNT, "replace");
-  }, [load]);
-
-  // Infinite scroll
-  useEffect(() => {
-    let lastY = window.scrollY;
-    let frame = 0;
-
-    function handleScroll() {
-      if (frame) return;
-      frame = window.requestAnimationFrame(() => {
-        const currentY = window.scrollY;
-        const isScrollingDown = currentY > lastY;
-        lastY = currentY;
-        frame = 0;
-
-        if (isScrollingDown) {
-          const distanceToBottom = document.documentElement.scrollHeight - currentY - window.innerHeight;
-          if (distanceToBottom < 400) {
-            loadNextBatch();
-          }
-        }
-      });
-    }
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-      if (frame) window.cancelAnimationFrame(frame);
-    };
-  }, [loadNextBatch]);
-
-  async function handleToggle(b: BookmarkResource) {
-    if (status !== "authenticated") {
-      router.push(loginHref("/vocabulary"));
-      return;
-    }
-    const vocabId = b.vocabulary?.id;
-    if (!vocabId) return;
-
-    setToggling((prev) => new Set([...prev, vocabId]));
+  const load = useCallback(async () => {
+    setState("loading"); setMessage("");
     try {
-      await toggleBookmarkVocabulary(vocabId);
-      // Remove from list
-      setBookmarks((current) => current.filter((bm) => bm.id !== b.id));
-      setTotal((prev) => prev - 1);
-      toast("Bookmark removed.", "success");
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        router.push(loginHref("/vocabulary"));
-      } else {
-        toast("Failed to toggle bookmark.", "error");
-      }
-    } finally {
-      setToggling((prev) => {
-        const next = new Set(prev);
-        next.delete(vocabId);
-        return next;
-      });
-    }
+      const requested = optionalPositive(params.get("word"));
+      const [response, availableTopics, requestedWord] = await Promise.all([api.vocabulary({ search: query, page, perPage: 24, topicId, saved: view === "saved" }), api.catalogTopics(), requested ? api.vocabularyItem(requested) : Promise.resolve(undefined)]);
+      setWords(response.data); setLastPage(response.meta.last_page); setTopics(availableTopics);
+      setDetail(requestedWord);
+      setState("ready");
+    } catch (reason) { setMessage(reason instanceof Error ? reason.message : "Không thể tải từ vựng."); setState("error"); }
+  }, [page, params, query, topicId, view]);
+  useEffect(() => { setSearch(query); void load(); }, [load, query]);
+
+  async function speak(item: VocabularyItem) {
+    setPlaying(item.id); setMessage(""); let source = item.audio_url ?? item.external_audio_url; let generated = false;
+    try { if (!source) { source = await api.textToSpeech(item.word); generated = true; } const audio = new Audio(source); audio.addEventListener("ended", () => { if (generated && source) URL.revokeObjectURL(source); setPlaying(undefined); }, { once: true }); await audio.play(); }
+    catch { if (generated && source) URL.revokeObjectURL(source); setPlaying(undefined); setMessage("Không phát được audio cho từ này."); }
   }
 
-  function speak(word: string) {
-    if (typeof speechSynthesis !== "undefined") {
-      const u = new SpeechSynthesisUtterance(word);
-      u.lang = "en-US";
-      speechSynthesis.cancel();
-      speechSynthesis.speak(u);
-    }
+  async function bookmark(item: VocabularyItem) {
+    setSavingId(item.id); setMessage("");
+    try { const result = await api.bookmarkVocabulary(item.id, !item.is_bookmarked); setWords((current) => current.map((word) => word.id === item.id ? { ...word, is_bookmarked: result.bookmarked } : word)); if (detail?.id === item.id) setDetail({ ...detail, is_bookmarked: result.bookmarked }); }
+    catch { setMessage("Không thể cập nhật từ đã lưu. Hãy thử lại."); }
+    finally { setSavingId(undefined); }
   }
 
-  if (loading) {
-    return <AppShellLoading label="Loading vocabulary..." />;
-  }
+  if (state === "loading") return <AppShellLoading label="Loading vocabulary..." />;
+  if (state === "error") return <Card className="mx-auto max-w-2xl p-10 text-center"><p role="alert" className="font-bold">{message}</p><Button className="mt-5" onClick={load}>Thử lại</Button></Card>;
 
-  return (
-    <div className="mx-auto max-w-5xl">
-      {/* Header */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="font-display text-[28px] font-bold text-foreground">My Bookmarked Words</h1>
-          <p className="mt-1 text-sm font-semibold text-muted-foreground">
-            {total > 0 ? `${total} bookmark${total !== 1 ? "s" : ""}` : "Words you've saved for review"}
-          </p>
-        </div>
-        {/* Search */}
-        <div className="relative w-full max-w-xs">
-          <IconSearch className="absolute left-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-muted-foreground" />
-          <input
-            className="w-full rounded-xl border-2 border-border bg-white py-2.5 pl-10 pr-4 text-sm font-semibold text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none"
-            placeholder="Search bookmarks..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* Empty */}
-      {vocabBookmarks.length === 0 && !loading && (
-        <div className="rounded-xl border-2 border-dashed border-border bg-muted/20 py-16 text-center">
-          <IconBookmark className="mx-auto mb-4 h-12 w-12 text-muted-foreground/40" />
-          <p className="text-sm font-semibold text-muted-foreground">
-            {query ? "No bookmarks match your search." : "No bookmarked vocabulary yet."}
-          </p>
-          <p className="mt-1 text-xs font-medium text-muted-foreground/70">
-            Browse courses and bookmark words to see them here.
-          </p>
-        </div>
-      )}
-
-      {/* Words grid */}
-      {filtered.length > 0 && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((b) => {
-            const word = b.vocabulary;
-            if (!word) return null;
-            const isToggling = toggling.has(word.id);
-            return (
-              <div
-                key={b.id}
-                className="group relative flex flex-col rounded-xl border-2 border-border bg-white p-4 transition hover:border-primary/30"
-              >
-                {/* Bookmark toggle */}
-                <button
-                  type="button"
-                  disabled={isToggling}
-                  onClick={() => handleToggle(b)}
-                  className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-muted/50 text-yellow-500 transition hover:bg-yellow-50 disabled:opacity-50"
-                  aria-label="Remove bookmark"
-                >
-                  {isToggling ? (
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-yellow-500" />
-                  ) : (
-                    <IconBookmarkFilled className="h-5 w-5" />
-                  )}
-                </button>
-
-                {/* Word */}
-                <div className="mb-1.5 flex items-center gap-2 pr-10">
-                  <h3 className="font-display text-lg font-bold text-foreground">{word.word}</h3>
-                  <button
-                    type="button"
-                    onClick={() => speak(word.word)}
-                    className="text-muted-foreground hover:text-primary"
-                    aria-label="Pronounce"
-                  >
-                    <IconVolume className="h-4 w-4" />
-                  </button>
-                </div>
-
-                {/* Meaning */}
-                {word.meaning && (
-                  <p className="mb-2 text-sm font-semibold leading-relaxed text-foreground/80">{word.meaning}</p>
-                )}
-
-                {/* Translation */}
-                {typeof word.translation === "string" && word.translation.length > 0 && (
-                  <p className="mb-2 text-xs italic text-muted-foreground">
-                    {word.translation}
-                  </p>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Load more indicator */}
-      {hasMore && filtered.length > 0 && (
-        <p className="mt-6 text-center text-xs font-semibold text-muted-foreground">
-          Scroll to load more...
-        </p>
-      )}
-    </div>
-  );
+  return <div className="space-y-6">
+    <header className="flex flex-col justify-between gap-4 md:flex-row md:items-end"><div><p className="font-bold uppercase tracking-wider text-primary">LexiLingo catalog</p><h2 className="font-display text-3xl font-bold">Từ vựng</h2><p className="mt-1 text-muted-foreground">Tìm, nghe phát âm và lưu từ cần ôn.</p></div><form className="flex w-full max-w-md gap-2" onSubmit={(event) => { event.preventDefault(); updateQuery({ search: search.trim() || null, page: null }); }}><label className="relative flex-1"><span className="sr-only">Tìm từ vựng</span><IconSearch className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" /><Input className="pl-10" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm theo từ tiếng Anh" /></label><Button type="submit">Tìm</Button></form></header>
+    <div className="flex flex-col gap-3 rounded-xl border-2 border-border bg-card p-4 sm:flex-row sm:items-end"><div className="flex gap-2" role="group" aria-label="Chế độ xem từ vựng"><Button type="button" variant={view === "all" ? "default" : "outline"} onClick={() => updateQuery({ view: null, page: null })}>Tất cả</Button><Button type="button" variant={view === "saved" ? "default" : "outline"} onClick={() => updateQuery({ view: "saved", page: null })}>Đã lưu</Button></div><label className="block min-w-52 flex-1 text-sm font-bold">Chủ đề<Select value={topicId ? String(topicId) : ""} onChange={(event) => updateQuery({ topic_id: event.target.value || null, page: null })}><option value="">Tất cả chủ đề</option>{topics.map((topic) => <option key={topic.id} value={topic.id}>{topic.name}</option>)}</Select></label></div>
+    {message ? <p aria-live="polite" className="rounded-xl bg-amber-50 p-4 font-bold text-amber-900">{message}</p> : null}
+    {words.length ? <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{words.map((item) => <Card key={item.id} className="flex min-h-52 flex-col justify-between p-5"><div><div className="flex items-start justify-between gap-3"><button type="button" className="text-left" onClick={() => { setDetail(item); updateQuery({ word: String(item.id) }); }}><h3 className="font-display text-2xl font-bold text-primary hover:underline">{item.word}</h3>{item.pronunciation ? <p className="mt-1 font-mono text-sm text-muted-foreground">{item.pronunciation}</p> : null}</button><div className="flex gap-2"><button type="button" onClick={() => void bookmark(item)} disabled={savingId === item.id} aria-label={item.is_bookmarked ? `Bỏ lưu ${item.word}` : `Lưu ${item.word}`} className="rounded-xl bg-muted p-3 text-primary disabled:opacity-50">{item.is_bookmarked ? <IconBookmarkFilled className="h-5 w-5" /> : <IconBookmark className="h-5 w-5" />}</button><button type="button" onClick={() => void speak(item)} disabled={playing === item.id} aria-label={`Phát âm ${item.word}`} className="rounded-xl bg-accent p-3 text-primary disabled:opacity-50"><IconPlayerPlay className="h-5 w-5" /></button></div></div><p className="mt-5 text-lg font-bold">{item.meaning}</p>{item.definition ? <p className="mt-2 text-sm text-muted-foreground">{item.definition}</p> : null}</div><div className="mt-5 flex flex-wrap gap-2 text-xs font-bold uppercase text-muted-foreground">{item.topic ? <span className="rounded-full bg-muted px-3 py-1">{item.topic.name}</span> : null}{item.part_of_speech ? <span className="rounded-full bg-muted px-3 py-1">{item.part_of_speech}</span> : null}</div></Card>)}</section> : <Card className="p-10 text-center font-bold text-muted-foreground">{view === "saved" ? "Bạn chưa lưu từ nào. Hãy quay lại danh mục để bắt đầu." : "Không tìm thấy từ phù hợp."}{view === "saved" ? <Button variant="outline" className="mt-4" onClick={() => updateQuery({ view: null, page: null })}>Xem tất cả từ</Button> : null}</Card>}
+    <nav aria-label="Phân trang từ vựng" className="flex items-center justify-center gap-4"><Button variant="outline" disabled={page <= 1} onClick={() => updateQuery({ page: String(page - 1) })}>Trang trước</Button><span className="font-bold tabular-nums">{page} / {lastPage}</span><Button variant="outline" disabled={page >= lastPage} onClick={() => updateQuery({ page: String(page + 1) })}>Trang sau</Button></nav>
+    <Dialog open={Boolean(detail)} onClose={() => { setDetail(undefined); updateQuery({ word: null }); }} title={detail?.word ?? "Chi tiết từ vựng"} className="max-w-lg"><div className="space-y-3">{detail?.pronunciation ? <p className="font-mono text-primary">{detail.pronunciation}</p> : null}<p className="text-lg font-bold">{detail?.meaning}</p>{detail?.definition ? <p>{detail.definition}</p> : null}{detail?.example ? <p className="rounded-xl bg-muted p-3 italic">{detail.example}</p> : null}{detail?.lesson ? <p className="text-sm text-muted-foreground">Bài học: {detail.lesson.title}</p> : null}{detail?.topic ? <p className="text-sm text-muted-foreground">Chủ đề: {detail.topic.name}</p> : null}{detail?.image_url ? <img src={detail.image_url} alt="" className="max-h-64 w-full rounded-xl object-cover" /> : null}{detail ? <Button type="button" variant="outline" onClick={() => void speak(detail)}>Nghe phát âm</Button> : null}</div></Dialog>
+  </div>;
 }

@@ -8,6 +8,6 @@ class TopicPolicy
 {
     public function manage(User $user): bool
     {
-        return $user->role?->slug === 'admin';
+        return $user->hasRole('admin', 'super_admin');
     }
 }

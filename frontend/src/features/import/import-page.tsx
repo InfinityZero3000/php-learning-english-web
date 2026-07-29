@@ -12,8 +12,11 @@ import { Table, Td, Th } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/api";
+import type { CatalogTopic as Topic, DictionaryLookup, ImportJob, ImportRow } from "@/lib/api";
 import { formatDateTime } from "@/lib/utils";
-import type { CefrLevel, DictionaryLookup, DifficultyLevel, ImportJob, ImportRow, Topic } from "@/types/api";
+
+type DifficultyLevel = "BEGINNER" | "INTERMEDIATE" | "ADVANCED";
+type CefrLevel = "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
 
 type Source = "paste" | "file";
 
@@ -30,7 +33,7 @@ export function ImportPage() {
 
   useEffect(() => {
     Promise.all([
-      api.topics().catch(() => [] as Topic[]),
+      api.catalogTopics().catch(() => [] as Topic[]),
       api.importJobs().catch(() => [] as ImportJob[]),
     ]).then(([tops, importJobs]) => {
       setTopics(tops);
@@ -89,8 +92,10 @@ export function ImportPage() {
 
   async function translateMissing() {
     try {
-      const result = await api.translateRows(rows);
-      setRows(result.rows || rows);
+      const translated = await Promise.all(rows.map(async (row) => row.word && !row.translation
+        ? { ...row, translation: (await api.translate(row.word)).translated_text }
+        : row));
+      setRows(translated);
       toast("Missing translations filled.", "success");
     } catch {
       toast("Backend translation unavailable. You can edit rows manually.", "warning");
@@ -101,7 +106,7 @@ export function ImportPage() {
     const enriched = await Promise.all(rows.map(async (row) => {
       if (!row.word) return row;
       try {
-        const data = await api.lookupDictionary(row.word);
+        const data = await api.dictionaryLookup(row.word);
         const lookup = data as DictionaryLookup;
         return {
           ...row,
@@ -121,13 +126,8 @@ export function ImportPage() {
 
   async function commit() {
     const payload = {
-      sourceType: source.toUpperCase(),
-      targetSet: targetSetName ? {
-        name: targetSetName,
-        topicId: defaults.topicId ? Number(defaults.topicId) : null,
-        cefrLevel: defaults.cefrLevel || null
-      } : null,
-      options: { autoEnrich: true },
+      sourceType: source === "paste" ? "PASTE" as const : "FILE" as const,
+      targetSet: targetSetName ? { name: targetSetName } : null,
       rows: rows.filter((row) => row.word)
     };
     try {
@@ -177,7 +177,7 @@ export function ImportPage() {
                   {topics.map((topic) => <option key={topic.id} value={topic.id}>{topic.name}</option>)}
                 </Select>
               </div>
-              <Input placeholder="Target set name" value={targetSetName} onChange={(e) => setTargetSetName(e.target.value)} />
+              <Input placeholder="Import batch label (history only)" value={targetSetName} onChange={(e) => setTargetSetName(e.target.value)} />
               {source === "paste" ? (
                 <Textarea rows={8} placeholder="word, translation, pronunciation" value={text} onChange={(e) => setText(e.target.value)} />
               ) : (

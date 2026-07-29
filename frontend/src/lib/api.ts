@@ -1,570 +1,338 @@
-"use client";
+import type {
+  AppUser,
+} from "@/types/api";
+import { initializeCsrf, xsrfToken } from "@/lib/csrf";
 
-// --- typed HTTP helper -----------------------------------------------------
+type Query = Record<string, string | number | boolean | null | undefined>;
 
 export class ApiError extends Error {
   status: number;
-  body: unknown;
-  errors: Record<string, string[]>;
+  errors?: Record<string, string[]>;
 
-  constructor(status: number, body: unknown, errors?: Record<string, string[]>) {
-    const bodyObject = typeof body === "object" && body !== null ? (body as Record<string, unknown>) : null;
-    const message = bodyObject && "message" in bodyObject
-      ? String(bodyObject.message)
-      : String(body ?? `HTTP ${status}`);
+  constructor(status: number, message: string, errors?: Record<string, string[]>) {
     super(message);
     this.name = "ApiError";
     this.status = status;
-    this.body = body;
-    if (errors) {
-      this.errors = errors;
-    } else if (bodyObject && "errors" in bodyObject && typeof bodyObject.errors === "object" && bodyObject.errors !== null) {
-      this.errors = bodyObject.errors as Record<string, string[]>;
-    } else {
-      this.errors = {};
+    this.errors = errors;
+  }
+}
+
+function toQuery(query?: Query) {
+  const params = new URLSearchParams();
+  Object.entries(query || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      params.set(key, String(value));
     }
-  }
-}
-
-function xsrfToken(): string | null {
-  if (typeof document === "undefined") return null;
-  const token = document.cookie
-    .split("; ")
-    .find((cookie) => cookie.startsWith("XSRF-TOKEN="))
-    ?.slice("XSRF-TOKEN=".length);
-  return token ? decodeURIComponent(token) : null;
-}
-
-export async function initializeCsrf(): Promise<void> {
-  const response = await fetch("/api/v1/csrf-cookie", {
-    credentials: "include",
-    headers: { Accept: "application/json" },
   });
-  if (!response.ok) throw new Error("Could not initialize a secure session.");
+  const text = params.toString();
+  return text ? `?${text}` : "";
 }
 
-export async function apiRequest<T = unknown>(
-  method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH",
-  url: string,
-  body?: unknown,
-  options?: { headers?: Record<string, string>; timeoutMs?: number },
-): Promise<T> {
-  const headers: Record<string, string> = {
-    Accept: "application/json",
-    ...options?.headers,
-  };
-
-  if (body !== undefined) {
-    headers["Content-Type"] = "application/json";
-  }
-
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = init?.method?.toUpperCase() ?? "GET";
+  if (!["GET", "HEAD", "OPTIONS"].includes(method)) await initializeCsrf();
   const token = xsrfToken();
-  if (token) {
-    headers["X-XSRF-TOKEN"] = token;
-  }
-
-  const controller = new AbortController();
-  const timeoutId = options?.timeoutMs
-    ? setTimeout(() => controller.abort(), options.timeoutMs)
-    : undefined;
-
-  try {
-    const response = await fetch(url, {
-      method,
-      credentials: "include",
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      let errorBody: unknown;
-      try {
-        errorBody = await response.json();
-      } catch {
-        errorBody = null;
-      }
-      throw new ApiError(response.status, errorBody);
+  const response = await fetch(path, {
+    ...init,
+    credentials: "include",
+    headers: {
+      Accept: "application/json",
+      ...(init?.body ? { "Content-Type": "application/json" } : {}),
+      ...(token ? { "X-XSRF-TOKEN": token } : {}),
+      ...init?.headers
     }
-
-    if (response.status === 204) return undefined as unknown as T;
-
-    return (await response.json()) as T;
-  } finally {
-    if (timeoutId) clearTimeout(timeoutId);
-  }
-}
-
-// --- Response shapes (match Laravel ApiResponse envelope) -------------------
-
-interface ApiEnvelope<T> {
-  data: T;
-  meta?: Record<string, unknown>;
-}
-
-export interface PaginationMeta {
-  current_page?: number;
-  last_page?: number;
-  per_page?: number;
-  total?: number;
-}
-
-// --- Type imports -----------------------------------------------------------
-
-import type { AppUser, ImportJob, ImportRow, Topic, TrustedFlashcard, UserProgress, Word } from "@/types/api";
-
-// --- Auth -------------------------------------------------------------------
-
-export async function login(email: string, password: string): Promise<ApiEnvelope<AppUser>> {
-  return apiRequest("POST", "/api/v1/auth/login", { email, password });
-}
-
-export async function registerUser(
-  name: string,
-  email: string,
-  password: string,
-  passwordConfirmation: string,
-): Promise<ApiEnvelope<{ message: string }>> {
-  return apiRequest("POST", "/api/v1/auth/register", {
-    name,
-    email,
-    password,
-    password_confirmation: passwordConfirmation,
   });
-}
 
-export async function performLogout(): Promise<void> {
-  await apiRequest("POST", "/api/v1/auth/logout");
-}
-
-export const logout = performLogout;
-
-export async function fetchMe(): Promise<AppUser> {
-  const result = await apiRequest<ApiEnvelope<AppUser>>("GET", "/api/v1/auth/me");
-  return result.data;
-}
-
-export async function forgotPassword(email: string): Promise<ApiEnvelope<{ message: string }>> {
-  return apiRequest("POST", "/api/v1/auth/password/forgot", { email });
-}
-
-export async function resendVerification(): Promise<ApiEnvelope<{ message: string }>> {
-  return apiRequest("POST", "/api/v1/auth/email/resend");
-}
-
-export async function resetPassword(payload: {
-  token: string;
-  email: string;
-  password: string;
-  password_confirmation: string;
-}): Promise<ApiEnvelope<{ message: string }>> {
-  return apiRequest("POST", "/api/v1/auth/password/reset", payload);
-}
-
-// --- Convenience objects (auto-init CSRF for auth mutations) ----------------
-
-export const auth = {
-  login: async (email: string, password: string) => {
-    await initializeCsrf();
-    return login(email, password);
-  },
-  register: async (name: string, email: string, password: string, confirmation: string) => {
-    await initializeCsrf();
-    return registerUser(name, email, password, confirmation);
-  },
-  forgotPassword: async (email: string) => {
-    await initializeCsrf();
-    return forgotPassword(email);
-  },
-  resendVerification: async () => {
-    await initializeCsrf();
-    return resendVerification();
-  },
-  resetPassword: async (payload: {
-    token: string;
-    email: string;
-    password: string;
-    password_confirmation: string;
-  }) => {
-    await initializeCsrf();
-    return resetPassword(payload);
-  },
-  me: async () => fetchMe(),
-  logout: async () => {
-    await initializeCsrf();
-    return performLogout();
-  },
-};
-
-// --- Profile ----------------------------------------------------------------
-
-export const profile = {
-  update: async (name: string): Promise<AppUser> => {
-    const result = await apiRequest<ApiEnvelope<AppUser>>("PUT", "/api/v1/profile", { name });
-    return result.data;
-  },
-};
-
-// --- Catalog ----------------------------------------------------------------
-
-export interface CourseResource {
-  id: number;
-  title: string;
-  description?: string;
-  thumbnail_url?: string;
-  status?: string;
-  total_xp?: number;
-  total_lessons?: number;
-  lessons_count?: number;
-  units_count?: number;
-  level?: { id: number; name: string; slug?: string };
-  category?: { id: number; name: string; slug?: string };
-  topics?: Array<{ id: number; name: string; slug?: string }>;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface LessonResource {
-  id: number;
-  title: string;
-  content?: string;
-  lesson_type?: string;
-  status?: string;
-  sort_order?: number;
-  course?: CourseResource;
-  quizzes_count?: number;
-  vocabularies_count?: number;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface BookmarkResource {
-  id: number;
-  bookmark_type: "lesson" | "vocabulary";
-  lesson?: {
-    id: number;
-    title: string;
-    course?: { id: number; title: string };
-  };
-  vocabulary?: {
-    id: number;
-    word: string;
-    meaning?: string;
-    translation?: unknown;
-  };
-  created_at?: string;
-}
-
-export interface QuizResource {
-  id: number;
-  title?: string;
-  description?: string;
-  lesson_id?: number;
-  lesson?: { id: number; title: string };
-  questions_count?: number;
-  questions?: QuestionResource[];
-  created_at?: string;
-}
-
-export interface QuestionResource {
-  id: number;
-  content: string;
-  question_type?: string;
-  sort_order?: number;
-  answers?: AnswerResource[];
-}
-
-export interface AnswerResource {
-  id: number;
-  content: string;
-  sort_order?: number;
-}
-
-export interface AttemptResource {
-  id: number;
-  score: number;
-  quiz_id?: number;
-  completed_at?: string;
-  created_at?: string;
-}
-
-export interface ProgressResource {
-  id: number;
-  lesson_id?: number;
-  completed_at?: string;
-  lesson?: LessonResource;
-}
-
-export interface DashboardResource {
-  overview: {
-    completed_lessons: number;
-    quiz_attempts: number;
-    average_score: number;
-  };
-  recent_activity: ProgressResource[];
-  recent_attempts?: AttemptResource[];
-}
-
-export async function fetchCourses(params?: {
-  search?: string;
-  level_id?: number;
-  category_id?: number;
-  topic_id?: number;
-  sort_by?: string;
-  per_page?: number;
-  page?: number;
-}): Promise<{ data: CourseResource[]; meta: PaginationMeta }> {
-  const searchParams = new URLSearchParams();
-  if (params) {
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== "") {
-        searchParams.set(key, String(value));
-      }
-    });
+  if (!response.ok) {
+    let message = response.statusText || "Request failed";
+    let errors: Record<string, string[]> | undefined;
+    try {
+      const body = await response.json();
+      if (body?.message) message = body.message;
+      else if (body?.error) message = body.error;
+      errors = body?.errors;
+    } catch {
+      // Keep status text when response is not JSON.
+    }
+    throw new ApiError(response.status, message, errors);
   }
-  const qs = searchParams.toString();
-  const url = `/api/v1/catalog/courses${qs ? `?${qs}` : ""}`;
-  return apiRequest("GET", url);
+
+  if (response.status === 204) return undefined as T;
+  return response.json() as Promise<T>;
 }
 
-export async function fetchCourse(courseId: number): Promise<CourseResource> {
-  const result = await apiRequest<ApiEnvelope<CourseResource>>("GET", `/api/v1/catalog/courses/${courseId}`);
-  return result.data;
+type Envelope<T> = { data: T; meta: Record<string, unknown> };
+
+export function apiRequest<T>(path: string, init?: RequestInit) {
+  return request<Envelope<T>>(path, init).then((response) => response.data);
 }
 
-export async function fetchCourseLessons(
-  courseId: number,
-  params?: { per_page?: number; page?: number },
-): Promise<{ data: LessonResource[]; meta: PaginationMeta }> {
-  const searchParams = new URLSearchParams();
-  if (params) {
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        searchParams.set(key, String(value));
-      }
-    });
-  }
-  const qs = searchParams.toString();
-  const url = `/api/v1/catalog/courses/${courseId}/lessons${qs ? `?${qs}` : ""}`;
-  return apiRequest("GET", url);
-}
-
-export async function fetchLessons(params?: {
-  search?: string;
-  course_id?: number;
-  lesson_type?: string;
-  per_page?: number;
-  page?: number;
-}): Promise<{ data: LessonResource[]; meta: PaginationMeta }> {
-  const searchParams = new URLSearchParams();
-  if (params) {
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== "") {
-        searchParams.set(key, String(value));
-      }
-    });
-  }
-  const qs = searchParams.toString();
-  const url = `/api/v1/catalog/lessons${qs ? `?${qs}` : ""}`;
-  return apiRequest("GET", url);
-}
-
-export async function fetchLesson(lessonId: number): Promise<LessonResource> {
-  const result = await apiRequest<ApiEnvelope<LessonResource>>("GET", `/api/v1/catalog/lessons/${lessonId}`);
-  return result.data;
-}
-
-// --- Vocabulary (read-only public) ------------------------------------------
-
-export interface VocabularyResource {
-  id: number;
-  word: string;
-  meaning?: string;
-  definition?: string;
-  translation?: unknown;
-  pronunciation?: string;
-  part_of_speech?: string;
-  difficulty_level?: string;
-  tags?: string[];
-  external_audio_url?: string;
-}
-
-export async function fetchVocabulary(params?: {
-  search?: string;
-  per_page?: number;
-  page?: number;
-}): Promise<{ data: VocabularyResource[]; meta: PaginationMeta }> {
-  const searchParams = new URLSearchParams();
-  if (params) {
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== "") {
-        searchParams.set(key, String(value));
-      }
-    });
-  }
-  const qs = searchParams.toString();
-  const url = `/api/v1/vocabulary${qs ? `?${qs}` : ""}`;
-  return apiRequest("GET", url);
-}
-
-// --- Bookmarks (auth) -------------------------------------------------------
-
-export async function fetchBookmarks(params?: {
-  bookmark_type?: "lesson" | "vocabulary";
-  per_page?: number;
-  page?: number;
-}): Promise<{ data: BookmarkResource[]; meta: PaginationMeta }> {
-  const searchParams = new URLSearchParams();
-  if (params) {
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        searchParams.set(key, String(value));
-      }
-    });
-  }
-  const qs = searchParams.toString();
-  const url = `/api/v1/bookmarks${qs ? `?${qs}` : ""}`;
-  return apiRequest("GET", url);
-}
-
-export async function toggleBookmarkVocabulary(vocabularyId: number): Promise<ApiEnvelope<{ status: "bookmarked" | "unbookmarked" }>> {
-  return apiRequest("POST", `/api/v1/bookmarks/vocabulary/${vocabularyId}/toggle`);
-}
-
-export async function toggleBookmarkLesson(lessonId: number): Promise<ApiEnvelope<{ status: "bookmarked" | "unbookmarked" }>> {
-  return apiRequest("POST", `/api/v1/bookmarks/lesson/${lessonId}/toggle`);
-}
-
-// --- Quizzes (auth) ---------------------------------------------------------
-
-export async function fetchQuiz(quizId: number): Promise<QuizResource> {
-  const result = await apiRequest<ApiEnvelope<QuizResource>>("GET", `/api/v1/quizzes/${quizId}`);
-  return result.data;
-}
-
-export async function fetchQuizzes(): Promise<QuizResource[]> {
-  const result = await apiRequest<ApiEnvelope<QuizResource[]>>("GET", "/api/v1/quizzes");
-  return result.data;
-}
-
-export interface QuizSubmissionPayload {
-  answers: Array<{ question_id: number; answer_id: number | null }>;
-}
-
-export async function submitQuiz(quizId: number, payload: QuizSubmissionPayload): Promise<AttemptResource> {
-  const result = await apiRequest<ApiEnvelope<AttemptResource>>("POST", `/api/v1/quizzes/${quizId}/submit`, payload);
-  return result.data;
-}
-
-export async function fetchQuizHistory(quizId: number): Promise<{ data: AttemptResource[] }> {
-  return apiRequest("GET", `/api/v1/quizzes/${quizId}/history`);
-}
-
-// --- Progress (auth) --------------------------------------------------------
-
-export async function fetchMyProgress(): Promise<ProgressResource[]> {
-  const result = await apiRequest<ApiEnvelope<ProgressResource[]>>("GET", "/api/v1/progress");
-  return result.data;
-}
-
-export async function fetchDashboard(): Promise<DashboardResource> {
-  const result = await apiRequest<ApiEnvelope<DashboardResource>>("GET", "/api/v1/progress/dashboard");
-  return result.data;
-}
-
-export async function fetchCourseProgress(courseId: number): Promise<ProgressResource> {
-  const result = await apiRequest<ApiEnvelope<ProgressResource>>("GET", `/api/v1/progress/course/${courseId}`);
-  return result.data;
-}
-
-export async function markLessonCompleted(lessonId: number): Promise<ApiEnvelope<{ completed: boolean }>> {
-  return apiRequest("POST", `/api/v1/progress/lesson/${lessonId}/complete`);
-}
-
-// --- Flashcards --------------------------------------------------------------
-
-export async function dueWords(count: number): Promise<UserProgress[]> {
-  const result = await apiRequest<ApiEnvelope<UserProgress[]>>("GET", `/api/v1/flashcards/due?count=${count}`);
-  return result.data;
-}
-
-export async function publicVocabulary(params: {
-  search?: string;
-  perPage?: number;
-}): Promise<{ words: Word[]; meta: PaginationMeta }> {
-  const searchParams = new URLSearchParams();
-  if (params.search) searchParams.set("search", params.search);
-  if (params.perPage) searchParams.set("per_page", String(params.perPage));
-  const qs = searchParams.toString();
-  return apiRequest<{ words: Word[]; meta: PaginationMeta }>("GET", `/api/v1/vocabulary/public${qs ? `?${qs}` : ""}`);
-}
-
-export async function reviewWord(wordId: number, rating: number, timeSpent: number): Promise<void> {
-  await apiRequest("POST", `/api/v1/flashcards/review`, {
-    word_id: wordId,
-    rating,
-    time_spent: timeSpent,
+async function uploadVoice<T>(path: string, audio: Blob, fields: Record<string, string>) {
+  await initializeCsrf();
+  const form = new FormData();
+  form.append("audio", audio, "recording.webm");
+  Object.entries(fields).forEach(([key, value]) => form.append(key, value));
+  const response = await fetch(path, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      Accept: "application/json",
+      ...(xsrfToken() ? { "X-XSRF-TOKEN": xsrfToken() as string } : {}),
+      "X-Request-ID": crypto.randomUUID(),
+    },
+    body: form,
   });
-}
-
-export async function checkInStreak(): Promise<{ streak: number } | undefined> {
-  try {
-    return await apiRequest("POST", "/api/v1/flashcards/streak");
-  } catch {
-    return undefined;
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new ApiError(response.status, body?.message || "Voice service failed");
   }
+  return response.json() as Promise<Envelope<T>>;
 }
 
-export async function importFlashcards(source: string, query: string): Promise<TrustedFlashcard[]> {
-  const result = await apiRequest<ApiEnvelope<TrustedFlashcard[]>>("POST", "/api/v1/flashcards/import", {
-    source,
-    query,
+async function synthesize(text: string) {
+  await initializeCsrf();
+  const response = await fetch("/api/v1/ai/text-to-speech", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      Accept: "audio/mpeg",
+      "Content-Type": "application/json",
+      ...(xsrfToken() ? { "X-XSRF-TOKEN": xsrfToken() as string } : {}),
+      "X-Request-ID": crypto.randomUUID(),
+    },
+    body: JSON.stringify({ text, language: "en" }),
   });
-  return result.data;
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new ApiError(response.status, body?.message || "Text-to-speech failed");
+  }
+  return URL.createObjectURL(await response.blob());
 }
-
-export async function saveFlashcard(flashcardId: number): Promise<void> {
-  await apiRequest("POST", `/api/v1/flashcards/${flashcardId}/save`);
-}
-
-// --- Import ------------------------------------------------------------------
-
-export async function topics(): Promise<Topic[]> {
-  const result = await apiRequest<ApiEnvelope<Topic[]>>("GET", "/api/v1/import/topics");
-  return result.data;
-}
-
-export async function importJobs(): Promise<ImportJob[]> {
-  const result = await apiRequest<ApiEnvelope<ImportJob[]>>("GET", "/api/v1/import/jobs");
-  return result.data;
-}
-
-export async function translateRows(rows: ImportRow[]): Promise<{ rows: ImportRow[] }> {
-  const result = await apiRequest<ApiEnvelope<{ rows: ImportRow[] }>>("POST", "/api/v1/import/translate", { rows });
-  return result.data;
-}
-
-export async function lookupDictionary(word: string): Promise<unknown> {
-  const result = await apiRequest<ApiEnvelope<unknown>>("GET", `/api/v1/import/dictionary?word=${encodeURIComponent(word)}`);
-  return result.data;
-}
-
-export async function commitImport(payload: unknown): Promise<void> {
-  await apiRequest("POST", "/api/v1/import/commit", payload);
-}
-
-// --- Namespace object for convenience imports --------------------------------
 
 export const api = {
-  dueWords,
-  publicVocabulary,
-  reviewWord,
-  checkInStreak,
-  importFlashcards,
-  saveFlashcard,
-  topics,
-  importJobs,
-  translateRows,
-  lookupDictionary,
-  commitImport,
+  me: () => apiRequest<AppUser>("/api/v1/auth/me"),
+  vocabulary: ({ search = "", page = 1, perPage = 24, topicId, saved }: { search?: string; page?: number; perPage?: number; topicId?: number; saved?: boolean } = {}) =>
+    request<Envelope<VocabularyItem[]> & { meta: { current_page: number; last_page: number; per_page: number; total: number } }>(
+      `/api/v1/vocabulary${toQuery({ search, page, per_page: perPage, topic_id: topicId, saved: saved ? 1 : undefined })}`
+    ),
+  vocabularyItem: (id: number) => apiRequest<VocabularyItem>(`/api/v1/vocabulary/${id}`),
+  catalogTopics: () => apiRequest<CatalogTopic[]>("/api/v1/catalog/topics"),
+  bookmarkVocabulary: (id: number, bookmarked: boolean) => apiRequest<{ vocabulary_id: number; bookmarked: boolean }>(`/api/v1/vocabulary/${id}/bookmark`, {
+    method: "PUT", body: JSON.stringify({ bookmarked })
+  }),
+  learningPlan: () => apiRequest<LearningPlan>("/api/v1/learning/plan"),
+  learningAssignments: () => apiRequest<LearnerAssignment[]>("/api/v1/assignments"),
+  catalogCourses: () => request<Envelope<CourseCard[]> & { meta: { total?: number } }>("/api/v1/catalog/courses"),
+  catalogCourse: (id: number) => apiRequest<CourseDetail>(`/api/v1/catalog/courses/${id}`),
+  catalogCourseLessons: (id: number) => request<Envelope<LessonCard[]> & { meta: { total?: number } }>(`/api/v1/catalog/courses/${id}/lessons?per_page=100`),
+  catalogLesson: (id: number) => apiRequest<LessonDetail>(`/api/v1/catalog/lessons/${id}`),
+  enrollments: () => apiRequest<Enrollment[]>("/api/v1/enrollments"),
+  enroll: (courseId: number) => apiRequest<Enrollment>("/api/v1/enrollments", {
+    method: "POST", headers: { "X-Request-ID": crypto.randomUUID() }, body: JSON.stringify({ course_id: courseId })
+  }),
+  startSession: (enrollmentId: number) => apiRequest<LearningSession>("/api/v1/learning/sessions", {
+    method: "POST",
+    headers: { "X-Request-ID": crypto.randomUUID() },
+    body: JSON.stringify({ enrollment_id: enrollmentId })
+  }),
+  startAssignment: (assignmentId: number) => apiRequest<LearningSession>("/api/v1/learning/sessions", {
+    method: "POST",
+    headers: { "X-Request-ID": crypto.randomUUID() },
+    body: JSON.stringify({ assignment_id: assignmentId })
+  }),
+  nextActivity: (sessionId: number) => apiRequest<LearningSession>(`/api/v1/learning/sessions/${sessionId}/next`),
+  submitAttempt: (sessionId: number, payload: LearningAttempt) => apiRequest<{ event_id: number; is_correct: boolean }>(
+    `/api/v1/learning/sessions/${sessionId}/attempts`,
+    { method: "POST", headers: { "X-Request-ID": crypto.randomUUID() }, body: JSON.stringify(payload) }
+  ),
+  traceCag: (payload: TraceCagInput) => apiRequest<{ assistance: Assistance }>("/api/v1/ai/trace-cag", {
+    method: "POST", headers: { "X-Request-ID": crypto.randomUUID() }, body: JSON.stringify(payload)
+  }),
+  completeSession: (sessionId: number) => apiRequest<LearningSession>(`/api/v1/learning/sessions/${sessionId}/complete`, {
+    method: "POST", headers: { "X-Request-ID": crypto.randomUUID() }
+  }),
+  fsrsDue: (perPage = 20) => request<Envelope<FsrsCard[]> & { meta: { total: number } }>(`/api/v1/fsrs/due?per_page=${perPage}`),
+  fsrsReview: (card: FsrsCard, rating: "again" | "hard" | "good" | "easy") => apiRequest<FsrsCard>("/api/v1/fsrs/review", {
+    method: "POST",
+    headers: { "X-Request-ID": crypto.randomUUID() },
+    body: JSON.stringify({ user_vocabulary_id: card.id, rating, base_revision: card.revision })
+  }),
+  flashcardRecommendations: (search = "") => apiRequest<QuizWord[]>(`/api/v1/flashcards/recommendations${toQuery({ search, per_page: 30 })}`),
+  saveFlashcardRecommendation: (id: number) => apiRequest<{ id: number; vocabulary_id: number }>(`/api/v1/flashcards/recommendations/${id}/save`, { method: "POST" }),
+  notifications: () => apiRequest<LearnerNotification[]>("/api/v1/notifications"),
+  markNotificationRead: (key: string) => apiRequest<{ read: boolean }>(`/api/v1/notifications/${encodeURIComponent(key)}/read`, { method: "POST" }),
+  markAllNotificationsRead: () => apiRequest<{ read: boolean }>("/api/v1/notifications/read-all", { method: "POST" }),
+  importJobs: () => apiRequest<ImportJob[]>("/api/v1/learner-imports"),
+  commitImport: (payload: ImportPayload) => apiRequest<{ id: number; createdCount: number; skippedCount: number }>("/api/v1/learner-imports", { method: "POST", body: JSON.stringify(payload) }),
+  dictionaryLookup: (word: string) => apiRequest<DictionaryLookup>(`/api/v1/dictionary/${encodeURIComponent(word)}`),
+  vocabularyFilters: () => apiRequest<string[]>("/api/v1/vocabulary-filters"),
+  startVocabularyQuiz: (payload: QuizStartInput) => apiRequest<QuizStart>("/api/v1/vocabulary-quizzes", { method: "POST", body: JSON.stringify(payload) }),
+  answerVocabularyQuiz: (sessionId: number, vocabularyId: number, answer: string) => apiRequest<QuizAnswerFeedback>(`/api/v1/vocabulary-quizzes/${sessionId}/answers/${vocabularyId}`, { method: "PUT", body: JSON.stringify({ answer }) }),
+  completeVocabularyQuiz: (sessionId: number) => apiRequest<QuizResult>(`/api/v1/vocabulary-quizzes/${sessionId}/complete`, { method: "POST" }),
+  teacherLearners: () => apiRequest<TeacherLearner[]>("/api/v1/teacher/learners"),
+  teacherLearner: (id: number) => apiRequest<TeacherLearner>(`/api/v1/teacher/learners/${id}`),
+  teacherLearnerProgress: (id: number) => apiRequest<TeacherLearnerProgress>(`/api/v1/teacher/learners/${id}/progress`),
+  teacherLearnerEvidence: (id: number) => apiRequest<LearningEvidence[]>(`/api/v1/teacher/learners/${id}/evidence`),
+  teacherAlerts: () => apiRequest<SupervisionAlert[]>("/api/v1/teacher/alerts"),
+  teacherAlert: (id: number) => apiRequest<SupervisionAlert>(`/api/v1/teacher/alerts/${id}`),
+  resolveAlert: (id: number, resolutionCode: string, note: string) => apiRequest<SupervisionAlert>(`/api/v1/teacher/alerts/${id}/resolve`, {
+    method: "POST", body: JSON.stringify({ resolution_code: resolutionCode, note })
+  }),
+  teacherAssignments: () => apiRequest<TeacherAssignment[]>("/api/v1/teacher/assignments"),
+  createTeacherAssignment: (payload: TeacherAssignmentInput) => apiRequest<TeacherAssignment>("/api/v1/teacher/assignments", {
+    method: "POST", headers: { "X-Request-ID": crypto.randomUUID() }, body: JSON.stringify(payload)
+  }),
+  updateTeacherAssignment: (id: number, payload: { status?: "pending" | "in_progress" | "cancelled"; instructions?: string; due_at?: string | null }) =>
+    apiRequest<TeacherAssignment>(`/api/v1/teacher/assignments/${id}`, {
+      method: "PUT", headers: { "X-Request-ID": crypto.randomUUID() }, body: JSON.stringify(payload)
+    }),
+  createInterventionNote: (payload: { learner_id: number; supervision_alert_id?: number; assignment_id?: number; note: string }) =>
+    apiRequest<Record<string, unknown>>("/api/v1/teacher/intervention-notes", {
+      method: "POST", body: JSON.stringify(payload)
+    }),
+  supervisedProgress: () => request<Envelope<SupervisedProgress[]> & { meta: { total: number } }>("/api/v1/progress"),
+  supervisedDashboard: () => apiRequest<SupervisedDashboard>("/api/v1/progress/dashboard"),
+  courseProgress: (courseId: number) => apiRequest<CourseProgress>(`/api/v1/progress/course/${courseId}`),
+  translate: (text: string, source = "en", target = "vi") => apiRequest<Translation>("/api/v1/ai/translate", {
+    method: "POST", headers: { "X-Request-ID": crypto.randomUUID() }, body: JSON.stringify({ text, source_lang: source, target_lang: target })
+  }),
+  textToSpeech: synthesize,
+  speechToText: (audio: Blob, sessionId: number, activityId: string) =>
+    uploadVoice<Transcription>("/api/v1/ai/speech-to-text", audio, {
+      language: "en", session_id: String(sessionId), activity_id: activityId
+    }).then(({ data }) => data),
+  assessPronunciation: (audio: Blob, referenceText: string, sessionId: number, activityId: string) =>
+    uploadVoice<PronunciationAssessment>("/api/v1/ai/pronunciation", audio, {
+      language: "en", reference_text: referenceText, session_id: String(sessionId), activity_id: activityId
+    }).then(({ data }) => data),
+  youtubeChannels: (query?: Query) => apiRequest<YouTubePage<YouTubeChannel>>(`/api/v1/media/youtube/channels${toQuery(query)}`),
+  youtubeSearch: (query: Query) => apiRequest<YouTubePage<YouTubeVideo>>(`/api/v1/media/youtube/search${toQuery(query)}`),
+  youtubeCaptions: (videoId: string) => apiRequest<YouTubeCaptions>(`/api/v1/media/youtube/videos/${encodeURIComponent(videoId)}/captions`),
+  listeningProgress: () => apiRequest<ListeningSession[]>("/api/v1/media/listening-sessions"),
+  startListening: (video: YouTubeVideo) => apiRequest<ListeningSession>("/api/v1/media/listening-sessions", { method: "POST", body: JSON.stringify({ external_id: video.id, title: video.title, channel: video.channel, thumbnail_url: video.thumbnail_url, duration_seconds: video.duration_seconds }) }),
+  updateListening: (id: number, positionSeconds: number, durationSeconds: number) => apiRequest<ListeningSession>(`/api/v1/media/listening-sessions/${id}`, { method: "PUT", body: JSON.stringify({ position_seconds: Math.round(positionSeconds), duration_seconds: Math.round(durationSeconds) }) }),
+  shadowCaption: (id: number, audio: Blob, referenceText: string) => uploadVoice<PronunciationAssessment>(`/api/v1/media/listening-sessions/${id}/pronunciation`, audio, { reference_text: referenceText }).then(({ data }) => data),
+  completeListening: (id: number) => apiRequest<ListeningSession>(`/api/v1/media/listening-sessions/${id}/complete`, { method: "POST" })
+};
+
+export type Translation = { translated_text: string; source_lang: string; target_lang: string };
+export type Transcription = { transcript: string; confidence: number | null };
+export type PronunciationAssessment = { score: number; feedback: string };
+export type YouTubeChannel = { id: string; title: string; thumbnail_url?: string; category?: string; cefr_level?: string };
+export type YouTubeVideo = { id: string; title: string; channel?: string; thumbnail_url?: string; duration_seconds?: number; has_captions?: boolean };
+export type YouTubePage<T> = { items: T[]; next_page_token?: string };
+export type Caption = { start: number; duration?: number; text: string };
+export type YouTubeCaptions = { items: Caption[]; language?: string };
+export type ListeningSession = { id: number; external_id: string; title: string; channel?: string; thumbnail_url?: string; position_seconds: number; duration_seconds: number; watched_percentage: number; shadowing_attempts: number; best_pronunciation_score?: number; status: string; completed_at?: string };
+
+export type LearningPlan = { type: "learning_plan"; items: Array<{ id: number; type: "teacher_lesson" | "teacher_vocabulary_practice" | "fsrs_review" | "course_activity" | "pronunciation_task" | "remediation"; priority: number }> };
+export type CourseCard = { id: number; title: string; description?: string; level?: { name: string }; lessons_count?: number; estimated_duration?: number };
+export type CourseDetail = CourseCard & { slug: string; units_count?: number; category?: { name: string }; topics?: Array<{ id: number; name: string }> };
+export type LessonCard = { id: number; course_id: number; title: string; content?: string; sort_order: number; estimated_minutes?: number; vocabularies_count?: number };
+export type LessonDetail = LessonCard & { vocabularies?: Array<{ id: number; word: string; meaning: string }> };
+export type Enrollment = { id: number; course_id: number; title: string; status: string };
+export type Activity = { id: string; type: string; vocabulary_id: number; word: string; meaning: string; audio_url?: string; practice_only: boolean };
+export type LearningSummary = { events?: number; correct_answers?: number; duration_seconds?: number; best_pronunciation_score?: number | null; next_step?: string; completed_lesson_id?: number | null };
+export type LearningSession = { id: number; course_id: number; lesson_id: number; status: string; completed_at?: string; activity?: Activity | null; summary?: LearningSummary; progress?: { completed: number; total: number } };
+export type LearningAttempt = { activity_id: string; answer: string; duration_ms: number; hint_count: number };
+export type TraceCagInput = { session_id: number; activity_id: string; input_type: "answer" | "hint_request" | "pronunciation" | "tutor_message"; text: string };
+export type Assistance = { diagnosis: { codes: string[]; summary: string }; hints: Array<{ level: number; text: string }>; feedback: string; recommended_action: string; message: string; degraded: boolean };
+export type FsrsCard = { type: "fsrs_card"; id: number; vocabulary_id: number; word: string; meaning: string; definition?: string; pronunciation?: string; example?: string; state: string; due_at?: string; revision: number; scheduled_days?: number };
+export type LearnerNotification = { id: string; title: string; message: string; type: string; deepLink?: string; isRead: boolean; createdAt: string };
+export type QuizWord = { id: number; word: string; translation: string; definition?: string; pronunciation?: string; category?: string; partOfSpeech?: string; difficulty?: string; example?: string };
+export type ImportRow = { clientRowId: string; word: string; translation?: string; pronunciation?: string; category?: string; difficulty?: "BEGINNER" | "INTERMEDIATE" | "ADVANCED"; cefrLevel?: "A1" | "A2" | "B1" | "B2" | "C1" | "C2" | ""; topicId?: number | null; example?: string; partOfSpeech?: string; audioUrl?: string };
+export type ImportJob = { id: number; targetSetName?: string; status: string; totalRows: number; createdCount: number; skippedCount: number; createdAt: string };
+export type ImportPayload = { sourceType: "PASTE" | "FILE"; targetSet: { name: string } | null; rows: ImportRow[] };
+export type DictionaryLookup = { firstDefinition?: string; firstExample?: string; bestPhonetic?: string; primaryPartOfSpeech?: string; bestAudioUrl?: string };
+export type QuizStartInput = { count: number; category?: string; difficulty?: string; topicId?: number; cefrLevel?: string; type: "en-vi" | "vi-en" };
+export type QuizQuestion = { id: number; prompt: string; choices: string[]; pronunciation?: string; category?: string };
+export type QuizStart = { sessionId: number; questions: QuizQuestion[]; totalQuestions: number };
+export type QuizAnswerFeedback = { vocabularyId: number; isCorrect: boolean; correctAnswer: string };
+export type QuizResult = { sessionId: number; correctCount: number; incorrectCount: number; score: number; status: string };
+export type TeacherLearner = { id: number; name: string; email: string };
+export type SupervisionAlert = { id: number; rule_key: string; severity: string; state: string; evidence: Array<Record<string, unknown>>; detected_at: string; learner: TeacherLearner };
+export type TeacherAssignment = { id: number; status: string; due_at?: string; learner: TeacherLearner; lesson?: { title: string }; vocabulary?: { word: string } };
+export type LearnerAssignment = { id: number; status: string; instructions?: string; due_at?: string; teacher: { id: number; name: string }; lesson?: { id: number; title: string }; vocabulary?: { id: number; word: string; meaning: string } };
+export type TeacherAssignmentInput = { learner_id: number; lesson_id?: number; vocabulary_id?: number; instructions?: string; due_at?: string };
+export type TeacherLearnerProgress = { completed_lessons: number; recent_events: number };
+export type LearningEvidence = { id: number; event_type: string; is_correct?: boolean; hint_level?: number; pronunciation_score?: number; duration_ms?: number; occurred_at: string; metadata?: Record<string, unknown> };
+export type SupervisedProgress = { id: number; lesson_id: number; completed_at: string; lesson?: LessonCard };
+export type SupervisedDashboard = { overview: { completed_lessons: number; quiz_attempts: number; average_score: number }; recent_activity: SupervisedProgress[] };
+export type CourseProgress = { course: { id: number; title: string }; progress_percent: number; completed_lessons: number; total_lessons: number };
+export type CatalogTopic = { id: number; name: string; slug?: string };
+export type VocabularyItem = { type: "vocabulary"; id: number; external_id?: string; word: string; meaning: string; definition?: string; translation?: Record<string, string>; pronunciation?: string; part_of_speech?: string; difficulty_level?: string; tags?: string[]; external_audio_url?: string; image_url?: string; audio_url?: string; example?: string; topic?: { id: number; name: string } | null; lesson?: { id: number; title: string } | null; is_bookmarked: boolean };
+export type LessonQuizSummary = { id: number; lesson_id: number; title: string; passing_score: number; questions_count: number };
+export type LessonQuizAnswer = { id: number; content: string };
+export type LessonQuizQuestion = { id: number; content: string; answers: LessonQuizAnswer[] };
+export type SubmittedLessonQuizAnswer = { question_id: number; answer_id: number; answer_content: string; is_correct: boolean; explanation?: string | null };
+export type LessonQuizAttempt = {
+  id: number;
+  status: "active" | "completed";
+  quiz?: { id: number; title: string; passing_score: number };
+  questions?: LessonQuizQuestion[];
+  submitted_answers?: SubmittedLessonQuizAnswer[];
+  score?: number;
+  correct_answers?: number;
+  total_questions?: number;
+  passed?: boolean;
+  completed_at?: string | null;
+};
+export type LessonQuizAnswerFeedback = { question_id: number; answer_id: number; is_correct: boolean; explanation?: string | null };
+
+export const auth = {
+  register: (name: string, email: string, password: string, passwordConfirmation: string) =>
+    apiRequest<{ message: string }>("/api/v1/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ name, email, password, password_confirmation: passwordConfirmation })
+    }),
+  login: (email: string, password: string) =>
+    apiRequest<AppUser>("/api/v1/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password })
+    }),
+  logout: () => request<void>("/api/v1/auth/logout", { method: "POST" }),
+  me: api.me,
+  forgotPassword: (email: string) =>
+    apiRequest<{ message: string }>("/api/v1/auth/password/forgot", {
+      method: "POST",
+      body: JSON.stringify({ email })
+    }),
+  resetPassword: (payload: { token: string; email: string; password: string; password_confirmation: string }) =>
+    apiRequest<{ message: string }>("/api/v1/auth/password/reset", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+  resendVerification: () => apiRequest<{ message: string }>("/api/v1/auth/email/resend", { method: "POST" })
+};
+
+export const lessonQuizzes = {
+  list: (lessonId: number) => apiRequest<LessonQuizSummary[]>(`/api/v1/lesson-quizzes${toQuery({ lesson_id: lessonId })}`),
+  start: (quizId: number) => apiRequest<LessonQuizAttempt>(`/api/v1/lesson-quizzes/${quizId}/attempts`, { method: "POST" }),
+  get: (attemptId: number) => apiRequest<LessonQuizAttempt>(`/api/v1/lesson-quiz-attempts/${attemptId}`),
+  answer: (attemptId: number, questionId: number, answerId: number) => apiRequest<LessonQuizAnswerFeedback>(`/api/v1/lesson-quiz-attempts/${attemptId}/answers/${questionId}`, {
+    method: "PUT", body: JSON.stringify({ answer_id: answerId })
+  }),
+  complete: (attemptId: number) => apiRequest<LessonQuizAttempt>(`/api/v1/lesson-quiz-attempts/${attemptId}/complete`, { method: "POST" })
+};
+
+export const profile = {
+  update: (name: string) =>
+    apiRequest<AppUser>("/api/v1/profile", {
+      method: "PUT",
+      body: JSON.stringify({ name })
+    }),
+  changePassword: (currentPassword: string, password: string, passwordConfirmation: string) =>
+    apiRequest<null>("/api/v1/profile/password", {
+      method: "PUT",
+      body: JSON.stringify({
+        current_password: currentPassword,
+        password,
+        password_confirmation: passwordConfirmation
+      })
+    }),
+  destroy: (password: string) =>
+    request<void>("/api/v1/profile", {
+      method: "DELETE",
+      body: JSON.stringify({ password })
+    })
 };

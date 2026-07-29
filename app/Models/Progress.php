@@ -9,11 +9,17 @@ class Progress extends Model
 {
     protected $table = 'progress';
 
-    protected $fillable = ['user_id', 'lesson_id', 'completed_at'];
+    protected $fillable = [
+        'user_id', 'lesson_id', 'status', 'best_score', 'started_at', 'completed_at',
+    ];
 
     protected function casts(): array
     {
-        return ['completed_at' => 'datetime'];
+        return [
+            'best_score' => 'integer',
+            'started_at' => 'datetime',
+            'completed_at' => 'datetime',
+        ];
     }
 
     public function user(): BelongsTo

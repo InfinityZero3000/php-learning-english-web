@@ -2,126 +2,57 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useLayoutEffect, useRef } from 'react';
+import { navigationForRole } from '@/lib/admin-navigation.mjs';
 
-const navGroups = [
-  {
-    label: null,
-    items: [
-      { href: '/dashboard', icon: 'dashboard', label: 'Dashboard' },
-    ],
-  },
-  {
-    label: 'Quản lý Nội dung',
-    items: [
-      { href: '/courses', icon: 'auto_stories', label: 'Khóa học' },
-      { href: '/vocabulary', icon: 'style', label: 'Từ vựng' },
-      { href: '/quizzes', icon: 'quiz', label: 'Bài kiểm tra' },
-    ],
-  },
-  {
-    label: 'Quản lý Người dùng',
-    items: [
-      { href: '/users', icon: 'group', label: 'Người dùng' },
-    ],
-  },
-];
+const SCROLL_KEY = 'admin-sidebar-scroll-top';
 
-const bottomItems = [{ href: '/settings', icon: 'settings', label: 'Settings' }];
-
-export default function Sidebar() {
+export default function Sidebar({ role, open, onClose }: { role?: string | null; open: boolean; onClose: () => void }) {
   const pathname = usePathname();
-  const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/');
+  const navGroups = navigationForRole(role);
+  const navigationRef = useRef<HTMLElement>(null);
+
+  useLayoutEffect(() => {
+    const navigation = navigationRef.current;
+    if (navigation) navigation.scrollTop = Number(sessionStorage.getItem(SCROLL_KEY) ?? 0);
+  }, [role]);
 
   return (
-    <aside
-      className="fixed left-0 top-0 h-full z-40 flex flex-col w-72"
-      style={{ backgroundColor: '#f5f3f3', borderRight: '2px solid #bdc8d2' }}
-    >
-      {/* Logo */}
-      <div className="px-8 py-6 shrink-0">
-        <h1 className="text-3xl font-black" style={{ color: '#006590', letterSpacing: '-0.02em' }}>
-          Linguist
-        </h1>
-        <p className="text-[10px] font-black uppercase tracking-[0.2em] mt-1" style={{ color: '#3e4850', opacity: 0.6 }}>
-          Admin Dashboard
-        </p>
-      </div>
+    <>
+      {open && <button type="button" className="fixed inset-0 z-40 bg-black/30 lg:hidden" onClick={onClose} aria-label="Đóng menu" />}
+      <aside className={`admin-sidebar ${open ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
+        <div className="px-6 pb-7 pt-6">
+          <Link href="/dashboard" onClick={onClose}>
+            <span className="font-display text-[30px] font-bold leading-none text-[#006590]">Linguist</span>
+            <span className="mt-2 block text-[10px] font-black uppercase tracking-[0.19em] text-[#56636d]">Admin control center</span>
+          </Link>
+        </div>
 
-      {/* Nav */}
-      <nav className="flex-1 px-4 overflow-y-auto pb-2" style={{ scrollbarWidth: 'thin' }}>
-        {navGroups.map((group, gi) => (
-          <div key={gi} className={gi > 0 ? 'mt-3' : ''}>
-            {group.label && (
-              <p
-                className="px-5 pt-1 pb-1 text-[10px] font-black uppercase tracking-[0.2em]"
-                style={{ color: '#6e7881' }}
-              >
-                {group.label}
-              </p>
-            )}
-            <div className="space-y-0.5">
-              {group.items.map((item) => {
-                const active = isActive(item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="flex items-center gap-3 px-4 py-2.5 mx-1 rounded-xl transition-all"
-                    style={
-                      active
-                        ? { backgroundColor: '#006590', color: '#ffffff', borderBottom: '3px solid #004c6e' }
-                        : { color: '#3e4850' }
-                    }
-                    onMouseEnter={(e) => {
-                      if (!active) {
-                        (e.currentTarget as HTMLElement).style.backgroundColor = '#e9e8e7';
-                        (e.currentTarget as HTMLElement).style.color = '#1b1c1c';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!active) {
-                        (e.currentTarget as HTMLElement).style.backgroundColor = '';
-                        (e.currentTarget as HTMLElement).style.color = '#3e4850';
-                      }
-                    }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                      {item.icon}
-                    </span>
-                    <span className="text-sm font-bold">{item.label}</span>
-                  </Link>
-                );
-              })}
+        <nav
+          ref={navigationRef}
+          aria-label="Admin navigation"
+          className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-4 pb-4"
+          onScroll={(event) => sessionStorage.setItem(SCROLL_KEY, String(event.currentTarget.scrollTop))}
+        >
+          {navGroups.map((group, index) => (
+            <div key={group.label} className={index ? 'mt-5' : ''}>
+              <p className="px-4 pb-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#6e7881]">{group.label}</p>
+              <div className="space-y-1.5">
+                {group.items.map((item) => {
+                  const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  return (
+                    <Link key={item.href} href={item.href} onClick={onClose} className={`admin-nav-item ${active ? 'admin-nav-item-active' : ''}`}>
+                      <span className="material-symbols-outlined text-[22px]">{item.icon}</span>
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
-      </nav>
+          ))}
+        </nav>
 
-      {/* Bottom */}
-      <div className="px-4 pb-5 pt-3 shrink-0" style={{ borderTop: '2px solid #bdc8d2' }}>
-        {bottomItems.map((item) => {
-          const active = isActive(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="flex items-center gap-3 px-4 py-2.5 mx-1 rounded-xl transition-all"
-              style={active ? { backgroundColor: '#006590', color: '#ffffff' } : { color: '#3e4850' }}
-              onMouseEnter={(e) => {
-                if (!active) (e.currentTarget as HTMLElement).style.backgroundColor = '#e9e8e7';
-              }}
-              onMouseLeave={(e) => {
-                if (!active) (e.currentTarget as HTMLElement).style.backgroundColor = '';
-              }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                {item.icon}
-              </span>
-              <span className="text-sm font-bold">{item.label}</span>
-            </Link>
-          );
-        })}
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 }

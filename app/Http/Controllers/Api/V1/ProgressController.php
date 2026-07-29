@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\ProgressResource;
 use App\Models\Attempt;
 use App\Models\Course;
+use App\Models\Enrollment;
+use App\Models\LearningSession;
 use App\Models\Lesson;
 use App\Models\Progress;
 use App\Support\ApiResponse;
@@ -32,8 +34,7 @@ class ProgressController extends Controller
         return ApiResponse::success(
             ProgressResource::collection($page->items()),
             meta: [
-                'current_page' => $page->currentPage(),
-                'last_page' => $page->lastPage(),
+                'page' => $page->currentPage(),
                 'per_page' => $page->perPage(),
                 'total' => $page->total(),
             ],
@@ -42,8 +43,6 @@ class ProgressController extends Controller
 
     public function courseProgress(Request $request, Course $course): JsonResponse
     {
-        abort_unless($course->status === 'published', 404);
-
         $userId = $request->user()->id;
         $lessons = $course->lessons()->where('status', 'published')->orderBy('sort_order')->get();
         $completedLessonIds = Progress::where('user_id', $userId)
@@ -56,6 +55,7 @@ class ProgressController extends Controller
         $progressPercent = $totalLessons > 0 ? round(($completedCount / $totalLessons) * 100) : 0;
 
         return ApiResponse::success([
+            'type' => 'progress',
             'course' => [
                 'id' => $course->id,
                 'title' => $course->title,
@@ -93,6 +93,7 @@ class ProgressController extends Controller
             ->get();
 
         return ApiResponse::success([
+            'type' => 'progress',
             'overview' => [
                 'completed_lessons' => $completedLessons,
                 'quiz_attempts' => $quizAttempts,
@@ -110,13 +111,12 @@ class ProgressController extends Controller
 
     public function markCompleted(Request $request, Lesson $lesson): JsonResponse
     {
-        abort_unless(
-            $lesson->status === 'published'
-            && $lesson->course()->where('status', 'published')->exists(),
-            404,
-        );
-
         $userId = $request->user()->id;
+        $eligible = $lesson->status === 'published'
+            && Enrollment::query()->where('user_id', $userId)->where('course_id', $lesson->course_id)->exists()
+            && LearningSession::query()->where('user_id', $userId)->where('lesson_id', $lesson->id)
+                ->where('status', 'completed')->exists();
+        abort_unless($eligible, 403, 'Complete the learner-owned session before marking progress.');
 
         Progress::firstOrCreate([
             'user_id' => $userId,
@@ -125,6 +125,6 @@ class ProgressController extends Controller
             'completed_at' => now(),
         ]);
 
-        return ApiResponse::success(['status' => 'completed']);
+        return ApiResponse::success(['type' => 'progress', 'status' => 'completed']);
     }
 }

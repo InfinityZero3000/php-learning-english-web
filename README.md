@@ -1,6 +1,8 @@
 # Website học tiếng Anh
 
-Bộ khung Laravel MVC cho đồ án lập trình mã nguồn mở của Nhóm 8.
+Hệ thống học tiếng Anh gồm Laravel API, learner Next.js và admin Next.js của
+Nhóm 8. Trạng thái chức năng và phần còn thiếu được duy trì tại
+[`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
 ## Công nghệ
 
@@ -111,9 +113,9 @@ Không dùng `docker compose down -v` trừ khi muốn xóa toàn bộ dữ li�
 
 Các điểm kiểm tra:
 
-- `GET /`: trang skeleton.
+- `GET /`: chuyển sang learner frontend đã cấu hình.
 - `GET /health`: readiness check cho ứng dụng, MySQL và Redis đang sử dụng.
-- `GET /admin`: trang quản trị Blade cũ; admin Next.js dùng xác thực session.
+- `GET /admin`: chuyển sang admin Next.js; admin dùng xác thực session.
 - `GET /api/status`: `{"status":"ok","version":"v1"}`.
 
 ## Lệnh kiểm tra
@@ -155,9 +157,13 @@ biết chi tiết từng folder.
 - `app/Models`: model và quan hệ Eloquent nền.
 - `database/migrations`: schema cho nội dung học, quiz và tiến độ.
 - `database/seeders`: role, level và topic mẫu; không tạo user.
-- `resources/views`: layout Bootstrap và trang placeholder.
+- `frontend/`: giao diện learner Next.js.
+- `admin-frontend/`: giao diện admin và super admin Next.js.
 - `routes`: điểm vào web và API.
 - `docs/PROJECT_PLAN.md`: phân chia nhiệm vụ và phụ thuộc.
+- `docs/CURRENT_STATUS.md`: trạng thái triển khai và backlog hiện hành.
+- `docs/USER_GUIDE.md`: hướng dẫn learner, teacher, admin và super admin.
+- `docs/architecture.md`: ranh giới hệ thống và luồng dữ liệu.
 - `docs/DEVELOPMENT_WORKFLOW.md`: branch, push, Pull Request, PHPUnit và CI/CD Fly.io.
 - `postman/`: Postman collection + environment dùng chung cho kiểm thử API thủ công.
 
@@ -172,10 +178,12 @@ Controller, Form Request, Policy, Resource và Service chỉ được tạo khi 
 - **Thay đổi env chưa có hiệu lực:** chạy `docker compose exec app php artisan config:clear`.
 - **Muốn làm sạch database dev:** chạy `docker compose exec app php artisan migrate:fresh --seed` (lệnh này xóa dữ liệu hiện có).
 
-## Phạm vi skeleton
+## Trạng thái triển khai
 
-Đã có Auth, profile và API vocabulary nền. CRUD học tập, phân quyền backend
-cho admin, chấm quiz và upload vẫn chưa hoàn chỉnh. Fly.io CD chưa có staging,
-worker hay object storage.
+Auth/profile, catalog, quiz, progress, FSRS, learning session, teacher,
+admin/super-admin và hai giao diện Next.js đã có implementation và test. Các
+việc còn lại trước release chủ yếu là đồng bộ OpenAPI, xác minh LexiLingo và
+smoke/rollback trên production; xem
+[`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
 Quy trình cộng tác và tự động deploy được mô tả tại [Development Workflow](docs/DEVELOPMENT_WORKFLOW.md).

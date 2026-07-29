@@ -8,25 +8,27 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['role_id', 'name', 'email', 'password', 'locked_at', 'last_login_at'])]
+#[Fillable(['role_id', 'name', 'email', 'google_id', 'auth_provider', 'password'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
-    public function isAdmin(): bool
-    {
-        return $this->role?->slug === 'admin';
-    }
-
     public function role(): BelongsTo
     {
         return $this->belongsTo(Role::class);
+    }
+
+    public function hasRole(string ...$roles): bool
+    {
+        return in_array($this->role?->slug, $roles, true);
     }
 
     public function attempts(): HasMany
@@ -49,6 +51,21 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(UserVocabulary::class);
     }
 
+    public function adminPreference(): HasOne
+    {
+        return $this->hasOne(AdminPreference::class);
+    }
+
+    public function readOperationalNotifications(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            SupervisionAlert::class,
+            'admin_notification_reads',
+            'user_id',
+            'supervision_alert_id',
+        )->withPivot('read_at');
+    }
+
     /**
      * Get the attributes that should be cast.
      *
@@ -59,8 +76,6 @@ class User extends Authenticatable implements MustVerifyEmail
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'locked_at' => 'datetime',
-            'last_login_at' => 'datetime',
         ];
     }
 }

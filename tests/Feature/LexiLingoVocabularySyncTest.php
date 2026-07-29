@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Services\LexiLingoVocabularySync;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -12,11 +11,10 @@ class LexiLingoVocabularySyncTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_upstream_page_is_cached_and_vocabulary_is_persisted(): void
+    public function test_upstream_page_is_imported_and_vocabulary_is_persisted(): void
     {
         config()->set('services.lexilingo.backend_url', 'https://backend.lexilingo.test');
-        config()->set('cache.stores.redis', ['driver' => 'array']);
-        Cache::spy();
+        config()->set('services.lexilingo.partner_api_key', 'partner-secret');
         Http::fake([
             'backend.lexilingo.test/*' => Http::response([[
                 'id' => 'lexi-word-1',
@@ -42,6 +40,5 @@ class LexiLingoVocabularySyncTest extends TestCase
             'meaning' => 'xin chào',
         ]);
         Http::assertSentCount(1);
-        Cache::shouldHaveReceived('store')->with('redis');
     }
 }

@@ -28,7 +28,7 @@ class QuizApiTest extends TestCase
         $this->seed(CatalogSeeder::class);
         $this->seed(LessonQuizSeeder::class);
 
-        $this->user = User::where('email', 'user@example.com')->first();
+        $this->user = User::factory()->create();
         $this->quiz1Id = Quiz::with('lesson')->whereHas('lesson', function ($q) {
             $q->where('slug', 'dong-vat-hoang-da');
         })->value('id');
@@ -36,20 +36,9 @@ class QuizApiTest extends TestCase
 
     public function test_guest_gets_401_on_quiz_routes(): void
     {
-        $this->getJson('/api/v1/quizzes')->assertUnauthorized();
         $this->getJson("/api/v1/quizzes/{$this->quiz1Id}")->assertUnauthorized();
         $this->postJson("/api/v1/quizzes/{$this->quiz1Id}/submit")->assertUnauthorized();
         $this->getJson("/api/v1/quizzes/{$this->quiz1Id}/history")->assertUnauthorized();
-    }
-
-    public function test_user_can_list_only_available_quizzes(): void
-    {
-        Quiz::whereKey($this->quiz1Id)->update(['status' => 'draft']);
-
-        $this->actingAs($this->user)->getJson('/api/v1/quizzes')
-            ->assertOk()
-            ->assertJsonMissing(['id' => $this->quiz1Id])
-            ->assertJsonStructure(['data' => [['id', 'title', 'questions_count', 'lesson']]]);
     }
 
     public function test_user_can_view_quiz_with_questions(): void

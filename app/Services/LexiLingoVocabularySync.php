@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\Vocabulary;
 use App\Services\Import\AbstractLexiLingoImporter;
 use App\Services\Import\ImportResult;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class LexiLingoVocabularySync extends AbstractLexiLingoImporter
@@ -17,28 +16,24 @@ class LexiLingoVocabularySync extends AbstractLexiLingoImporter
         return 'vocabulary';
     }
 
-    public function import(int $limit, bool $dryRun = false, bool $reset = false): ImportResult
+    public function import(int $limit, bool $dryRun = false, bool $reset = false, ?int $cursor = null): ImportResult
     {
-        $offset = $this->startingCursor($reset);
-        $processed = $this->syncPage($offset, $limit, $dryRun);
+        $offset = $this->startingCursor($reset, $cursor);
+        $processed = $this->syncPage($offset, $limit, $dryRun, $reset);
         $nextCursor = $dryRun ? $offset : $this->checkpoint()->cursor;
 
         return new ImportResult($processed, $this->lastSkipped, $nextCursor);
     }
 
-    public function syncPage(int $offset = 0, int $limit = 100, bool $dryRun = false): int
+    public function syncPage(int $offset = 0, int $limit = 100, bool $dryRun = false, bool $replaceCheckpoint = false): int
     {
         $limit = min(100, max(1, $limit));
-        $payload = Cache::store('redis')->remember(
-            "lexilingo:vocabulary:{$limit}:{$offset}",
-            now()->addMinutes(5),
-            fn () => $this->client->backend()
-                ->get('/api/v1/vocabulary/items', ['limit' => $limit, 'offset' => $offset])
-                ->throw()
-                ->json(),
-        );
+        $payload = $this->client->partner()
+            ->get('/api/v1/integrations/vocabulary/items', ['limit' => $limit, 'offset' => $offset])
+            ->throw()
+            ->json();
 
-        $items = is_array($payload) ? $payload : ($payload['data'] ?? []);
+        $items = $this->items($payload);
         $count = 0;
         $this->lastSkipped = 0;
 
@@ -86,7 +81,7 @@ class LexiLingoVocabularySync extends AbstractLexiLingoImporter
         });
 
         if (! $dryRun) {
-            $this->advanceCheckpoint($offset + count($items));
+            $this->advanceCheckpoint($offset + count($items), $replaceCheckpoint);
         }
 
         return $count;

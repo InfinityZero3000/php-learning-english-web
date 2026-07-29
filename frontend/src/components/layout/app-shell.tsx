@@ -10,67 +10,103 @@ import {
 } from "@tabler/icons-react";
 import { useEffect, useMemo, useState } from "react";
 import { navigationIcons } from "@/components/icons/app-icons";
-import { NotificationWidget } from "@/components/layout/notifications";
-// import { AppDiamondIcon, AppFlameIcon } – hidden until backend provides streak/XP APIs
 import { Button } from "@/components/ui/button";
 import { CatLoader } from "@/components/ui/cat-loader";
-import { AuthProvider, useAuth } from "@/features/auth/auth-context";
-import { isAuthPath, isProtectedPath, loginHref } from "@/features/auth/route-policy";
+import { NotificationWidget } from "@/components/layout/notifications";
+import { ApiError, auth } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { isProtectedPath, loginHref } from "@/features/auth/route-policy";
 import type { AppUser } from "@/types/api";
 
 const nav = [
-  { href: "/", label: "Home", icon: navigationIcons.home },
-  { href: "/vocabulary", label: "Words", icon: navigationIcons.words },
+  { href: "/", label: "Today", icon: navigationIcons.home },
+  { href: "/courses", label: "Courses", icon: navigationIcons.flashcards },
+  { href: "/listening", label: "Listening", icon: navigationIcons.quiz },
+  { href: "/assignments", label: "Assignments", icon: navigationIcons.quiz },
+  { href: "/flashcards", label: "Flashcards", icon: navigationIcons.flashcards },
   { href: "/quiz", label: "Quiz", icon: navigationIcons.quiz },
+  { href: "/import", label: "Import", icon: navigationIcons.words },
+  { href: "/vocabulary", label: "Words", icon: navigationIcons.words },
   { href: "/progress", label: "Progress", icon: navigationIcons.progress },
 ];
 
 const titles: Record<string, string> = {
-  "/": "Home",
+  "/": "Today",
+  "/courses": "Course Path",
+  "/listening": "Listening practice",
+  "/assignments": "Assignments",
+  "/review": "FSRS Review",
+  "/flashcards": "FSRS Flashcards",
+  "/quiz": "Vocabulary Quiz",
+  "/import": "Import Words",
   "/vocabulary": "Words",
-  "/quiz": "Quiz",
   "/progress": "Progress",
   "/profile": "Profile"
 };
+const authRoutes = new Set(["/login", "/register", "/forgot-password", "/reset-password", "/verify-email"]);
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  return <AuthProvider checkSession={isProtectedPath(pathname)}><AppShellContent>{children}</AppShellContent></AuthProvider>;
-}
-
-function AppShellContent({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
   const router = useRouter();
-  const { status, user, refreshUser, logout: clearSession } = useAuth();
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [authError, setAuthError] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  const pageTitle = useMemo(() => titles[pathname] || "Linguist", [pathname]);
-
+  const isAuthRoute = authRoutes.has(pathname);
   const protectedRoute = isProtectedPath(pathname);
 
+  const pageTitle = useMemo(() => titles[pathname] || "FSRSpring", [pathname]);
+  const visibleNav = useMemo(() => [
+    ...nav,
+    ...(user?.role === "teacher" || user?.role === "super_admin"
+      ? [{ href: "/teacher", label: "Teacher", icon: navigationIcons.progress }]
+      : [])
+  ], [user]);
+
   useEffect(() => {
-    if (status === "guest" && protectedRoute) {
-      router.replace(loginHref(pathname, window.location.search.slice(1)));
+    let cancelled = false;
+    if (isAuthRoute) {
+      setAuthChecked(true);
+      setAuthError(false);
+      return () => { cancelled = true; };
     }
-  }, [pathname, protectedRoute, router, status]);
+    setAuthChecked(false);
+    setAuthError(false);
+
+    auth.me()
+      .then((data) => {
+        if (!cancelled) setUser(data);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        if (error instanceof ApiError && error.status === 401) {
+          if (protectedRoute) router.replace(loginHref(pathname));
+        } else {
+          setAuthError(protectedRoute);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setAuthChecked(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthRoute, pathname, protectedRoute, router]);
 
   async function logout() {
-    await clearSession();
-    router.replace("/");
+    await auth.logout().catch(() => undefined);
+    router.replace("/login");
     router.refresh();
   }
 
-  if (isAuthPath(pathname)) return <div className="app-shell">{children}</div>;
-  if (protectedRoute && (status === "checking" || status === "guest")) {
-    return <AppShellLoading label="Checking session..." />;
-  }
-  if (protectedRoute && status === "unavailable") {
+  if (isAuthRoute) return <div className="app-shell min-h-screen">{children}</div>;
+  if (!authChecked) return <AppShellLoading label="Checking session..." />;
+  if (authError) {
     return (
       <main className="flex min-h-screen items-center justify-center p-6 text-center">
         <div>
           <p className="font-bold">Could not reach the server.</p>
-          <Button className="mt-4" onClick={() => void refreshUser()}>Retry</Button>
+          <Button className="mt-4" onClick={() => window.location.reload()}>Retry</Button>
         </div>
       </main>
     );
@@ -83,7 +119,7 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
           <span className="font-display text-[32px] font-bold leading-tight tracking-normal text-primary">Linguist</span>
         </Link>
         <nav className="flex flex-1 flex-col gap-2">
-          {nav.map((item) => {
+          {visibleNav.map((item) => {
             const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
             const Icon = item.icon;
             return (
@@ -104,7 +140,7 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
           })}
         </nav>
         <div className="border-t-2 border-border pt-6">
-          {status === "checking" ? (
+          {!authChecked ? (
             <div className="space-y-4" aria-label="Checking login status">
               <div className="flex items-center gap-2">
                 <div className="h-10 w-10 shrink-0 animate-pulse rounded-full border-2 border-border bg-muted" />
@@ -115,7 +151,7 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
               </div>
               <div className="h-10 w-full animate-pulse rounded-xl bg-muted" />
             </div>
-          ) : status === "authenticated" && user ? (
+          ) : user ? (
             <div className="space-y-6">
               <Link href="/profile" className="flex items-center gap-2">
                 <Avatar user={user} size="lg" />
@@ -156,26 +192,11 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
             </button>
             <h1 className="font-display text-2xl font-bold text-foreground">{pageTitle}</h1>
           </div>
-          <div className="flex items-center gap-6">
-            {/*
-              Streak and XP hidden – no backend API yet.
-              <button className="flex items-center gap-2 transition hover:opacity-80" aria-label="Daily streak">
-                <AppFlameIcon className="text-[34px] text-[#f4bf00]" />
-                <span className="font-display text-[24px] font-bold leading-none text-[#f4bf00]">{streak}</span>
-              </button>
-              <button className="flex items-center gap-2 transition hover:opacity-80" aria-label="XP">
-                <span className="flex items-center justify-center rounded-lg bg-[#1cb0f6] p-[3px]">
-                  <AppDiamondIcon className="text-[28px] text-white" />
-                </span>
-                <span className="font-display text-[24px] font-bold leading-none text-[#1cb0f6]">{xp}</span>
-              </button>
-            */}
-            <NotificationWidget />
-          </div>
+          <NotificationWidget />
         </div>
         {isMobileMenuOpen && (
           <nav className="mt-4 flex flex-col gap-2 rounded-xl border-2 border-border bg-card p-4 shadow-sm lg:hidden">
-            {nav.map((item) => {
+            {visibleNav.map((item) => {
               const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
               const Icon = item.icon;
               return (
@@ -227,6 +248,8 @@ function Avatar({ user, size }: { user: AppUser; size: "sm" | "lg" }) {
       <img
         src={user.avatarUrl}
         alt={user.name || user.email}
+        width={40}
+        height={40}
         referrerPolicy="no-referrer"
         className={cn(box, "shrink-0 rounded-full border-primary object-cover")}
       />

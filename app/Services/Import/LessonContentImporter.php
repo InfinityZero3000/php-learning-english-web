@@ -18,9 +18,9 @@ class LessonContentImporter extends AbstractLexiLingoImporter
         return 'lessons';
     }
 
-    public function import(int $limit, bool $dryRun = false, bool $reset = false): ImportResult
+    public function import(int $limit, bool $dryRun = false, bool $reset = false, ?int $cursor = null): ImportResult
     {
-        $offset = $this->startingCursor($reset);
+        $offset = $this->startingCursor($reset, $cursor);
 
         // Get local lessons that have an external_id from LexiLingo
         $lessons = Lesson::whereNotNull('external_id')

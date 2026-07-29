@@ -4,11 +4,12 @@
   "private": true,
   "packageManager": "pnpm@9.15.4",
   "scripts": {
-    "dev": "next dev --hostname 0.0.0.0",
+    "dev": "NODE_OPTIONS='--max-old-space-size=512' next dev --hostname 0.0.0.0",
     "build": "next build",
     "start": "next start --hostname 0.0.0.0",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "validate:contracts": "node scripts/validate-lexilingo-schema.mjs"
   },
   "dependencies": {
     "@next/eslint-plugin-next": "16.2.6",
@@ -16,10 +17,10 @@
     "@radix-ui/react-toast": "^1.2.15",
     "@tabler/icons-react": "^3.44.0",
     "eslint": "^9.39.4",
-    "eslint-config-next": "16.2.6",
+    "eslint-config-next": "16.2.12",
     "lottie-react": "^2.4.1",
     "lucide-react": "1.14.0",
-    "next": "16.2.6",
+    "next": "16.2.12",
     "react": "19.2.6",
     "react-dom": "19.2.6"
   },

@@ -1,8 +1,8 @@
 # Security Audit & Verification Report
 
-**Người thực hiện**: Yuu-25-uuY (Thư)  
-**Ngày hoàn thành**: 2026-07-28  
-**Trạng thái**: Đã xác minh (Verified)  
+**Người thực hiện**: Yuu-25-uuY (Thư)
+**Ngày hoàn thành**: 2026-07-28
+**Trạng thái**: Đã xác minh (Verified)
 **Dự án**: Website học tiếng Anh
 
 Báo cáo này cung cấp thông tin kiểm tra và bằng chứng kiểm thử về bảo mật cho hệ thống trước khi release production theo yêu cầu của **Issue #14**.
@@ -10,7 +10,7 @@ Báo cáo này cung cấp thông tin kiểm tra và bằng chứng kiểm thử 
 ---
 
 ## 1. SQL Injection (SQLi)
-- **Cơ chế bảo vệ**: 
+- **Cơ chế bảo vệ**:
   - Toàn bộ câu lệnh SQL truy vấn và ghi nhận dữ liệu trong Laravel đều sử dụng Eloquent ORM hoặc Query Builder với cơ chế Parameter Binding tự động.
   - Tuyệt đối không nội suy dữ liệu chưa qua xử lý trực tiếp từ Request vào các câu lệnh SQL.
 - **Bằng chứng kiểm tra**:

@@ -109,6 +109,10 @@ class CourseCategoryController extends Controller
     {
         Gate::authorize('manage', CourseCategory::class);
 
+        if ($category->courses()->exists()) {
+            return ApiResponse::error('CATEGORY_HAS_COURSES', 'Không thể xóa danh mục đang có khóa học.', 422);
+        }
+
         $category->delete();
 
         return ApiResponse::success(null, 204);

@@ -2,6 +2,10 @@
 
 namespace App\Providers;
 
+use App\Models\User;
+use App\Policies\LearningPolicy;
+use App\Policies\OperationsPolicy;
+use App\Policies\UserPolicy;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Support\Facades\Gate;
@@ -30,13 +34,17 @@ class AppServiceProvider extends ServiceProvider
             urlencode($user->getEmailForPasswordReset()),
         ));
 
-        // Gate cho phép dùng @can('is-admin') trong Blade
-        Gate::define('is-admin', function ($user) {
-            return $user->isAdmin();
-        });
-
-        // Media gates (no associated model, so defined manually)
-        Gate::define('upload-media', fn ($user) => $user->role?->slug === 'admin');
-        Gate::define('delete-media', fn ($user) => $user->role?->slug === 'admin');
+        Gate::policy(User::class, UserPolicy::class);
+        Gate::define('is-admin', fn (User $user) => $user->hasRole('admin', 'super_admin'));
+        Gate::define('manage-content', [OperationsPolicy::class, 'manageContent']);
+        Gate::define('manage-operations', [OperationsPolicy::class, 'manageOperations']);
+        Gate::define('manage-users', [OperationsPolicy::class, 'manageUsers']);
+        Gate::define('manage-roles', [OperationsPolicy::class, 'manageRoles']);
+        Gate::define('assign-teachers', [OperationsPolicy::class, 'assignTeachers']);
+        Gate::define('start-content-sync', [OperationsPolicy::class, 'startContentSync']);
+        Gate::define('retry-content-sync', [OperationsPolicy::class, 'retryContentSync']);
+        Gate::define('view-learning-evidence', [LearningPolicy::class, 'viewEvidence']);
+        Gate::define('upload-media', fn (User $user) => $user->hasRole('admin', 'super_admin'));
+        Gate::define('delete-media', fn (User $user) => $user->hasRole('admin', 'super_admin'));
     }
 }

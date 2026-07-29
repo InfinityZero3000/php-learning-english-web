@@ -28,4 +28,3 @@ boundary interpolates request data into SQL.
 No SQL injection vulnerability found. Authentication reads and writes use
 Laravel Eloquent or query builder parameter binding after request validation.
 No remediation or regression test was required.
-

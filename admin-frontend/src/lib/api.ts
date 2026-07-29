@@ -42,7 +42,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     credentials: 'include',
     headers: {
       Accept: 'application/json',
-      ...(options?.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(options?.body && !(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { 'X-XSRF-TOKEN': token } : {}),
       ...options?.headers,
     },
@@ -60,169 +60,252 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.text() as unknown as T;
 }
 
-// Auth
-export const auth = {
-  login: (email: string, password: string) =>
-    request<{ data: User }>('/api/v1/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
+export const operations = {
+  overview: () => request<{ data: OperationsOverview }>('/api/v1/admin/operations').then(({ data }) => data),
+  probe: (service: string) => request<{ data: ServiceProbe }>('/api/v1/admin/operations/service-probes', {
+    method: 'POST',
+    body: JSON.stringify({ service }),
+  }).then(({ data }) => data),
+  contracts: () => request<{ data: ContractStatus }>('/api/v1/admin/operations/contracts').then(({ data }) => data),
+  usage: () => request<{ data: OperationsUsage }>('/api/v1/admin/operations/usage').then(({ data }) => data),
+  quota: () => request<{ data: QuotaPolicy }>('/api/v1/admin/operations/quota-policy').then(({ data }) => data),
+  updateQuota: (limits: Record<string, number>) =>
+    request<{ data: QuotaPolicy }>('/api/v1/admin/operations/quota-policy', {
+      method: 'PUT',
+      headers: { 'X-Request-ID': crypto.randomUUID() },
+      body: JSON.stringify({ limits }),
     }).then(({ data }) => data),
+  rules: () => request<{ data: AlertRule[] }>('/api/v1/admin/operations/alert-rules').then(({ data }) => data),
+  updateRule: (id: number, enabled: boolean, parameters: Record<string, unknown>) =>
+    request<{ data: AlertRule }>(`/api/v1/admin/operations/alert-rules/${id}`, {
+      method: 'PUT',
+      headers: { 'X-Request-ID': crypto.randomUUID() },
+      body: JSON.stringify({ enabled, parameters }),
+    }).then(({ data }) => data),
+  audits: (params: { action?: string; search?: string; from?: string; to?: string; page?: number; perPage?: number } = {}) => {
+    const q = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => { if (value !== undefined && value !== '') q.set(key === 'perPage' ? 'per_page' : key, String(value)); });
+    return request<{ data: AuditEvent[]; meta: PageMeta }>(`/api/v1/admin/operations/audit-events?${q}`);
+  },
+};
+
+export type OperationsOverview = { features: Record<string, boolean>; services: Record<string, boolean>; open_alerts: number };
+export type ServiceProbe = { service: string; healthy: boolean; status: number; latency_ms: number };
+export type QuotaPolicy = { id: number; version: number; limits: Record<string, number>; is_active: boolean };
+export type AlertRule = { id: number; rule_key: string; version: number; enabled: boolean; parameters: Record<string, unknown> };
+export type AuditEvent = { id: number; action: string; target_type?: string | null; target_id?: string | null; actor?: Pick<AdminUser, 'id' | 'name' | 'email'> | null; occurred_at: string };
+export type ContractStatus = { trace_cag: { version: string; sha256: string | null } };
+export type OperationsUsage = { last_24_hours: number; last_30_days: number; degraded_30_days: number };
+
+// Auth
+let adminSession: Promise<User> | undefined;
+
+export const auth = {
+  login: (email: string, password: string) => request<{ data: User }>('/api/v1/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  }).then(({ data }) => data),
   me: () => request<{ data: User }>('/api/v1/auth/me').then(({ data }) => data),
-  logout: () => request<void>('/api/v1/auth/logout', { method: 'POST' }),
-};
-
-// Words
-export const words = {
-  list: (params?: { page?: number; size?: number; category?: string; search?: string; difficulty?: string }) => {
-    const q = new URLSearchParams();
-    if (params?.page != null) q.set('page', String(params.page));
-    if (params?.size != null) q.set('size', String(params.size));
-    if (params?.category) q.set('category', params.category);
-    if (params?.search) q.set('search', params.search);
-    if (params?.difficulty) q.set('difficulty', params.difficulty);
-    return request(`/api/words?${q}`);
+  adminMe: () => {
+    adminSession ??= request<{ data: User }>('/api/v1/admin/session')
+      .then(({ data }) => data)
+      .catch((error) => {
+        adminSession = undefined;
+        throw error;
+      });
+    return adminSession;
   },
-  get: (id: number) => request(`/api/words/${id}`),
-  count: () => request<number>('/api/words/count'),
-  categories: () => request<string[]>('/api/words/categories'),
-  partsOfSpeech: () => request<string[]>('/api/words/parts-of-speech'),
-  create: (data: unknown) =>
-    request('/api/words', { method: 'POST', body: JSON.stringify(data) }),
-  update: (id: number, data: unknown) =>
-    request(`/api/words/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  delete: (id: number) =>
-    request(`/api/words/${id}`, { method: 'DELETE' }),
-  random: () => request('/api/words/random'),
-};
-
-// Vocabulary Sets
-export const sets = {
-  list: () => request('/api/sets'),
-  get: (id: number) => request(`/api/sets/${id}`),
-  create: (data: unknown) =>
-    request('/api/sets', { method: 'POST', body: JSON.stringify(data) }),
-  delete: (id: number) =>
-    request(`/api/sets/${id}`, { method: 'DELETE' }),
-  words: (id: number) => request(`/api/sets/${id}/words`),
-  addWord: (setId: number, wordId: number) =>
-    request(`/api/sets/${setId}/words/${wordId}`, { method: 'POST' }),
-  removeWord: (setId: number, wordId: number) =>
-    request(`/api/sets/${setId}/words/${wordId}`, { method: 'DELETE' }),
-};
-
-// FSRS
-export const fsrs = {
-  due: () => request('/api/fsrs/due'),
-  stats: () => request('/api/fsrs/stats'),
-  review: (data: unknown) =>
-    request('/api/fsrs/review', { method: 'POST', body: JSON.stringify(data) }),
-};
-
-// Progress
-export const progress = {
-  all: () => request('/api/progress'),
-  stats: () => request('/api/progress/stats'),
-  review: () => request('/api/progress/review'),
-};
-
-// Quiz
-export const quiz = {
-  stats: () => request('/api/quiz/stats'),
-  recentSessions: () => request('/api/quiz/sessions/recent'),
-};
-
-// Streak
-export const streak = {
-  get: () => request('/api/streak'),
-  checkIn: () => request('/api/streak/check-in', { method: 'POST' }),
-};
-
-// Notifications
-export const notifications = {
-  list: () => request('/api/notifications'),
-  unreadCount: async () => {
-    const res = await request('/api/notifications/unread-count');
-    if (typeof res === 'number') return res;
-    if (res && typeof res === 'object' && 'unread' in res && typeof res.unread === 'number') return res.unread;
-    return 0;
-  },
-  markRead: (id: number) =>
-    request(`/api/notifications/${id}/read`, { method: 'POST' }),
-  settings: () => request('/api/notifications/settings'),
-  updateSettings: (data: unknown) =>
-    request('/api/notifications/settings', { method: 'PUT', body: JSON.stringify(data) }),
-};
-
-// Import
-export const importJobs = {
-  list: () => request('/api/import/jobs'),
-  get: (id: string) => request(`/api/import/jobs/${id}`),
-  commit: (data: unknown) =>
-    request('/api/import/words/commit', { method: 'POST', body: JSON.stringify(data) }),
-};
-
-// Content
-export const content = {
-  youtube: (params?: { q?: string }) => {
-    const q = new URLSearchParams();
-    if (params?.q) q.set('q', params.q);
-    return request(`/api/content/youtube?${q}`);
-  },
-  news: (params?: { q?: string }) => {
-    const q = new URLSearchParams();
-    if (params?.q) q.set('q', params.q);
-    return request(`/api/content/news?${q}`);
-  },
-  combined: () => request('/api/content/combined'),
-};
-
-// Topics
-export const topics = {
-  list: () => request('/api/topics'),
-  get: (id: number) => request(`/api/topics/${id}`),
-  create: (data: unknown) =>
-    request('/api/topics', { method: 'POST', body: JSON.stringify(data) }),
-  update: (id: number, data: unknown) =>
-    request(`/api/topics/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  delete: (id: number) =>
-    request(`/api/topics/${id}`, { method: 'DELETE' }),
-};
-
-// Word of the day
-export const wordOfDay = {
-  get: () => request('/api/word-of-the-day'),
-};
-
-// Flashcards
-export const flashcards = {
-  list: () => request('/api/flashcards'),
-  sources: () => request('/api/flashcards/sources'),
+  completeGoogleAdmin: (handoff: string) =>
+    request<{ data: { user: User; return: string } }>('/api/v1/auth/oauth/google/admin/handoff', {
+      method: 'POST',
+      body: JSON.stringify({ handoff }),
+    }).then(({ data }) => data),
+  logout: () => request<void>('/api/v1/auth/logout', { method: 'POST' }).finally(() => { adminSession = undefined; }),
 };
 
 // Admin – User Management
 export const adminUsers = {
-  list: (params?: { email?: string; status?: string; role?: string; from?: string; to?: string; page?: number; size?: number }) => {
+  list: (params?: { search?: string; role?: string; page?: number; perPage?: number }) => {
     const q = new URLSearchParams();
-    if (params?.email) q.set('email', params.email);
-    if (params?.status) q.set('status', params.status);
+    if (params?.search) q.set('search', params.search);
     if (params?.role) q.set('role', params.role);
-    if (params?.from) q.set('from', params.from);
-    if (params?.to) q.set('to', params.to);
     if (params?.page != null) q.set('page', String(params.page));
-    if (params?.size != null) q.set('size', String(params.size));
-    return request(`/api/admin/users?${q}`);
+    if (params?.perPage != null) q.set('per_page', String(params.perPage));
+    return request<{ data: AdminUser[]; meta: PageMeta }>(`/api/v1/admin/users?${q}`);
   },
-  get: (id: number) => request(`/api/admin/users/${id}`),
-  history: (id: number, limit = 20) => request(`/api/admin/users/${id}/history?limit=${limit}`),
-  lock: (id: number) => request(`/api/admin/users/${id}/lock`, { method: 'PUT' }),
-  unlock: (id: number) => request(`/api/admin/users/${id}/unlock`, { method: 'PUT' }),
-  resetPassword: (id: number) =>
-    request(`/api/admin/users/${id}/reset-password`, { method: 'POST' }),
+  get: (id: number) => request<{ data: AdminUser }>(`/api/v1/admin/users/${id}`).then(({ data }) => data),
   assignRole: (id: number, role: string) =>
-    request(`/api/admin/users/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
+    request<{ data: AdminUser }>(`/api/v1/admin/users/${id}/role`, {
+      method: 'PUT', headers: { 'X-Request-ID': crypto.randomUUID() }, body: JSON.stringify({ role })
+    }).then(({ data }) => data),
+  evidence: (id: number, reason: string) =>
+    request<{ data: LearningEvidence[] }>(`/api/v1/admin/users/${id}/evidence`, {
+      method: 'POST', headers: { 'X-Request-ID': crypto.randomUUID() }, body: JSON.stringify({ reason }),
+    }).then(({ data }) => data),
+};
+
+export const roleManagement = {
+  roles: () => request<{ data: AdminRole[] }>('/api/v1/admin/roles').then(({ data }) => data),
+  scopes: () => request<{ data: TeacherScope[] }>('/api/v1/admin/operations/teacher-assignments').then(({ data }) => data),
+  assign: (teacherId: number, learnerId: number) =>
+    request<{ data: TeacherScope }>('/api/v1/admin/operations/teacher-assignments', {
+      method: 'POST', headers: { 'X-Request-ID': crypto.randomUUID() }, body: JSON.stringify({ teacher_id: teacherId, learner_id: learnerId })
+    }).then(({ data }) => data),
+  remove: (id: number) => request<void>(`/api/v1/admin/operations/teacher-assignments/${id}`, {
+    method: 'DELETE', headers: { 'X-Request-ID': crypto.randomUUID() }
+  }),
+};
+
+export type PageMeta = { page: number; per_page: number; total: number; last_page: number };
+export type AdminUser = { id: number; name: string; email: string; role: 'learner' | 'teacher' | 'admin' | 'super_admin'; email_verified_at?: string; created_at?: string };
+export type AdminRole = { id: number; name: string; slug: AdminUser['role']; users_count: number };
+export type TeacherScope = { id: number; teacher: Pick<AdminUser, 'id' | 'name' | 'email'>; learner: Pick<AdminUser, 'id' | 'name' | 'email'>; assigned_at: string };
+export type LearningEvidence = { id: number; event_type: string; response?: string | null; is_correct?: boolean | null; hint_level?: number | null; pronunciation_score?: number | null; duration_ms?: number | null; occurred_at: string; metadata?: Record<string, unknown> | null };
+
+export type AdminSummary = { courses: number; levels: number; topics: number; vocabularies: number; decks: number };
+export type AdminLevel = { id: number; name: string; slug: string; sort_order?: number; courses_count?: number };
+export type AdminTopic = { id: number; name: string; slug: string; courses_count?: number; vocabularies_count?: number };
+export type AdminVocabulary = {
+  id: number; word: string; meaning: string; definition?: string | null; example?: string | null;
+  topic_id?: number | null; topic?: Pick<AdminTopic, 'id' | 'name'> | null; pronunciation?: string | null;
+  part_of_speech?: string | null; difficulty_level?: string | null; tags?: string[] | null;
+  translation?: Record<string, string> | null; decks_count?: number; image_url?: string | null; audio_url?: string | null;
+};
+export type VocabularyDeck = { id: number; name: string; slug: string; description?: string | null; is_public: boolean; vocabularies_count?: number; vocabulary_ids?: number[] };
+export type DateBucket = { date: string; count: number };
+export type CourseAggregate = { course_id: number; course_title: string; attempts?: number; average_score?: number | null; completed_lessons?: number };
+export type AdminLearningOverview = { type: 'learning_overview'; enrollments: number; completed_enrollments: number; completion_rate: number; sessions_started: number; sessions_completed: number; quiz_attempts: number; average_score: number | null; average_duration_ms: number | null; correct_rate: number | null };
+export type AdminQuizAnalytics = { type: 'quiz_analytics'; attempts: number; by_course: CourseAggregate[]; by_date: DateBucket[] };
+export type AdminFsrsAnalytics = { type: 'fsrs_analytics'; reviews: number; average_stability: number | null; average_difficulty: number | null; state_bands: Array<{ state: string; count: number }>; by_date: DateBucket[] };
+export type AdminProgressAnalytics = { type: 'progress_analytics'; completed_lessons: number; by_course: CourseAggregate[]; by_date: DateBucket[] };
+export type AdminImportCheckpoint = { entity: AdminImportEntity; cursor: number; last_synced_at: string | null; failures: number };
+export type AdminImportEntity = 'categories' | 'courses' | 'vocabulary';
+export type AdminImportRun = {
+  id: string; request_id: string; entity: AdminImportEntity; status: 'pending' | 'running' | 'succeeded' | 'failed';
+  requested_limit: number; reset: boolean; starting_cursor: number; processed: number | null; skipped: number | null;
+  result_cursor: number | null; error_code: string | null; error_message: string | null; created_at: string; updated_at: string;
+};
+export type AdminNotification = { id: number; type: string; severity: string; state: string; summary: string; created_at: string | null; resolved_at: string | null; read: boolean };
+export type AdminPreferences = { notifications: { operational: boolean }; ui: { compact_sidebar?: boolean } };
+export type ContentFeedItem = { id?: string; title?: string; description?: string; thumbnail?: string; channelTitle?: string; publishedAt?: string; url?: string; source?: { name?: string }; urlToImage?: string };
+export type LevelWrite = Pick<AdminLevel, 'name' | 'slug'> & Partial<Pick<AdminLevel, 'sort_order'>>;
+export type TopicWrite = Pick<AdminTopic, 'name' | 'slug'>;
+export type VocabularyWrite = Pick<AdminVocabulary, 'word' | 'meaning'> & Partial<Omit<AdminVocabulary, 'id' | 'word' | 'meaning' | 'topic' | 'decks_count'>>;
+export type DeckWrite = Pick<VocabularyDeck, 'name' | 'slug'> & Partial<Pick<VocabularyDeck, 'description' | 'is_public' | 'vocabulary_ids'>>;
+
+const query = (values: Record<string, string | number | undefined>) => {
+  const params = new URLSearchParams();
+  Object.entries(values).forEach(([key, value]) => { if (value !== undefined && value !== '') params.set(key, String(value)); });
+  return params.toString();
+};
+
+const mutation = <T>(path: string, method: 'POST' | 'PUT' | 'DELETE', body?: unknown) => request<T>(path, {
+  method,
+  headers: { 'X-Request-ID': crypto.randomUUID() },
+  ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+});
+
+export const adminCatalog = {
+  summary: () => request<{ data: AdminSummary }>('/api/v1/admin/catalog/summary').then(({ data }) => data),
+  levels: (params: { search?: string; page?: number; perPage?: number } = {}) => request<{ data: AdminLevel[]; meta: PageMeta }>(`/api/v1/admin/catalog/levels?${query({ search: params.search, page: params.page, per_page: params.perPage })}`),
+  createLevel: (data: LevelWrite) => mutation<{ data: AdminLevel }>('/api/v1/admin/catalog/levels', 'POST', data).then(({ data }) => data),
+  updateLevel: (id: number, data: LevelWrite) => mutation<{ data: AdminLevel }>(`/api/v1/admin/catalog/levels/${id}`, 'PUT', data).then(({ data }) => data),
+  deleteLevel: (id: number) => mutation<void>(`/api/v1/admin/catalog/levels/${id}`, 'DELETE'),
+  topics: (params: { search?: string; page?: number; perPage?: number } = {}) => request<{ data: AdminTopic[]; meta: PageMeta }>(`/api/v1/admin/catalog/topics?${query({ search: params.search, page: params.page, per_page: params.perPage })}`),
+  createTopic: (data: TopicWrite) => mutation<{ data: AdminTopic }>('/api/v1/admin/catalog/topics', 'POST', data).then(({ data }) => data),
+  updateTopic: (id: number, data: TopicWrite) => mutation<{ data: AdminTopic }>(`/api/v1/admin/catalog/topics/${id}`, 'PUT', data).then(({ data }) => data),
+  deleteTopic: (id: number) => mutation<void>(`/api/v1/admin/catalog/topics/${id}`, 'DELETE'),
+  vocabularies: (params: { search?: string; page?: number; perPage?: number } = {}) => request<{ data: AdminVocabulary[]; meta: PageMeta }>(`/api/v1/admin/catalog/vocabularies?${query({ search: params.search, page: params.page, per_page: params.perPage })}`),
+  vocabulary: (id: number) => request<{ data: AdminVocabulary }>(`/api/v1/admin/catalog/vocabularies/${id}`).then(({ data }) => data),
+  createVocabulary: (data: VocabularyWrite) => mutation<{ data: AdminVocabulary }>('/api/v1/admin/catalog/vocabularies', 'POST', data).then(({ data }) => data),
+  updateVocabulary: (id: number, data: VocabularyWrite) => mutation<{ data: AdminVocabulary }>(`/api/v1/admin/catalog/vocabularies/${id}`, 'PUT', data).then(({ data }) => data),
+  deleteVocabulary: (id: number) => mutation<void>(`/api/v1/admin/catalog/vocabularies/${id}`, 'DELETE'),
+  uploadVocabularyMedia: (id: number, body: FormData) => request<{ data: AdminVocabulary }>(`/api/v1/admin/catalog/vocabularies/${id}/media`, {
+    method: 'POST', headers: { 'X-Request-ID': crypto.randomUUID() }, body,
+  }).then(({ data }) => data),
+  decks: (params: { search?: string; page?: number; perPage?: number } = {}) => request<{ data: VocabularyDeck[]; meta: PageMeta }>(`/api/v1/admin/catalog/decks?${query({ search: params.search, page: params.page, per_page: params.perPage })}`),
+  createDeck: (data: DeckWrite) => mutation<{ data: VocabularyDeck }>('/api/v1/admin/catalog/decks', 'POST', data).then(({ data }) => data),
+  updateDeck: (id: number, data: DeckWrite) => mutation<{ data: VocabularyDeck }>(`/api/v1/admin/catalog/decks/${id}`, 'PUT', data).then(({ data }) => data),
+  deleteDeck: (id: number) => mutation<void>(`/api/v1/admin/catalog/decks/${id}`, 'DELETE'),
+};
+
+export const adminLearning = {
+  overview: (from?: string, to?: string) => request<{ data: AdminLearningOverview }>(`/api/v1/admin/learning/overview?${query({ from, to })}`).then(({ data }) => data),
+  quizzes: (from?: string, to?: string) => request<{ data: AdminQuizAnalytics }>(`/api/v1/admin/learning/quizzes?${query({ from, to })}`).then(({ data }) => data),
+  fsrs: (from?: string, to?: string) => request<{ data: AdminFsrsAnalytics }>(`/api/v1/admin/learning/fsrs?${query({ from, to })}`).then(({ data }) => data),
+  progress: (from?: string, to?: string) => request<{ data: AdminProgressAnalytics }>(`/api/v1/admin/learning/progress?${query({ from, to })}`).then(({ data }) => data),
+  reportUrl: (from?: string, to?: string) => `/api/v1/admin/learning/reports.csv?${query({ from, to })}`,
+  report: async (from?: string, to?: string) => {
+    const response = await fetch(adminLearning.reportUrl(from, to), { credentials: 'include', headers: { Accept: 'text/csv' } });
+    if (!response.ok) throw new ApiError(response.status, response.statusText || `HTTP ${response.status}`);
+    return response.blob();
+  },
+};
+
+export const adminImports = {
+  checkpoints: () => request<{ data: AdminImportCheckpoint[] }>('/api/v1/admin/imports').then(({ data }) => data),
+  run: (id: string) => request<{ data: AdminImportRun }>(`/api/v1/admin/imports/runs/${id}`).then(({ data }) => data),
+  start: (entity: AdminImportEntity, limit: number) => mutation<{ data: AdminImportRun }>('/api/v1/admin/imports', 'POST', { entity, limit }).then(({ data }) => data),
+  resume: (entity: AdminImportEntity, limit: number) => mutation<{ data: AdminImportRun }>('/api/v1/admin/imports', 'POST', { entity, limit }).then(({ data }) => data),
+  reset: (entity: AdminImportEntity, limit = 100) => mutation<{ data: AdminImportRun }>('/api/v1/admin/imports/reset', 'POST', { entity, limit }).then(({ data }) => data),
+};
+
+export const adminFeed = {
+  search: (source: 'youtube' | 'news', q = '') => request<{ data: ContentFeedItem[] }>(`/api/v1/admin/content-feed?${query({ source, q })}`).then(({ data }) => data),
+};
+
+export const adminNotifications = {
+  list: () => request<{ data: AdminNotification[] }>('/api/v1/admin/notifications').then(({ data }) => data),
+  markRead: (id: number) => mutation<{ data: { id: number; read: true } }>(`/api/v1/admin/notifications/${id}/read`, 'POST').then(({ data }) => data),
+};
+
+export const adminPreferences = {
+  get: () => request<{ data: AdminPreferences }>('/api/v1/admin/preferences').then(({ data }) => data),
+  update: (data: AdminPreferences) => mutation<{ data: AdminPreferences }>('/api/v1/admin/preferences', 'PUT', data).then(({ data }) => data),
+};
+
+export const adminCourses = {
+  list: (params: { search?: string; status?: string; levelId?: number; page?: number; perPage?: number } = {}) => request<{ data: AdminCourse[]; meta: PageMeta }>(`/api/v1/admin/catalog/courses?${query({ search: params.search, status: params.status, level_id: params.levelId, page: params.page, per_page: params.perPage ?? 100 })}`),
+  get: (id: number) => request<{ data: AdminCourse }>(`/api/v1/admin/catalog/courses/${id}`).then(({ data }) => data),
+  create: (payload: CourseWrite) => request<{ data: AdminCourse }>('/api/v1/admin/catalog/courses', {
+    method: 'POST', headers: { 'X-Request-ID': crypto.randomUUID() }, body: JSON.stringify(payload)
+  }).then(({ data }) => data),
+  update: (id: number, payload: CourseWrite) => request<{ data: AdminCourse }>(`/api/v1/admin/catalog/courses/${id}`, {
+    method: 'PUT', headers: { 'X-Request-ID': crypto.randomUUID() }, body: JSON.stringify(payload)
+  }).then(({ data }) => data),
+  publish: (id: number) => mutation<{ data: AdminCourse }>(`/api/v1/admin/catalog/courses/${id}/publish`, 'POST').then(({ data }) => data),
+  archive: (id: number) => mutation<{ data: AdminCourse }>(`/api/v1/admin/catalog/courses/${id}/archive`, 'POST').then(({ data }) => data),
+  delete: (id: number) => mutation<void>(`/api/v1/admin/catalog/courses/${id}`, 'DELETE'),
+};
+
+export type AdminCourse = { id: number; title: string; slug: string; description?: string; status: 'draft' | 'published' | 'archived'; language?: string; estimated_duration?: number; units_count?: number; lessons_count?: number; level?: AdminLevel | null; topics?: AdminTopic[] };
+export type CourseWrite = Pick<AdminCourse, 'title' | 'slug' | 'status'> & Partial<Pick<AdminCourse, 'description' | 'language' | 'estimated_duration'>> & { level_id?: number | null; topic_ids?: number[] };
+
+export type AdminLesson = { id: number; course: Pick<AdminCourse, 'id' | 'title'>; title: string; slug: string; content?: string | null; sort_order: number; estimated_minutes?: number | null; status: AdminCourse['status']; vocabularies_count: number; quizzes_count: number; quizzes?: Array<{ id: number; title: string; status: string; passing_score: number }> };
+export type LessonWrite = { course_id: number; title: string; slug: string; content?: string | null; sort_order: number; estimated_minutes?: number | null; status: AdminCourse['status'] };
+export const adminLessons = {
+  list: (params: { search?: string; courseId?: number; status?: string; page?: number; perPage?: number } = {}) => request<{ data: AdminLesson[]; meta: PageMeta }>(`/api/v1/admin/catalog/lessons?${query({ search: params.search, course_id: params.courseId, status: params.status, page: params.page, per_page: params.perPage })}`),
+  get: (id: number) => request<{ data: AdminLesson }>(`/api/v1/admin/catalog/lessons/${id}`).then(({ data }) => data),
+  create: (data: LessonWrite) => mutation<{ data: AdminLesson }>('/api/v1/admin/catalog/lessons', 'POST', data).then(({ data }) => data),
+  update: (id: number, data: LessonWrite) => mutation<{ data: AdminLesson }>(`/api/v1/admin/catalog/lessons/${id}`, 'PUT', data).then(({ data }) => data),
+  publish: (id: number) => mutation<{ data: AdminLesson }>(`/api/v1/admin/catalog/lessons/${id}/publish`, 'POST').then(({ data }) => data),
+  archive: (id: number) => mutation<{ data: AdminLesson }>(`/api/v1/admin/catalog/lessons/${id}/archive`, 'POST').then(({ data }) => data),
+  delete: (id: number) => mutation<void>(`/api/v1/admin/catalog/lessons/${id}`, 'DELETE'),
+};
+
+export type QuizAnswerWrite = { id?: number; content: string; is_correct: boolean };
+export type QuizQuestionWrite = { id?: number; content: string; explanation?: string | null; answers: QuizAnswerWrite[] };
+export type QuizWrite = { lesson_id: number; title: string; passing_score: number; status: AdminCourse['status']; questions: QuizQuestionWrite[] };
+export type AdminQuiz = QuizWrite & { id: number; lesson: { id: number; title: string }; questions_count?: number; attempts_count?: number };
+export const adminQuizzes = {
+  list: (params: { search?: string; lessonId?: number; status?: string; page?: number; perPage?: number } = {}) => request<{ data: AdminQuiz[]; meta: PageMeta }>(`/api/v1/admin/catalog/quizzes?${query({ search: params.search, lesson_id: params.lessonId, status: params.status, page: params.page, per_page: params.perPage })}`),
+  get: (id: number) => request<{ data: AdminQuiz }>(`/api/v1/admin/catalog/quizzes/${id}`).then(({ data }) => data),
+  create: (data: QuizWrite) => mutation<{ data: AdminQuiz }>('/api/v1/admin/catalog/quizzes', 'POST', data).then(({ data }) => data),
+  update: (id: number, data: QuizWrite) => mutation<{ data: AdminQuiz }>(`/api/v1/admin/catalog/quizzes/${id}`, 'PUT', data).then(({ data }) => data),
+  delete: (id: number) => mutation<void>(`/api/v1/admin/catalog/quizzes/${id}`, 'DELETE'),
 };
 
 // Admin – Audit Logs
 export const auditLogs = {
-  list: () => request('/api/admin/audit-logs'),
+  list: () => request('/api/v1/admin/audit-logs'),
 };

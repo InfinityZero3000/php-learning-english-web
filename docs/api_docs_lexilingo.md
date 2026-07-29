@@ -11,6 +11,73 @@ LexiLingo gồm hai FastAPI service:
 Các URL bên dưới là path của service tương ứng. Host và port phụ thuộc môi
 trường triển khai.
 
+## Sử dụng API từ hệ thống bên ngoài
+
+Base URL production:
+
+```text
+https://api.lexilingo.me
+```
+
+Các endpoint nghiệp vụ dùng tiền tố `/api/v1`. Ví dụ:
+
+```bash
+curl https://api.lexilingo.me/backend-health  → backend-service
+curl https://api.lexilingo.me/ai-health       → ai-service
+```
+
+### Đăng nhập và gọi API người dùng
+
+1. Đăng nhập qua `POST /api/v1/auth/login`.
+2. Lấy `access_token` từ response.
+3. Gửi token ở header `Authorization` cho các request tiếp theo:
+
+```bash
+curl https://api.lexilingo.me/api/v1/users/me \
+  -H "Authorization: Bearer <access_token>"
+```
+
+Access token mặc định hết hạn sau 30 phút. Dùng
+`POST /api/v1/auth/refresh` để lấy token mới.
+
+### Phân loại quyền truy cập
+
+- **Public/health**: có thể gọi trực tiếp, ví dụ `/health`, `/ping`,
+  `/api/v1/auth/login`.
+- **User API**: yêu cầu `Authorization: Bearer <access_token>`.
+- **Admin API**: yêu cầu quyền admin và khóa quản trị theo cấu hình triển khai.
+- **Internal API**: chỉ dành cho giao tiếp giữa các service; không cung cấp
+  secret nội bộ cho hệ thống bên ngoài.
+
+### Cấu hình phía client tích hợp
+
+Hệ thống tích hợp có thể tự đặt tên biến cấu hình, ví dụ:
+
+```env
+LEXILINGO_BACKEND_URL=https://api.lexilingo.me/api/v1
+LEXILINGO_AI_URL=https://api.lexilingo.me/api/v1
+```
+
+Đây là biến của client tích hợp, không phải biến mà LexiLingo backend đọc.
+
+### CORS
+
+Ứng dụng browser chỉ gọi được từ các origin đã được gateway cho phép. Tích
+hợp server-to-server không bị giới hạn bởi CORS.
+
+## Biến môi trường nội bộ (không dành cho bên tích hợp)
+
+Các tên `LEXILINGO_IMPORT_KEY`, `LEXILINGO_AI_SERVICE_SECRET` hiện không được
+codebase đọc. Các biến nội bộ đang dùng là:
+
+| Mục đích | Biến nội bộ |
+| --- | --- |
+| Backend gọi AI Service | `AI_SERVICE_URL` |
+| AI Service gọi Backend | `BACKEND_SERVICE_URL` |
+| AI Service gửi sự kiện audit về Backend | `BACKEND_AUDIT_INGEST_URL` |
+| Secret cho audit ingest, gửi qua `X-AI-Service-Secret` | `AI_AUDIT_INGEST_SECRET` |
+| Khóa import dùng chung | Chưa có |
+
 ## Xác thực
 
 - API người dùng dùng `Authorization: Bearer <access_token>`.
@@ -18,6 +85,139 @@ trường triển khai.
 - API quản trị AI dùng `X-Admin-Key`.
 - API gọi nội bộ dùng secret riêng, ví dụ `X-AI-Service-Secret`.
 - Yêu cầu xác thực cụ thể của từng route được thể hiện đầy đủ tại `/docs`.
+
+## Tích hợp server-to-server
+
+Có cơ chế service authentication, nhưng các credential này chỉ dành cho
+service được cấp quyền, không dành cho ứng dụng bên thứ ba tự đăng ký:
+
+| Phạm vi | Header | Giá trị kiểm tra | Route |
+| --- | --- | --- | --- |
+| Learner state nội bộ | `X-Lexilingo-Service-Token` và `X-Lexilingo-Audience` | `LEARNER_STATE_INTERNAL_TOKEN` và `LEARNER_STATE_INTERNAL_AUDIENCE` | `/api/v1/internal/learner-state/*` |
+| Content agent nội bộ | `X-Content-Agent-Token` | `CONTENT_AGENT_SERVICE_TOKEN` | `/api/v1/internal/content-agent/*` |
+| AI audit ingest | `X-AI-Service-Secret` | `AI_AUDIT_INGEST_SECRET` | `/api/v1/ai-audit/events` |
+| AI admin | `X-Admin-Key` | `AI_ADMIN_API_KEY` | Các route admin của AI |
+
+Các secret trên phải được cấp qua secret manager/env production và không được
+đưa vào frontend, mobile app hoặc tài liệu công khai.
+
+API đối tác read-only dùng namespace `/api/v1/integrations` và header
+`X-LexiLingo-API-Key`. Key chỉ dùng server-to-server, không đại diện cho người
+dùng và không truy cập được user, progress, admin hoặc internal API.
+
+### API đối tác: Courses
+
+```http
+GET /api/v1/integrations/courses?page=1&page_size=20&language=en&level=A1
+X-LexiLingo-API-Key: <partner-key>
+```
+
+| Query | Kiểu | Mặc định | Ràng buộc |
+| --- | --- | --- | --- |
+| `page` | integer | `1` | `>= 1` |
+| `page_size` | integer | `20` | `1..100` |
+| `language` | string/null | null | Ví dụ `en` |
+| `level` | string/null | null | CEFR `A1` đến `C2` |
+
+Response `200`:
+
+```json
+{
+  "data": [
+    {
+      "id": "00000000-0000-0000-0000-000000000000",
+      "title": "English A1",
+      "description": "Beginner English",
+      "language": "en",
+      "level": "A1",
+      "tags": [],
+      "thumbnail_url": null,
+      "total_lessons": 10,
+      "total_xp": 100,
+      "estimated_duration": 120,
+      "is_enrolled": null
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "page_size": 20,
+    "total": 1,
+    "total_pages": 1
+  }
+}
+```
+
+| Status lỗi | Khi nào |
+| --- | --- |
+| `401` | Thiếu hoặc sai `X-LexiLingo-API-Key` |
+| `422` | Query parameter không hợp lệ |
+
+Lát cắt đầu tiên dùng allowlist hash dùng chung trong env; chưa có key ID,
+owner, hạn dùng, revoke hoặc rotate riêng từng đối tác. Server chỉ lưu SHA-256
+của các key trong `LEXILINGO_PARTNER_API_KEY_HASHES`; plaintext key phải được
+trao đổi qua secret manager. Không dùng key này trong browser.
+
+### Allowlist API read-only hiện có
+
+Tất cả route dưới đây dùng `GET` và bắt buộc cùng API key:
+
+```text
+/api/v1/integrations/courses
+/api/v1/integrations/courses/{course_id}
+/api/v1/integrations/categories
+/api/v1/integrations/categories/{category_id}
+/api/v1/integrations/categories/slug/{slug}
+/api/v1/integrations/categories/{category_id}/courses
+/api/v1/integrations/lessons/{lesson_id}/content
+/api/v1/integrations/lessons/{lesson_id}/context
+/api/v1/integrations/vocabulary/word-of-day
+/api/v1/integrations/vocabulary/items
+/api/v1/integrations/vocabulary/items/{vocabulary_id}
+/api/v1/integrations/games/categories
+/api/v1/integrations/news
+/api/v1/integrations/news/categories
+/api/v1/integrations/news/{article_id}/quiz
+/api/v1/integrations/podcasts/search
+/api/v1/integrations/podcasts/curated
+/api/v1/integrations/podcasts/episodes
+/api/v1/integrations/books/recommended
+/api/v1/integrations/books/search
+/api/v1/integrations/books/browse
+/api/v1/integrations/books/{book_id}/quiz
+/api/v1/integrations/youtube/channels
+/api/v1/integrations/youtube/search
+/api/v1/integrations/youtube/captions/{video_id}
+/api/v1/integrations/youtube/channels/{channel_id}/videos
+```
+
+Không expose trong namespace này: user/authentication, profile, enrollment,
+collection/deck cá nhân, progress, XP, streak, achievements, các game session
+cần user JWT, admin/RBAC, internal agent, audit, monitoring và mọi method
+ghi/xóa.
+
+## Request/response schema
+
+Schema chi tiết của từng endpoint được phát hành tự động bởi FastAPI:
+
+| Tài liệu | URL |
+| --- | --- |
+| Swagger UI (thử request trực tiếp) | `https://api.lexilingo.me/docs` |
+| ReDoc (xem schema) | `https://api.lexilingo.me/redoc` |
+| OpenAPI JSON (dùng cho code generation) | `https://api.lexilingo.me/openapi.json` |
+
+Trong OpenAPI, `requestBody` mô tả JSON/form-data gửi lên; `responses` mô tả
+status code, content type và response schema; phần `security`/`parameters` mô
+tả JWT và các header xác thực của route. Ví dụ request tối thiểu cho đăng nhập:
+
+```json
+{
+  "email": "user@example.com",
+  "password": "your-password"
+}
+```
+
+Response thành công trả về `access_token`, `refresh_token` và thông tin token
+theo schema được định nghĩa trong `POST /api/v1/auth/login` trên OpenAPI.
 
 ## Backend Service
 
@@ -85,6 +285,7 @@ well-known không có tiền tố này.
 | `GET` | `/api/v1/courses` |
 | `GET` | `/api/v1/courses/enrolled` |
 | `GET` | `/api/v1/courses/{course_id}` |
+| `GET` | `/api/v1/integrations/courses` |
 | `POST` | `/api/v1/courses/{course_id}/enroll` |
 | `GET` | `/api/v1/categories` |
 | `GET` | `/api/v1/categories/{category_id}` |

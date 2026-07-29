@@ -6,40 +6,18 @@ use App\Models\Course;
 use App\Models\Level;
 use App\Models\Role;
 use App\Models\Topic;
-use App\Models\User;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
 
 class CatalogSeeder extends Seeder
 {
     public function run(): void
     {
         Role::upsert([
-            ['name' => 'Admin',   'slug' => 'admin'],
-            ['name' => 'Learner', 'slug' => 'learner'],
+            ['name' => 'Admin',       'slug' => 'admin'],
+            ['name' => 'Learner',     'slug' => 'learner'],
+            ['name' => 'Teacher',     'slug' => 'teacher'],
+            ['name' => 'Super Admin', 'slug' => 'super_admin'],
         ], ['slug'], ['name']);
-
-        $adminRole = Role::where('slug', 'admin')->first();
-        if ($adminRole && ! User::where('email', 'admin@example.com')->exists()) {
-            User::create([
-                'role_id' => $adminRole->id,
-                'name' => 'Admin User',
-                'email' => 'admin@example.com',
-                'password' => Hash::make('admin123'),
-                'email_verified_at' => now(),
-            ]);
-        }
-
-        $learnerRole = Role::where('slug', 'learner')->first();
-        if ($learnerRole && ! User::where('email', 'user@example.com')->exists()) {
-            User::create([
-                'role_id' => $learnerRole->id,
-                'name' => 'Standard Learner',
-                'email' => 'user@example.com',
-                'password' => Hash::make('user123'),
-                'email_verified_at' => now(),
-            ]);
-        }
         Level::upsert([
             ['name' => 'Beginner',     'slug' => 'beginner',     'sort_order' => 1],
             ['name' => 'Intermediate', 'slug' => 'intermediate',  'sort_order' => 2],

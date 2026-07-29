@@ -1,6 +1,11 @@
-# API Route vs OpenAPI Documentation Gap Log
+# API Route vs OpenAPI Documentation Gap Log (historical)
 
 Date: 2026-07-29
+
+> File này là snapshot tại commit được ghi bên dưới và đã lỗi thời so với route
+> runtime hiện tại. Không dùng danh sách này làm backlog đầy đủ. Xem
+> [`../CURRENT_STATUS.md`](../CURRENT_STATUS.md) và tạo lại inventory từ
+> `php artisan route:list` trước khi cập nhật OpenAPI.
 
 ## Purpose
 

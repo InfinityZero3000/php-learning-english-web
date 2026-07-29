@@ -8,24 +8,20 @@ interface StatsCardProps {
 export default function StatsCard({ icon, label, value, color = '#006590' }: StatsCardProps) {
   return (
     <div
-      className="p-6 rounded-2xl flex items-center gap-4 cursor-default transition-all"
+      className="learning-card group flex cursor-default items-center gap-4 p-5 sm:p-6"
       style={{
         backgroundColor: '#ffffff',
-        border: '2px solid #bdc8d2',
-        borderBottom: '4px solid #bdc8d2',
       }}
       onMouseEnter={(e) => {
         const el = e.currentTarget as HTMLElement;
         el.style.borderColor = color;
-        el.style.borderBottomColor = color;
       }}
       onMouseLeave={(e) => {
         const el = e.currentTarget as HTMLElement;
         el.style.borderColor = '#bdc8d2';
-        el.style.borderBottomColor = '#bdc8d2';
       }}
     >
-      <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+      <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl transition-transform group-hover:-translate-y-0.5"
         style={{ backgroundColor: color + '18' }}>
         <span className="material-symbols-outlined text-2xl" style={{ color }}>{icon}</span>
       </div>

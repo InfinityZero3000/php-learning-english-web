@@ -22,6 +22,7 @@ class LexiLingoImportTest extends TestCase
         parent::setUp();
 
         config()->set('services.lexilingo.backend_url', 'https://backend.lexilingo.test');
+        config()->set('services.lexilingo.partner_api_key', 'partner-secret');
         config()->set('cache.stores.redis', ['driver' => 'array']);
     }
 
@@ -96,7 +97,8 @@ class LexiLingoImportTest extends TestCase
         Level::create(['name' => 'Beginner', 'slug' => 'beginner', 'sort_order' => 1]);
 
         Http::fake([
-            'backend.lexilingo.test/api/v1/courses/course-1' => Http::response(['data' => [
+            'backend.lexilingo.test/api/v1/integrations/lessons/*/content' => Http::response([], 404),
+            'backend.lexilingo.test/api/v1/integrations/courses/course-1' => Http::response(['data' => [
                 'id' => 'course-1',
                 'units' => [[
                     'id' => 'unit-1',
@@ -111,7 +113,7 @@ class LexiLingoImportTest extends TestCase
                     ],
                 ]],
             ]]),
-            'backend.lexilingo.test/api/v1/courses*' => Http::response([[
+            'backend.lexilingo.test/api/v1/integrations/courses*' => Http::response([[
                 'id' => 'course-1',
                 'title' => 'English Basics',
                 'description' => 'Intro course',
@@ -154,7 +156,8 @@ class LexiLingoImportTest extends TestCase
         ];
 
         Http::fake([
-            'backend.lexilingo.test/api/v1/courses/course-good' => Http::response(['data' => [
+            'backend.lexilingo.test/api/v1/integrations/lessons/*/content' => Http::response([], 404),
+            'backend.lexilingo.test/api/v1/integrations/courses/course-good' => Http::response(['data' => [
                 'id' => 'course-good',
                 'units' => [[
                     'id' => 'unit-good',
@@ -170,7 +173,7 @@ class LexiLingoImportTest extends TestCase
             ]]),
             // Two units sharing order_index=1 violates the units.(course_id, sort_order)
             // unique constraint on the second insert, forcing a real QueryException.
-            'backend.lexilingo.test/api/v1/courses/course-bad' => Http::response(['data' => [
+            'backend.lexilingo.test/api/v1/integrations/courses/course-bad' => Http::response(['data' => [
                 'id' => 'course-bad',
                 'units' => [
                     [
@@ -193,7 +196,7 @@ class LexiLingoImportTest extends TestCase
                     ],
                 ],
             ]]),
-            'backend.lexilingo.test/api/v1/courses*' => Http::response([
+            'backend.lexilingo.test/api/v1/integrations/courses*' => Http::response([
                 $courseFixture('course-good', 'Good Course'),
                 $courseFixture('course-bad', 'Bad Course'),
             ]),

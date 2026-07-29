@@ -9,22 +9,30 @@ import { ApiError, auth, type User } from '@/lib/api';
 interface AdminLayoutProps {
   children: React.ReactNode;
   title?: string;
+  requiredRole?: 'admin' | 'super_admin';
 }
 
-export default function AdminLayout({ children, title }: AdminLayoutProps) {
+export default function AdminLayout({ children, title, requiredRole }: AdminLayoutProps) {
   const router = useRouter();
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState('');
+  const [user, setUser] = useState<User>();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    auth.me().then((user: User) => {
+    auth.adminMe().then((user: User) => {
       if (cancelled) return;
-      if (user.role !== 'admin') {
+      if (!['admin', 'super_admin'].includes(user.role ?? '')) {
         setMessage('This area is restricted to administrators.');
         void auth.logout().finally(() => router.replace('/login?forbidden=1'));
         return;
       }
+      if (requiredRole && user.role !== requiredRole) {
+        router.replace('/dashboard?forbidden=1');
+        return;
+      }
+      setUser(user);
       setState('ready');
     }).catch((error) => {
       if (cancelled) return;
@@ -35,7 +43,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
       }
     });
     return () => { cancelled = true; };
-  }, [router]);
+  }, [requiredRole, router]);
 
   if (state !== 'ready') {
     return (
@@ -49,11 +57,11 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
   }
 
   return (
-    <div className="flex h-full min-h-screen" style={{ backgroundColor: '#fbf9f9' }}>
-      <Sidebar />
-      <main className="flex-1 flex flex-col" style={{ marginLeft: '18rem' }}>
-        <TopBar title={title} />
-        <div className="flex-1 mt-20 p-8 max-w-7xl mx-auto w-full">
+    <div className="admin-shell min-h-screen">
+      <Sidebar role={user?.role} open={menuOpen} onClose={() => setMenuOpen(false)} />
+      <main className="min-h-screen lg:ml-64">
+        <TopBar title={title} user={user!} menuOpen={menuOpen} onMenu={() => setMenuOpen((open) => !open)} />
+        <div className="mx-auto w-full max-w-7xl px-4 pb-10 pt-24 sm:px-6 lg:px-10 lg:pt-28">
           {children}
         </div>
       </main>

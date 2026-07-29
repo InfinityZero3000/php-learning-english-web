@@ -1,115 +1,47 @@
 "use client";
 
-import { IconAward, IconBrain, IconCircleCheck, IconTarget } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { AppShellLoading } from "@/components/layout/app-shell";
-import { fetchDashboard, fetchMyProgress, type DashboardResource, type ProgressResource } from "@/lib/api";
-import { formatDateTime } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { api, type CourseProgress, type ListeningSession, type SupervisedDashboard } from "@/lib/api";
 
 export function ProgressPage() {
-  const [dashboard, setDashboard] = useState<DashboardResource | null>(null);
-  const [progress, setProgress] = useState<ProgressResource[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [dashboard, setDashboard] = useState<SupervisedDashboard>();
+  const [courses, setCourses] = useState<CourseProgress[]>([]);
+  const [listening, setListening] = useState<ListeningSession[]>([]);
+  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [message, setMessage] = useState("");
 
   async function load() {
-    setLoading(true);
-    setError(null);
+    setState("loading"); setMessage("");
     try {
-      const [dashboardData, progressData] = await Promise.all([fetchDashboard(), fetchMyProgress()]);
-      setDashboard(dashboardData);
-      setProgress(progressData);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Failed to load progress");
-    } finally {
-      setLoading(false);
+      const [summary, enrollments, listeningSessions] = await Promise.all([
+        api.supervisedDashboard(), api.enrollments(), api.listeningProgress().catch(() => []),
+      ]);
+      const progress = await Promise.all(enrollments.map((item) => api.courseProgress(item.course_id)));
+      setDashboard(summary); setCourses(progress); setListening(listeningSessions); setState("ready");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Không thể tải tiến độ học."); setState("error");
     }
   }
 
-  useEffect(() => {
-    void load();
-  }, []);
+  useEffect(() => { void load(); }, []);
+  if (state === "loading") return <AppShellLoading label="Đang tải tiến độ…" />;
+  if (state === "error") return <Card className="mx-auto max-w-xl p-8 text-center"><p role="alert" className="font-bold">{message}</p><Button className="mt-5" onClick={load}>Thử lại</Button></Card>;
 
-  if (loading) return <AppShellLoading label="Loading progress..." />;
-
-  if (error) {
-    return (
-      <div className="py-20 text-center">
-        <p className="font-semibold text-destructive" role="alert">{error}</p>
-        <button type="button" onClick={() => void load()} className="mt-4 rounded-xl bg-primary px-5 py-2.5 font-bold text-primary-foreground">
-          Retry
-        </button>
-      </div>
-    );
-  }
-
-  const overview = dashboard?.overview ?? { completed_lessons: 0, quiz_attempts: 0, average_score: 0 };
-
-  return (
-    <div className="space-y-8">
-      <section>
-        <h2 className="mb-6 font-display text-2xl font-bold">Overview</h2>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Metric icon={<IconAward />} label="Lessons Done" value={overview.completed_lessons} />
-          <Metric icon={<IconBrain />} label="Quiz Attempts" value={overview.quiz_attempts} />
-          <Metric icon={<IconTarget />} label="Average Score" value={`${overview.average_score}%`} />
-        </div>
-      </section>
-
-      <section className="grid gap-6 lg:grid-cols-2">
-        <Activity title="Completed Lessons" empty="No lessons completed yet.">
-          {progress.map((item) => (
-            <ActivityRow
-              key={item.id}
-              title={item.lesson?.title ?? `Lesson #${item.lesson_id ?? item.id}`}
-              detail={item.lesson?.course?.title}
-              date={item.completed_at}
-            />
-          ))}
-        </Activity>
-
-        <Activity title="Recent Quiz Attempts" empty="No quiz attempts yet.">
-          {(dashboard?.recent_attempts ?? []).map((attempt) => (
-            <ActivityRow
-              key={attempt.id}
-              title={`Quiz #${attempt.quiz_id ?? "-"}`}
-              detail={`Score: ${attempt.score}%`}
-              date={attempt.completed_at}
-            />
-          ))}
-        </Activity>
-      </section>
-    </div>
-  );
-}
-
-function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; value: number | string }) {
-  return (
-    <div className="rounded-xl border-2 border-border bg-white p-6">
-      <span className="text-primary">{icon}</span>
-      <p className="mt-3 font-display text-3xl font-black text-primary">{value}</p>
-      <p className="mt-1 font-display text-sm font-bold uppercase tracking-widest text-muted-foreground">{label}</p>
-    </div>
-  );
-}
-
-function Activity({ title, empty, children }: { title: string; empty: string; children: React.ReactNode[] }) {
-  return (
-    <div className="rounded-xl border-2 border-border bg-white p-5">
-      <h3 className="mb-4 font-display text-lg font-bold">{title}</h3>
-      {children.length ? <div className="space-y-3">{children}</div> : <p className="text-sm text-muted-foreground">{empty}</p>}
-    </div>
-  );
-}
-
-function ActivityRow({ title, detail, date }: { title: string; detail?: string; date?: string }) {
-  return (
-    <div className="flex items-center gap-3 rounded-xl bg-muted/50 p-3">
-      <IconCircleCheck className="h-5 w-5 shrink-0 text-primary" />
-      <div className="min-w-0">
-        <p className="truncate font-bold">{title}</p>
-        <p className="text-xs text-muted-foreground">{[detail, formatDateTime(date)].filter(Boolean).join(" · ")}</p>
-      </div>
-    </div>
-  );
+  return <div className="space-y-8">
+    <header><p className="font-bold uppercase tracking-wider text-primary">Learning journey · Hành trình học</p><h2 className="font-display text-4xl font-bold">Progress</h2></header>
+    <section aria-labelledby="overview-title"><h3 id="overview-title" className="mb-4 font-display text-2xl font-bold">Tổng quan</h3><div className="grid gap-4 sm:grid-cols-3">
+      {[["Lesson hoàn thành", dashboard?.overview.completed_lessons ?? 0], ["Quiz đã làm", dashboard?.overview.quiz_attempts ?? 0], ["Điểm quiz trung bình", `${dashboard?.overview.average_score ?? 0}%`]].map(([label, value]) => <Card key={label} className="p-6"><p className="text-sm font-bold text-muted-foreground">{label}</p><p className="mt-2 font-display text-4xl font-black tabular-nums text-primary">{value}</p></Card>)}
+    </div></section>
+    <section aria-labelledby="course-progress-title"><h3 id="course-progress-title" className="mb-4 font-display text-2xl font-bold">Course progress · Tiến độ khóa học</h3><div className="grid gap-4 md:grid-cols-2">
+      {courses.map((item) => <Card key={item.course.id} className="p-5"><div className="flex min-w-0 justify-between gap-4"><h4 className="truncate font-bold">{item.course.title}</h4><span className="font-bold tabular-nums text-primary">{item.progress_percent}%</span></div><div role="progressbar" aria-label={`Tiến độ ${item.course.title}`} aria-valuenow={item.progress_percent} aria-valuemin={0} aria-valuemax={100} className="mt-3 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${item.progress_percent}%` }} /></div><p className="mt-2 text-sm text-muted-foreground">{item.completed_lessons}/{item.total_lessons} lesson</p></Card>)}
+      {courses.length === 0 && <p className="rounded-xl bg-muted p-5 text-muted-foreground">Chưa có khóa học đang theo học.</p>}
+    </div></section>
+    <section aria-labelledby="listening-progress-title"><h3 id="listening-progress-title" className="mb-4 font-display text-2xl font-bold">Listening · Luyện nghe</h3><div className="grid gap-4 md:grid-cols-2">
+      {listening.map((item) => <Card key={item.id} className="p-5"><div className="flex min-w-0 justify-between gap-4"><h4 className="line-clamp-1 font-bold">{item.title}</h4><span className="font-bold tabular-nums text-primary">{item.watched_percentage}%</span></div><p className="mt-2 text-sm text-muted-foreground">{item.shadowing_attempts} shadowing · điểm tốt nhất {item.best_pronunciation_score == null ? "—" : Math.round(item.best_pronunciation_score)}</p></Card>)}
+      {listening.length === 0 && <p className="rounded-xl bg-muted p-5 text-muted-foreground">Chưa có lesson nghe.</p>}
+    </div></section>
+  </div>;
 }

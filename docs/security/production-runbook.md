@@ -1,8 +1,8 @@
 # Production Operation Runbook & Rollback Plan
 
-**Người thực hiện**: Yuu-25-uuY (Thư) / annienhigiaq (Nhi)  
-**Ngày hoàn thành**: 2026-07-28  
-**Trạng thái**: Draft / Sẵn sàng cho Vận hành  
+**Người thực hiện**: Yuu-25-uuY (Thư) / annienhigiaq (Nhi)
+**Ngày hoàn thành**: 2026-07-28
+**Trạng thái**: Draft / Sẵn sàng cho Vận hành
 **Dự án**: Website học tiếng Anh
 
 Tài liệu này cung cấp hướng dẫn từng bước để deploy hệ thống lên production (Fly.io và Vercel), kiểm thử nhanh sau deploy (smoke test) và quy trình rollback dự phòng khi có sự cố.

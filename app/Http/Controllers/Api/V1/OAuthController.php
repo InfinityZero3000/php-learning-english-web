@@ -46,6 +46,9 @@ class OAuthController extends Controller
             if ($user && $user->role?->slug !== 'learner') {
                 return $this->failure('role_conflict');
             }
+            if ($user?->locked_at) {
+                return $this->failure('locked');
+            }
 
             if (! $user) {
                 $roleId = Role::query()->where('slug', 'learner')->value('id');

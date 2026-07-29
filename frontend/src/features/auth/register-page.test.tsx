@@ -22,10 +22,10 @@ vi.mock("@/lib/api", async (importOriginal) => {
 });
 
 function fill() {
-  fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Learner" } });
+  fireEvent.change(screen.getByLabelText("Tên"), { target: { value: "Learner" } });
   fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.test" } });
-  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "password" } });
-  fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "password" } });
+  fireEvent.change(screen.getByLabelText("Mật khẩu"), { target: { value: "password" } });
+  fireEvent.change(screen.getByLabelText("Xác nhận mật khẩu"), { target: { value: "password" } });
 }
 
 describe("RegisterPage", () => {
@@ -35,7 +35,7 @@ describe("RegisterPage", () => {
     vi.mocked(auth.register).mockResolvedValue({ message: "ok" } as never);
     render(<RegisterPage />);
     fill();
-    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
     await waitFor(() =>
       expect(auth.register).toHaveBeenCalledWith("Learner", "a@b.test", "password", "password")
     );
@@ -45,9 +45,9 @@ describe("RegisterPage", () => {
   it("rejects mismatched confirmation without a request", () => {
     render(<RegisterPage />);
     fill();
-    fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "different" } });
-    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
-    expect(screen.getByRole("alert")).toHaveTextContent("do not match");
+    fireEvent.change(screen.getByLabelText("Xác nhận mật khẩu"), { target: { value: "different" } });
+    fireEvent.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("không khớp");
     expect(auth.register).not.toHaveBeenCalled();
   });
 
@@ -57,10 +57,10 @@ describe("RegisterPage", () => {
     });
     render(<RegisterPage />);
     fill();
-    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Already registered");
     expect(screen.getByLabelText("Email")).toHaveValue("a@b.test");
-    expect(screen.getByLabelText("Password")).toHaveValue("password");
+    expect(screen.getByLabelText("Mật khẩu")).toHaveValue("password");
   });
 
   it("shows generic error fallback on non-ApiError and preserves input", async () => {
@@ -69,9 +69,9 @@ describe("RegisterPage", () => {
     });
     render(<RegisterPage />);
     fill();
-    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Could not reach");
+    fireEvent.click(screen.getByRole("button", { name: "Tạo tài khoản" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Không thể tạo");
     expect(screen.getByLabelText("Email")).toHaveValue("a@b.test");
-    expect(screen.getByLabelText("Password")).toHaveValue("password");
+    expect(screen.getByLabelText("Mật khẩu")).toHaveValue("password");
   });
 });

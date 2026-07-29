@@ -1,11 +1,13 @@
 "use client";
 
-import { IconBellRinging, IconCheck, IconDoorEnter, IconPhoto, IconUser } from "@tabler/icons-react";
+import { IconCheck, IconDoorEnter, IconKey, IconPhoto, IconTrash, IconUser } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AppShellLoading } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Dialog } from "@/components/ui/dialog";
 import {
   backgroundOptions,
   cacheBackgroundImage,
@@ -15,11 +17,12 @@ import {
   saveSelectedBackground,
   type BackgroundOption
 } from "@/lib/background-settings";
-import { fetchMe, fetchVocabulary, profile } from "@/lib/api";
+import { api, ApiError, profile } from "@/lib/api";
 import { cn, formatDateTime } from "@/lib/utils";
 import type { AppUser } from "@/types/api";
 
 export function ProfilePage() {
+  const router = useRouter();
   const [user, setUser] = useState<AppUser | null>(null);
   const [wordCount, setWordCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -28,15 +31,24 @@ export function ProfilePage() {
   const [savingBackgroundId, setSavingBackgroundId] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [profileStatus, setProfileStatus] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = useState("");
+  const [passwordStatus, setPasswordStatus] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteStatus, setDeleteStatus] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     Promise.all([
-      fetchMe().catch(() => null),
-      fetchVocabulary({ per_page: 1 }).catch(() => null),
-    ]).then(([me, vocabulary]) => {
+      api.me().catch(() => null),
+      api.vocabulary({ perPage: 1 }).catch(() => null),
+    ]).then(([me, words]) => {
       setUser(me);
       setDisplayName(me?.name ?? "");
-      setWordCount(vocabulary?.meta.total ?? vocabulary?.data.length ?? 0);
+      setWordCount(words?.meta.total ?? 0);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
@@ -51,6 +63,19 @@ export function ProfilePage() {
     } catch {
       setProfileStatus("Could not save");
     }
+  }
+
+  async function changePassword(event: React.FormEvent) {
+    event.preventDefault(); setPasswordStatus(""); setChangingPassword(true);
+    try { await profile.changePassword(currentPassword, newPassword, passwordConfirmation); setCurrentPassword(""); setNewPassword(""); setPasswordConfirmation(""); setPasswordStatus("Đã đổi mật khẩu."); }
+    catch (cause) { setPasswordStatus(cause instanceof ApiError ? Object.values(cause.errors ?? {}).flat()[0] ?? cause.message : "Không thể đổi mật khẩu."); }
+    finally { setChangingPassword(false); }
+  }
+
+  async function deleteAccount(event: React.FormEvent) {
+    event.preventDefault(); setDeleteStatus(""); setDeleting(true);
+    try { await profile.destroy(deletePassword); router.replace("/login"); router.refresh(); }
+    catch (cause) { setDeleteStatus(cause instanceof ApiError ? Object.values(cause.errors ?? {}).flat()[0] ?? cause.message : "Không thể xóa tài khoản."); setDeleting(false); }
   }
 
   useEffect(() => {
@@ -99,6 +124,8 @@ export function ProfilePage() {
                       <img
                         src={user.avatarUrl}
                         alt={user.name || user.email}
+                        width={112}
+                        height={112}
                         referrerPolicy="no-referrer"
                         className="h-28 w-28 rounded-full border-4 border-primary object-cover"
                       />
@@ -125,7 +152,7 @@ export function ProfilePage() {
             </CardContent>
           </Card>
 
-          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-1">
+          <div className="grid gap-5">
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle>Total Words</CardTitle>
@@ -135,18 +162,6 @@ export function ProfilePage() {
                 <p className="font-display text-4xl font-bold text-primary">{wordCount}</p>
               </CardContent>
             </Card>
-            {/*
-              Streak card hidden – no backend API yet.
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle>Current Streak</CardTitle>
-                  <CardDescription>Consecutive study days</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="font-display text-4xl font-bold text-primary">{summary.streak}</p>
-                </CardContent>
-              </Card>
-            */}
           </div>
         </section>
 
@@ -189,20 +204,20 @@ export function ProfilePage() {
           </Card>
         )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <IconBellRinging className="h-5 w-5 text-muted-foreground" />
-              Review Reminders
-            </CardTitle>
-            <CardDescription>Review reminders will be available in a future update.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm font-semibold text-muted-foreground">
-              Push notification settings for due-card reminders are not yet available in this version. Check back soon.
-            </p>
-          </CardContent>
-        </Card>
+        {user && <section className="grid gap-6 xl:grid-cols-2">
+          <Card>
+            <CardHeader><CardTitle className="flex items-center gap-2"><IconKey className="h-5 w-5 text-primary" />Bảo mật</CardTitle><CardDescription>Đổi mật khẩu đăng nhập của bạn.</CardDescription></CardHeader>
+            <CardContent><form onSubmit={changePassword} className="space-y-4"><label className="block text-sm font-bold">Mật khẩu hiện tại<Input type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required /></label><label className="block text-sm font-bold">Mật khẩu mới<Input type="password" autoComplete="new-password" minLength={8} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /></label><label className="block text-sm font-bold">Xác nhận mật khẩu mới<Input type="password" autoComplete="new-password" minLength={8} value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} required /></label><Button type="submit" disabled={changingPassword}>{changingPassword ? "Đang lưu..." : "Đổi mật khẩu"}</Button></form>{passwordStatus ? <p aria-live="polite" className="mt-3 text-sm font-semibold text-muted-foreground">{passwordStatus}</p> : null}</CardContent>
+          </Card>
+          <Card className="border-destructive/30">
+            <CardHeader><CardTitle className="flex items-center gap-2 text-destructive"><IconTrash className="h-5 w-5" />Xóa tài khoản</CardTitle><CardDescription>Thao tác này ẩn danh dữ liệu tài khoản và không thể hoàn tác.</CardDescription></CardHeader>
+            <CardContent><Button type="button" variant="destructive" onClick={() => setDeleteOpen(true)}>Xóa tài khoản</Button></CardContent>
+          </Card>
+        </section>}
+
+        <Dialog open={deleteOpen} onClose={() => { if (!deleting) { setDeleteOpen(false); setDeleteStatus(""); } }} title="Xóa tài khoản?" description="Dữ liệu cá nhân của bạn sẽ được ẩn danh và không thể khôi phục." className="max-w-md">
+          <form onSubmit={deleteAccount} className="space-y-4"><p className="text-sm text-muted-foreground">Nhập mật khẩu để xác nhận thao tác không thể hoàn tác này.</p><label className="block text-sm font-bold">Mật khẩu<Input autoFocus type="password" autoComplete="current-password" value={deletePassword} onChange={(event) => setDeletePassword(event.target.value)} required disabled={deleting} /></label>{deleteStatus ? <p role="alert" className="text-sm font-semibold text-destructive">{deleteStatus}</p> : null}<div className="flex justify-end gap-3"><Button type="button" variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>Hủy</Button><Button type="submit" variant="destructive" disabled={deleting}>{deleting ? "Đang xóa..." : "Xóa vĩnh viễn"}</Button></div></form>
+        </Dialog>
 
         <Card>
           <CardHeader>
@@ -253,6 +268,8 @@ export function ProfilePage() {
                     <img
                       src={option.previewUrl}
                       alt=""
+                      width={640}
+                      height={480}
                       className="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-105"
                       loading="lazy"
                       decoding="async"

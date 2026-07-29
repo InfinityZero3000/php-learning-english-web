@@ -5,13 +5,15 @@ import { ApiError, auth } from "@/lib/api";
 
 let pathname = "/";
 const replace = vi.fn();
+const router = { replace, refresh: vi.fn() };
 
 vi.mock("next/navigation", () => ({
   usePathname: () => pathname,
-  useRouter: () => ({ replace, refresh: vi.fn() }),
+  useRouter: () => router,
   useSearchParams: () => new URLSearchParams()
 }));
 vi.mock("next/link", () => ({ default: ({ children, href, ...props }: React.ComponentProps<"a">) => <a href={String(href)} {...props}>{children}</a> }));
+vi.mock("@/components/ui/cat-loader", () => ({ CatLoader: ({ label }: { label: string }) => <p role="status">{label}</p> }));
 vi.mock("@/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api")>();
   return { ...actual, auth: { ...actual.auth, me: vi.fn(), logout: vi.fn() } };

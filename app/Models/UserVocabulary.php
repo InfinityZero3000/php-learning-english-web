@@ -8,14 +8,24 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class UserVocabulary extends Model
 {
+    protected $attributes = ['state' => 'learning', 'step' => 0, 'revision' => 0];
+
     protected $fillable = [
         'user_id', 'vocabulary_id', 'due_at', 'state', 'stability',
         'difficulty', 'scheduled_days', 'elapsed_days', 'repetitions', 'lapses',
+        'last_reviewed_at', 'step', 'algorithm', 'algorithm_version', 'revision',
     ];
 
     protected function casts(): array
     {
-        return ['due_at' => 'datetime'];
+        return [
+            'due_at' => 'datetime',
+            'last_reviewed_at' => 'datetime',
+            'stability' => 'float',
+            'difficulty' => 'float',
+            'revision' => 'integer',
+            'step' => 'integer',
+        ];
     }
 
     public function user(): BelongsTo

@@ -1,3 +1,22 @@
 "use client";
-import { useState } from "react"; import { auth } from "@/lib/api"; import { AuthLayout } from "./auth-layout"; import { AuthLink, Field, Notice, messageFor } from "./form-support"; import { Button } from "@/components/ui/button";
-export function ForgotPasswordPage(){const[email,setEmail]=useState(""),[error,setError]=useState(""),[status,setStatus]=useState(""),[pending,setPending]=useState(false);async function submit(e:React.FormEvent){e.preventDefault();setError("");setStatus("");setPending(true);try{await auth.forgotPassword(email);setStatus("If an account exists for that email, a reset link is on its way.");}catch(c){setError(messageFor(c));}finally{setPending(false)}}return <AuthLayout title="Reset your password" description="Enter your email and we’ll send instructions if it matches an account."><Notice>{status}</Notice><Notice error>{error}</Notice><form onSubmit={submit} className="space-y-4"><Field id="email" label="Email" type="email" placeholder="name@example.com" autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} required/><Button className="w-full" size="lg" disabled={pending}>{pending?"Sending...":"Send reset link"}</Button></form><p className="mt-7 text-center text-sm"><AuthLink href="/login">Back to sign in</AuthLink></p></AuthLayout>}
+
+import Link from "next/link";
+import { useState } from "react";
+import { auth } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { AuthMessage, AuthShell } from "./auth-shell";
+import { messageFor } from "./form-support";
+
+export function ForgotPasswordPage() {
+  const [email, setEmail] = useState(""); const [error, setError] = useState(""); const [success, setSuccess] = useState(""); const [submitting, setSubmitting] = useState(false);
+  async function submit(event: React.FormEvent) {
+    event.preventDefault(); setError(""); setSubmitting(true);
+    try { await auth.forgotPassword(email); setSuccess("Nếu tài khoản tồn tại, liên kết đặt lại đã được gửi."); } catch (cause) { setError(messageFor(cause, "Không thể gửi email đặt lại mật khẩu.")); } finally { setSubmitting(false); }
+  }
+  return <AuthShell title="Quên mật khẩu?" description="Chúng tôi sẽ gửi liên kết đặt lại nếu email này có tài khoản.">
+    <AuthMessage error={error} success={success} />
+    <form onSubmit={submit} className="space-y-4"><label className="block text-sm font-bold">Email<Input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label><Button type="submit" className="w-full" disabled={submitting}>{submitting ? "Đang gửi..." : "Gửi liên kết"}</Button></form>
+    <p className="mt-5 text-center text-sm"><Link href="/login" className="font-bold text-primary hover:underline">Quay lại đăng nhập</Link></p>
+  </AuthShell>;
+}

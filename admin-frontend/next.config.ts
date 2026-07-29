@@ -15,6 +15,10 @@ const nextConfig: NextConfig = {
         source: "/api/:path*",
         destination: `${laravelOrigin}/api/:path*`,
       },
+      {
+        source: "/auth/:path*",
+        destination: `${laravelOrigin}/auth/:path*`,
+      },
     ];
   },
 };

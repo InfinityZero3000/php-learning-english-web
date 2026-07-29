@@ -1,5 +1,8 @@
 # Auth Placeholders and SQL Injection Audit Implementation Plan
 
+> **Trạng thái:** kế hoạch lịch sử; implementation và audit đã có. Checkbox bên
+> dưới không phải backlog. Xem [`../../CURRENT_STATUS.md`](../../CURRENT_STATUS.md).
+
 > **For agentic workers:** Execute this plan in the current worktree with focused checks after each task.
 
 **Goal:** Add contextual placeholders to all learner auth fields and produce evidence that auth database access is parameterized.

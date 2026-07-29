@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import AdminLayout from '@/components/AdminLayout';
-import { content } from '@/lib/api';
+import { adminFeed } from '@/lib/api';
 
 interface YouTubeVideo {
   id?: string;
@@ -28,6 +28,10 @@ interface NewsArticle {
 type Tab = 'youtube' | 'news';
 
 export default function ContentPage() {
+  return <AdminLayout title="Content Feed"><PageContent /></AdminLayout>;
+}
+
+function PageContent() {
   const [tab, setTab] = useState<Tab>('youtube');
   const [query, setQuery] = useState('');
   const [inputQuery, setInputQuery] = useState('');
@@ -35,32 +39,29 @@ export default function ContentPage() {
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [error, setError] = useState('');
 
   const search = async () => {
     setLoading(true);
     setSearched(true);
     setQuery(inputQuery);
+    setError('');
     try {
-      if (tab === 'youtube') {
-        const res = await content.youtube({ q: inputQuery || undefined });
-        const items = (res as { items?: YouTubeVideo[] })?.items ?? (Array.isArray(res) ? res : []);
-        setVideos(items as YouTubeVideo[]);
-      } else {
-        const res = await content.news({ q: inputQuery || undefined });
-        const items = (res as { articles?: NewsArticle[] })?.articles ?? (Array.isArray(res) ? res : []);
-        setArticles(items as NewsArticle[]);
-      }
-    } catch {
+      const items = await adminFeed.search(tab, inputQuery);
+      if (tab === 'youtube') setVideos(items as YouTubeVideo[]);
+      else setArticles(items as NewsArticle[]);
+    } catch (reason) {
       setVideos([]);
       setArticles([]);
+      setError(reason instanceof Error ? reason.message : 'Could not load provider content.');
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <AdminLayout title="Content Feed">
+  return <>
       <div className="space-y-6">
+        {error && <p role="alert" className="rounded-xl p-4 font-bold" style={{ backgroundColor: '#ffdad6', color: '#93000a' }}>{error}</p>}
         {/* Tabs + Search */}
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
           <div className="flex gap-2 p-1 rounded-xl" style={{ backgroundColor: '#efeded' }}>
@@ -196,6 +197,5 @@ export default function ContentPage() {
           )
         )}
       </div>
-    </AdminLayout>
-  );
+    </>;
 }
