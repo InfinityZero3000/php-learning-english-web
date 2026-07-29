@@ -123,15 +123,21 @@ class FsrsApiTest extends TestCase
     public function test_event_failure_rolls_back_review_and_fsrs_state(): void
     {
         [$user, , , $state] = $this->context();
-        DB::statement("CREATE TRIGGER fail_learning_event BEFORE INSERT ON learning_events BEGIN SELECT RAISE(ABORT, 'forced'); END");
+        $trigger = DB::getDriverName() === 'mysql'
+            ? "CREATE TRIGGER fail_learning_event BEFORE INSERT ON learning_events FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'forced'"
+            : "CREATE TRIGGER fail_learning_event BEFORE INSERT ON learning_events BEGIN SELECT RAISE(ABORT, 'forced'); END";
+        DB::unprepared($trigger);
 
-        $this->actingAs($user)
+        $response = $this->actingAs($user)
             ->withHeader('X-Request-ID', (string) Str::uuid())
             ->postJson('/api/v1/fsrs/review', [
                 'user_vocabulary_id' => $state->id,
                 'rating' => 'good',
                 'base_revision' => 0,
-            ])->assertServerError();
+            ]);
+        DB::unprepared('DROP TRIGGER IF EXISTS fail_learning_event');
+
+        $response->assertServerError();
 
         $this->assertDatabaseHas('user_vocabularies', ['id' => $state->id, 'revision' => 0]);
         $this->assertDatabaseCount('vocabulary_reviews', 0);
