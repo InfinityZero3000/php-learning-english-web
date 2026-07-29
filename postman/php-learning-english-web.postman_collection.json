@@ -1,0 +1,624 @@
+{
+  "info": {
+    "_postman_id": "d3f6a2c4-8b1e-4a9f-9c2d-php-learning-api",
+    "name": "PHP Learning English Web — API Regression",
+    "description": "Regression / manual verification collection for the Laravel /api/v1 and /api/admin REST API (issue #28). This app authenticates via a Laravel session + CSRF cookie, NOT bearer tokens — matching admin-frontend/src/lib/api.ts's request() helper. A collection-level pre-request script fetches /api/v1/csrf-cookie and attaches X-XSRF-TOKEN to every mutating (POST/PUT/PATCH/DELETE) request automatically, using Postman's cookie jar (requires Postman's cookie jar / 'Automatically follow redirects' defaults — no manual header copying needed).\n\nRun order (verified end-to-end with `newman run`):\n1. '0a - Login as Learner' before running '2 - Catalog' / '3 - Learning' / '4 - AI Proxy'.\n2. '0c - Logout' then '0b - Login as Admin' before running '5 - Admin Taxonomy' / '6 - Admin Users'.\n\nOnly one session is active in the shared cookie jar at a time. '0a'/'0b'/'0c' are deliberately separate top-level folders (not steps inside one folder) so that running any single one of them in a Collection Runner or `newman run --folder` does exactly what its name says, instead of silently chaining into logout.\n\nBefore running: `docker-compose exec app php artisan migrate:fresh --seed` to get known seed data (admin@example.com/admin123, user@example.com/user123, sample courses/lessons/quizzes, but NO Vocabulary rows — vocabulary only exists after a LexiLingo import/sync). '2 - Catalog' requests self-populate course_id/lesson_id into the environment via Tests scripts on first run; 'List Vocabulary' also tries to set vocabulary_id but will leave it empty on a fresh seed (see the note on '3 - Learning > Toggle Vocabulary Bookmark'). There is no public endpoint to list quiz ids, so quiz_id defaults to 1 (the first quiz created by LessonQuizSeeder on a fresh seed) — adjust manually if your seed data differs.\n\n'4 - AI Proxy' requests call the real configured LexiLingo AI service and will fail locally unless LEXILINGO_AI_URL/LEXILINGO_BACKEND_URL are set in the running app's .env — included for completeness, not guaranteed runnable out of the box.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const mutating = ['POST', 'PUT', 'PATCH', 'DELETE'];",
+          "if (mutating.includes(pm.request.method)) {",
+          "    pm.sendRequest({",
+          "        url: pm.environment.get('base_url') + '/api/v1/csrf-cookie',",
+          "        method: 'GET',",
+          "        header: { Accept: 'application/json' }",
+          "    }, function (err) {",
+          "        if (err) { console.error('csrf-cookie fetch failed', err); return; }",
+          "        pm.cookies.jar().get(pm.environment.get('base_url'), 'XSRF-TOKEN', function (err, token) {",
+          "            if (!err && token) {",
+          "                pm.request.headers.upsert({ key: 'X-XSRF-TOKEN', value: decodeURIComponent(token) });",
+          "            }",
+          "        });",
+          "    });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "0a - Login as Learner",
+      "description": "Self-contained: run this single folder to authenticate as the seeded learner. Safe to run on its own — does not chain into logout or the admin login.",
+      "item": [
+        {
+          "name": "Login as Learner",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{learner_email}}\",\n  \"password\": \"{{learner_password}}\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/auth/login", "host": ["{{base_url}}"], "path": ["api", "v1", "auth", "login"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "0b - Login as Admin",
+      "description": "Self-contained: run this single folder to authenticate as the seeded admin. Log out first (0c) if a learner session is currently active.",
+      "item": [
+        {
+          "name": "Login as Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/auth/login", "host": ["{{base_url}}"], "path": ["api", "v1", "auth", "login"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "0c - Logout",
+      "description": "Ends whichever session is currently active in the cookie jar.",
+      "item": [
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/v1/auth/logout", "host": ["{{base_url}}"], "path": ["api", "v1", "auth", "logout"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1 - Auth",
+      "item": [
+        {
+          "name": "Register New User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Test User\",\n  \"email\": \"postman-{{$timestamp}}@example.com\",\n  \"password\": \"password123\",\n  \"password_confirmation\": \"password123\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/api/v1/auth/register", "host": ["{{base_url}}"], "path": ["api", "v1", "auth", "register"] }
+          }
+        },
+        {
+          "name": "Register - Validation Error (missing fields)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": { "raw": "{{base_url}}/api/v1/auth/register", "host": ["{{base_url}}"], "path": ["api", "v1", "auth", "register"] }
+          }
+        },
+        {
+          "name": "Get Current User (Me)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/v1/auth/me", "host": ["{{base_url}}"], "path": ["api", "v1", "auth", "me"] }
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{learner_email}}\"\n}" },
+            "url": { "raw": "{{base_url}}/api/v1/auth/password/forgot", "host": ["{{base_url}}"], "path": ["api", "v1", "auth", "password", "forgot"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2 - Catalog",
+      "item": [
+        {
+          "name": "List Courses",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "if (body.data && body.data.length) { pm.environment.set('course_id', body.data[0].id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/v1/catalog/courses", "host": ["{{base_url}}"], "path": ["api", "v1", "catalog", "courses"] }
+          }
+        },
+        {
+          "name": "Get Course Detail",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/v1/catalog/courses/{{course_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "catalog", "courses", "{{course_id}}"] }
+          }
+        },
+        {
+          "name": "Get Course Detail - 404 Nonexistent",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/v1/catalog/courses/999999", "host": ["{{base_url}}"], "path": ["api", "v1", "catalog", "courses", "999999"] }
+          }
+        },
+        {
+          "name": "List Course Lessons",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/v1/catalog/courses/{{course_id}}/lessons", "host": ["{{base_url}}"], "path": ["api", "v1", "catalog", "courses", "{{course_id}}", "lessons"] }
+          }
+        },
+        {
+          "name": "List Lessons",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "if (body.data && body.data.length) { pm.environment.set('lesson_id', body.data[0].id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/v1/catalog/lessons", "host": ["{{base_url}}"], "path": ["api", "v1", "catalog", "lessons"] }
+          }
+        },
+        {
+          "name": "Get Lesson Detail",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/v1/catalog/lessons/{{lesson_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "catalog", "lessons", "{{lesson_id}}"] }
+          }
+        },
+        {
+          "name": "List Vocabulary",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "if (body.data && body.data.length) { pm.environment.set('vocabulary_id', body.data[0].id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/v1/vocabulary", "host": ["{{base_url}}"], "path": ["api", "v1", "vocabulary"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3 - Learning",
+      "description": "Requires a learner session — run '0a - Login as Learner' first.",
+      "item": [
+        {
+          "name": "List My Bookmarks",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/v1/bookmarks", "host": ["{{base_url}}"], "path": ["api", "v1", "bookmarks"] }
+          }
+        },
+        {
+          "name": "Toggle Vocabulary Bookmark",
+          "description": "Needs vocabulary_id set — a fresh migrate:fresh --seed has no Vocabulary rows (only LexiLingo import/sync creates them), so '2 - Catalog > List Vocabulary' will leave vocabulary_id empty and this request will 404 on an empty path segment. Run `php artisan lexilingo:sync-vocabulary` first, or set vocabulary_id manually in the environment, to exercise this request.",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/v1/bookmarks/vocabulary/{{vocabulary_id}}/toggle", "host": ["{{base_url}}"], "path": ["api", "v1", "bookmarks", "vocabulary", "{{vocabulary_id}}", "toggle"] }
+          }
+        },
+        {
+          "name": "Toggle Lesson Bookmark",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/v1/bookmarks/lesson/{{lesson_id}}/toggle", "host": ["{{base_url}}"], "path": ["api", "v1", "bookmarks", "lesson", "{{lesson_id}}", "toggle"] }
+          }
+        },
+        {
+          "name": "Get Quiz",
+          "description": "quiz_id defaults to 1 (first quiz on a fresh migrate:fresh --seed) — no public endpoint lists quiz ids, adjust manually if needed.",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/v1/quizzes/{{quiz_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "quizzes", "{{quiz_id}}"] }
+          }
+        },
+        {
+          "name": "Get Quiz - 404 Nonexistent",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/v1/quizzes/999999", "host": ["{{base_url}}"], "path": ["api", "v1", "quizzes", "999999"] }
+          }
+        },
+        {
+          "name": "Get Quiz History",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/v1/quizzes/{{quiz_id}}/history", "host": ["{{base_url}}"], "path": ["api", "v1", "quizzes", "{{quiz_id}}", "history"] }
+          }
+        },
+        {
+          "name": "Get My Progress",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/v1/progress", "host": ["{{base_url}}"], "path": ["api", "v1", "progress"] }
+          }
+        },
+        {
+          "name": "Get Progress Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/v1/progress/dashboard", "host": ["{{base_url}}"], "path": ["api", "v1", "progress", "dashboard"] }
+          }
+        },
+        {
+          "name": "Get Course Progress",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/v1/progress/course/{{course_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "progress", "course", "{{course_id}}"] }
+          }
+        },
+        {
+          "name": "Mark Lesson Completed",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/v1/progress/lesson/{{lesson_id}}/complete", "host": ["{{base_url}}"], "path": ["api", "v1", "progress", "lesson", "{{lesson_id}}", "complete"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4 - AI Proxy",
+      "description": "Requires a learner session AND a real, configured LexiLingo AI service (LEXILINGO_AI_URL/LEXILINGO_BACKEND_URL in the app's .env). Not guaranteed runnable in a plain local dev setup — included for contract documentation.",
+      "item": [
+        {
+          "name": "Translate Text",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"text\": \"Hello\",\n  \"target_lang\": \"vi\"\n}" },
+            "url": { "raw": "{{base_url}}/api/v1/ai/translate", "host": ["{{base_url}}"], "path": ["api", "v1", "ai", "translate"] }
+          }
+        },
+        {
+          "name": "Text to Speech",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"text\": \"Hello world\"\n}" },
+            "url": { "raw": "{{base_url}}/api/v1/ai/text-to-speech", "host": ["{{base_url}}"], "path": ["api", "v1", "ai", "text-to-speech"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5 - Admin Taxonomy",
+      "description": "Requires an admin session — run '0c - Logout' then '0b - Login as Admin' first.",
+      "item": [
+        {
+          "name": "List Topics",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "if (body.data && body.data.length) { pm.environment.set('topic_id', body.data[0].id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/v1/admin/topics", "host": ["{{base_url}}"], "path": ["api", "v1", "admin", "topics"] }
+          }
+        },
+        {
+          "name": "Create Topic",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Postman Test Topic {{$timestamp}}\"\n}" },
+            "url": { "raw": "{{base_url}}/api/v1/admin/topics", "host": ["{{base_url}}"], "path": ["api", "v1", "admin", "topics"] }
+          }
+        },
+        {
+          "name": "Update Topic",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Updated Topic Name\"\n}" },
+            "url": { "raw": "{{base_url}}/api/v1/admin/topics/{{topic_id}}", "host": ["{{base_url}}"], "path": ["api", "v1", "admin", "topics", "{{topic_id}}"] }
+          }
+        },
+        {
+          "name": "List Levels",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/v1/admin/levels", "host": ["{{base_url}}"], "path": ["api", "v1", "admin", "levels"] }
+          }
+        },
+        {
+          "name": "List Categories",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/v1/admin/categories", "host": ["{{base_url}}"], "path": ["api", "v1", "admin", "categories"] }
+          }
+        },
+        {
+          "name": "Non-Admin Access - 403 Forbidden",
+          "description": "Not part of the normal admin-session run — deliberately has no Tests script, since it needs the OPPOSITE session from the rest of this folder. Run '0a - Login as Learner' immediately before this specific request to manually confirm the Gate-based 403 on taxonomy routes.",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/v1/admin/topics", "host": ["{{base_url}}"], "path": ["api", "v1", "admin", "topics"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6 - Admin Users",
+      "description": "Requires an admin session — run '0c - Logout' then '0b - Login as Admin' first.",
+      "item": [
+        {
+          "name": "List Users",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "if (body.users && body.users.length) { pm.environment.set('user_id', body.users[0].id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/admin/users", "host": ["{{base_url}}"], "path": ["api", "admin", "users"] }
+          }
+        },
+        {
+          "name": "Get User Detail",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/admin/users/{{user_id}}", "host": ["{{base_url}}"], "path": ["api", "admin", "users", "{{user_id}}"] }
+          }
+        },
+        {
+          "name": "Get User History",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/admin/users/{{user_id}}/history", "host": ["{{base_url}}"], "path": ["api", "admin", "users", "{{user_id}}", "history"] }
+          }
+        },
+        {
+          "name": "List Audit Logs",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/admin/audit-logs", "host": ["{{base_url}}"], "path": ["api", "admin", "audit-logs"] }
+          }
+        },
+        {
+          "name": "Non-Admin Access - 401/403",
+          "description": "Demonstrates the role:admin middleware (distinct mechanism from '5 - Admin Taxonomy''s Gate-based check). Run without a session for 401, or as a logged-in learner for 403.",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/admin/users", "host": ["{{base_url}}"], "path": ["api", "admin", "users"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7 - Misc",
+      "item": [
+        {
+          "name": "API Root Info",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/v1/", "host": ["{{base_url}}"], "path": ["api", "v1", ""] }
+          }
+        },
+        {
+          "name": "Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/v1/health", "host": ["{{base_url}}"], "path": ["api", "v1", "health"] }
+          }
+        },
+        {
+          "name": "Content News",
+          "description": "Proxies the LexiLingo backend — requires LEXILINGO_BACKEND_URL to be configured locally, otherwise returns 503.",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/v1/content/news", "host": ["{{base_url}}"], "path": ["api", "v1", "content", "news"] }
+          }
+        },
+        {
+          "name": "Content YouTube",
+          "description": "Proxies the LexiLingo backend — requires LEXILINGO_BACKEND_URL to be configured locally, otherwise returns 503.",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/api/v1/content/youtube?q=hello", "host": ["{{base_url}}"], "path": ["api", "v1", "content", "youtube"], "query": [{ "key": "q", "value": "hello" }] }
+          }
+        }
+      ]
+    }
+  ]
+}
