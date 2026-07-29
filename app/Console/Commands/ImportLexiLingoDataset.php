@@ -29,6 +29,12 @@ class ImportLexiLingoDataset extends Command
 
     public function handle(): int
     {
+        if (! config('features.lexilingo_import')) {
+            $this->error('LexiLingo import is disabled.');
+
+            return self::FAILURE;
+        }
+
         $entity = $this->argument('entity');
         $limit = (int) $this->option('limit');
         $dryRun = (bool) $this->option('dry-run');

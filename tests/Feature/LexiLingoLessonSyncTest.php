@@ -37,6 +37,7 @@ class LexiLingoLessonSyncTest extends TestCase
         ]);
         $lesson = Lesson::create([
             'course_id' => $course->id,
+            'source_system' => 'lexilingo',
             'external_id' => 'lesson-123',
             'title' => 'Greetings',
             'slug' => 'greetings',
@@ -144,6 +145,7 @@ class LexiLingoLessonSyncTest extends TestCase
         ]);
         $lesson = Lesson::create([
             'course_id' => $course->id,
+            'source_system' => 'lexilingo',
             'external_id' => 'lesson-123',
             'title' => 'Greetings',
             'slug' => 'greetings',
@@ -193,6 +195,42 @@ class LexiLingoLessonSyncTest extends TestCase
         $this->assertSame(1, Answer::count());
     }
 
+    public function test_lesson_content_sync_removes_upstream_children_missing_from_latest_snapshot(): void
+    {
+        $course = Course::create(['title' => 'Basic', 'slug' => 'basic']);
+        $lesson = Lesson::create([
+            'course_id' => $course->id, 'source_system' => 'lexilingo', 'external_id' => 'lesson-prune',
+            'title' => 'Prune', 'slug' => 'prune',
+        ]);
+        $payload = fn (array $answers, bool $withQuiz = true): array => ['data' => [
+            'description' => 'Prune', 'prerequisites' => [], 'estimated_minutes' => 5, 'pass_threshold' => 60,
+            'content' => $withQuiz ? ['quiz' => [
+                'id' => 'quiz-prune', 'title' => 'Quiz', 'questions' => [[
+                    'id' => 'question-prune', 'content' => 'Question', 'answers' => $answers,
+                ]],
+            ]] : ['blocks' => []],
+        ]];
+        Http::fake([
+            'backend.lexilingo.test/api/v1/admin/lessons/lesson-prune' => Http::sequence()
+                ->push($payload([
+                    ['id' => 'answer-keep', 'content' => 'Keep', 'is_correct' => true],
+                    ['id' => 'answer-remove', 'content' => 'Remove', 'is_correct' => false],
+                ]))
+                ->push($payload([['id' => 'answer-keep', 'content' => 'Keep', 'is_correct' => true]]))
+                ->push($payload([], false)),
+        ]);
+        $importer = $this->app->make(LessonContentImporter::class);
+
+        $importer->import(10, reset: true);
+        $importer->import(10, reset: true);
+        $this->assertDatabaseMissing('answers', ['external_id' => 'answer-remove']);
+        $this->assertDatabaseHas('answers', ['external_id' => 'answer-keep']);
+
+        $importer->import(10, reset: true);
+        $this->assertDatabaseMissing('quizzes', ['external_id' => 'quiz-prune']);
+        $this->assertSame(3, $lesson->fresh()->catalog_revision);
+    }
+
     public function test_invalid_lesson_content_skipped_and_archived(): void
     {
         $level = Level::create(['name' => 'Beginner', 'slug' => 'beginner', 'sort_order' => 1]);
@@ -203,6 +241,7 @@ class LexiLingoLessonSyncTest extends TestCase
         ]);
         $lesson = Lesson::create([
             'course_id' => $course->id,
+            'source_system' => 'lexilingo',
             'external_id' => 'lesson-123',
             'title' => 'Greetings',
             'slug' => 'greetings',
@@ -253,6 +292,7 @@ class LexiLingoLessonSyncTest extends TestCase
         ]);
         $lesson = Lesson::create([
             'course_id' => $course->id,
+            'source_system' => 'lexilingo',
             'external_id' => 'lesson-123',
             'title' => 'Greetings',
             'slug' => 'greetings',

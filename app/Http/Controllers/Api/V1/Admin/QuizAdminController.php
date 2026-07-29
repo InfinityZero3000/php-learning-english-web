@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\QuizResource;
 use App\Models\Answer;
+use App\Models\Lesson;
 use App\Models\Question;
 use App\Models\Quiz;
 use App\Support\ApiResponse;
@@ -89,6 +90,7 @@ class QuizAdminController extends Controller
                     ]);
                 }
             }
+            Lesson::query()->findOrFail($quiz->lesson_id)->applyLocalEdit([]);
 
             return $quiz;
         });
@@ -121,7 +123,13 @@ class QuizAdminController extends Controller
             'status' => ['nullable', 'string', 'in:draft,published,archived'],
         ]);
 
-        $quiz->update($validated);
+        DB::transaction(function () use ($quiz, $validated): void {
+            $oldLessonId = $quiz->lesson_id;
+            $quiz->update($validated);
+            foreach (array_unique([$oldLessonId, $quiz->lesson_id]) as $lessonId) {
+                Lesson::query()->findOrFail($lessonId)->applyLocalEdit([]);
+            }
+        });
 
         Log::info('admin.quiz.updated', [
             'user_id' => $request->user()->id,
@@ -142,7 +150,10 @@ class QuizAdminController extends Controller
             'title' => $quiz->title,
         ]);
 
-        $quiz->delete();
+        DB::transaction(function () use ($quiz): void {
+            Lesson::query()->findOrFail($quiz->lesson_id)->applyLocalEdit([]);
+            $quiz->delete();
+        });
 
         return response()->json(null, 204);
     }

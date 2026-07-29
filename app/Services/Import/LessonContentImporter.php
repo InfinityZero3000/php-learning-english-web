@@ -23,7 +23,8 @@ class LessonContentImporter extends AbstractLexiLingoImporter
         $offset = $this->startingCursor($reset, $cursor);
 
         // Get local lessons that have an external_id from LexiLingo
-        $lessons = Lesson::whereNotNull('external_id')
+        $lessons = Lesson::where('source_system', 'lexilingo')
+            ->whereNotNull('external_id')
             ->orderBy('id')
             ->offset($offset)
             ->limit($limit)
@@ -89,15 +90,32 @@ class LessonContentImporter extends AbstractLexiLingoImporter
                 $data = $payload['data'];
 
                 DB::transaction(function () use ($lesson, $data) {
-                    $lesson->update([
+                    $snapshot = [
+                        ...($lesson->source_snapshot ?? $lesson->only([
+                            'title', 'slug', 'sort_order', 'status', 'lesson_type',
+                            'estimated_minutes', 'xp_reward', 'pass_threshold',
+                        ])),
                         'estimated_minutes' => $data['estimated_minutes'] ?? null,
                         'pass_threshold' => $data['pass_threshold'] ?? null,
-                        'content' => json_encode($data['content'] ?? null),
-                    ]);
+                        'content' => json_encode($data['content'] ?? null, JSON_THROW_ON_ERROR),
+                        'quiz_tree' => data_get($data, 'content.quiz'),
+                    ];
+                    [, $changed] = Lesson::syncFromSource(
+                        'lesson',
+                        'lexilingo',
+                        (string) $lesson->external_id,
+                        $snapshot,
+                    );
+
+                    if (! $changed) {
+                        return;
+                    }
 
                     // Map quiz, questions, and answers if present in the content
                     $quizData = data_get($data, 'content.quiz');
+                    $quizExternalIds = [];
                     if ($quizData && is_array($quizData) && isset($quizData['id'])) {
+                        $quizExternalIds[] = (string) $quizData['id'];
                         $quiz = Quiz::updateOrCreate(
                             ['external_id' => (string) $quizData['id']],
                             [
@@ -108,11 +126,13 @@ class LessonContentImporter extends AbstractLexiLingoImporter
                             ]
                         );
 
+                        $questionExternalIds = [];
                         foreach ($quizData['questions'] ?? [] as $qData) {
                             if (! isset($qData['id'])) {
                                 continue;
                             }
 
+                            $questionExternalIds[] = (string) $qData['id'];
                             $question = Question::updateOrCreate(
                                 ['external_id' => (string) $qData['id']],
                                 [
@@ -123,11 +143,13 @@ class LessonContentImporter extends AbstractLexiLingoImporter
                                 ]
                             );
 
+                            $answerExternalIds = [];
                             foreach ($qData['answers'] ?? [] as $aData) {
                                 if (! isset($aData['id'])) {
                                     continue;
                                 }
 
+                                $answerExternalIds[] = (string) $aData['id'];
                                 Answer::updateOrCreate(
                                     ['external_id' => (string) $aData['id']],
                                     [
@@ -137,8 +159,26 @@ class LessonContentImporter extends AbstractLexiLingoImporter
                                     ]
                                 );
                             }
+
+                            Answer::query()
+                                ->where('question_id', $question->id)
+                                ->whereNotNull('external_id')
+                                ->when($answerExternalIds !== [], fn ($query) => $query->whereNotIn('external_id', $answerExternalIds))
+                                ->delete();
                         }
+
+                        Question::query()
+                            ->where('quiz_id', $quiz->id)
+                            ->whereNotNull('external_id')
+                            ->when($questionExternalIds !== [], fn ($query) => $query->whereNotIn('external_id', $questionExternalIds))
+                            ->delete();
                     }
+
+                    Quiz::query()
+                        ->where('lesson_id', $lesson->id)
+                        ->whereNotNull('external_id')
+                        ->when($quizExternalIds !== [], fn ($query) => $query->whereNotIn('external_id', $quizExternalIds))
+                        ->delete();
                 });
 
                 $processed++;

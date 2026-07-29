@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasCatalogOwnership;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CourseCategory extends Model
 {
-    use HasFactory;
+    use HasCatalogOwnership, HasFactory;
 
     protected $fillable = [
         'source_system', 'external_id', 'source_fingerprint', 'source_snapshot',

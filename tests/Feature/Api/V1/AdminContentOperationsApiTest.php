@@ -17,6 +17,25 @@ class AdminContentOperationsApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config()->set('features.lexilingo_import', true);
+    }
+
+    public function test_import_start_is_unavailable_when_the_feature_is_disabled(): void
+    {
+        $this->seed();
+        config()->set('features.lexilingo_import', false);
+
+        $this->actingAs($this->user('admin'))->withHeader('X-Request-ID', (string) Str::uuid())
+            ->postJson('/api/v1/admin/imports', ['entity' => 'categories', 'limit' => 1])
+            ->assertStatus(503);
+
+        $this->assertDatabaseCount('admin_import_runs', 0);
+    }
+
     public function test_admin_can_run_a_bounded_idempotent_import(): void
     {
         $this->seed();

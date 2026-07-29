@@ -19,13 +19,13 @@ class VocabularyEnrichmentService
         $translation = $this->translation($word);
         $image = $this->image($word);
 
-        $vocabulary->forceFill([
+        $vocabulary->applyLocalEdit([
             'definition' => $dictionary['definition'] ?? $vocabulary->definition,
             'pronunciation' => $dictionary['pronunciation'] ?? $vocabulary->pronunciation,
             'part_of_speech' => $dictionary['part_of_speech'] ?? $vocabulary->part_of_speech,
             'meaning' => $translation ?? $vocabulary->meaning,
             'image_path' => $image ?? $vocabulary->image_path,
-        ])->save();
+        ]);
 
         return $vocabulary->refresh();
     }

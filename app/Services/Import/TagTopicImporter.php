@@ -23,31 +23,29 @@ class TagTopicImporter
         $existing = 0;
         $topicIds = [];
 
-        $tags = array_unique(array_filter($tags, fn ($t) => is_string($t) && trim($t) !== ''));
+        $tags = self::normalizeTags($tags);
 
         foreach ($tags as $tag) {
             $slug = Str::slug(trim($tag));
             $externalId = 'lexilingo-tag:'.md5($slug);
 
-            $topic = Topic::query()
-                ->where('external_id', $externalId)
-                ->orWhere('slug', $slug)
-                ->first();
+            $topic = Topic::query()->where('slug', $slug)->first();
 
             if ($topic !== null) {
                 $existing++;
-                // Ensure external_id is backfilled
-                if (empty($topic->external_id) && ! $dryRun) {
-                    $topic->update(['external_id' => $externalId]);
+                if (! $dryRun && $topic->source_system === 'lexilingo' && $topic->external_id === $externalId) {
+                    $topic = Topic::syncFromSource('topic', 'lexilingo', $externalId, [
+                        'name' => trim($tag),
+                        'slug' => $slug,
+                    ])[0];
                 }
             } elseif ($dryRun) {
                 $created++;
             } else {
-                $topic = Topic::create([
-                    'external_id' => $externalId,
+                $topic = Topic::syncFromSource('topic', 'lexilingo', $externalId, [
                     'name' => trim($tag),
                     'slug' => $slug,
-                ]);
+                ])[0];
                 $created++;
             }
 
@@ -61,5 +59,25 @@ class TagTopicImporter
             'existing' => $existing,
             'topic_ids' => $topicIds,
         ];
+    }
+
+    /** @return list<string> */
+    public static function normalizeTags(array $tags): array
+    {
+        $normalized = [];
+
+        foreach ($tags as $tag) {
+            if (! is_string($tag) || trim($tag) === '') {
+                continue;
+            }
+
+            $value = trim($tag);
+            $slug = Str::slug($value);
+            $normalized[$slug] ??= $value;
+        }
+
+        ksort($normalized);
+
+        return array_values($normalized);
     }
 }

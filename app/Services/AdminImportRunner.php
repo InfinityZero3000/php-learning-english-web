@@ -14,6 +14,10 @@ class AdminImportRunner
 {
     public function run(AdminImportRun $run): void
     {
+        if (! config('features.lexilingo_import')) {
+            throw new RuntimeException('LexiLingo import is disabled.');
+        }
+
         DB::transaction(function () use ($run): void {
             $lock = AdminImportLock::query()->lockForUpdate()->findOrFail($run->entity);
             if ((int) $lock->current_run_id !== $run->id) {

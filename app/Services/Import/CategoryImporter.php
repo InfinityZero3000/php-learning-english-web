@@ -54,16 +54,13 @@ class CategoryImporter extends AbstractLexiLingoImporter
                 }
 
                 if (! $dryRun) {
-                    CourseCategory::updateOrCreate(
-                        ['external_id' => (string) $item['id']],
-                        [
-                            'name' => $item['name'],
-                            'slug' => $item['slug'],
-                            'description' => $item['description'] ?? null,
-                            'icon' => $item['icon'] ?? null,
-                            'color' => $item['color'] ?? null,
-                        ]
-                    );
+                    CourseCategory::syncFromSource('category', 'lexilingo', (string) $item['id'], [
+                        'name' => $item['name'],
+                        'slug' => $item['slug'],
+                        'description' => $item['description'] ?? null,
+                        'icon' => $item['icon'] ?? null,
+                        'color' => $item['color'] ?? null,
+                    ]);
                 }
 
                 $processed++;
