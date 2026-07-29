@@ -127,6 +127,7 @@ Route::prefix('api/v1')->group(function (): void {
         Route::delete('/profile', [ProfileController::class, 'destroy']);
         Route::get('/fsrs/due', [FsrsController::class, 'due']);
         Route::get('/fsrs/stats', [FsrsController::class, 'stats']);
+        Route::post('/fsrs/preview', [FsrsController::class, 'preview']);
         Route::post('/fsrs/review', [FsrsController::class, 'review']);
         Route::get('/notifications', [LearnerToolsController::class, 'notifications']);
         Route::post('/notifications/read-all', [LearnerToolsController::class, 'readAllNotifications']);

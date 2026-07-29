@@ -73,4 +73,19 @@ class FsrsSchedulerTest extends TestCase
             new DateTimeImmutable('2026-01-01T19:00:00+07:00'),
         );
     }
+
+    public function test_preview_returns_every_rating_without_mutating_the_card(): void
+    {
+        $now = new DateTimeImmutable('2026-07-29T12:00:00Z');
+        $card = FsrsCard::new($now);
+
+        $preview = (new FsrsScheduler)->preview($card, $now);
+
+        $this->assertSame([1, 2, 3, 4], array_keys($preview));
+        $this->assertSame('learning', $card->state);
+        $this->assertSame($now->format('c'), $card->due->format('c'));
+        foreach ($preview as $result) {
+            $this->assertGreaterThan($now, $result->card->due);
+        }
+    }
 }
