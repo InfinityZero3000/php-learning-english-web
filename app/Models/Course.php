@@ -10,10 +10,22 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Course extends Model
 {
     protected $fillable = [
-        'level_id', 'category_id', 'external_id', 'title', 'slug',
+        'level_id', 'category_id', 'source_system', 'external_id',
+        'source_fingerprint', 'source_snapshot', 'local_override_at',
+        'last_synced_at', 'catalog_revision', 'title', 'slug',
         'description', 'status', 'language', 'thumbnail_url',
         'estimated_duration', 'total_xp',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'source_snapshot' => 'array',
+            'local_override_at' => 'datetime',
+            'last_synced_at' => 'datetime',
+            'catalog_revision' => 'integer',
+        ];
+    }
 
     public function level(): BelongsTo
     {
