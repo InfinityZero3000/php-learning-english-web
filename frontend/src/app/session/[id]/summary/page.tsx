@@ -34,6 +34,6 @@ export default function SessionSummaryPage({ params }: { params: Promise<{ id: s
       <div className="rounded-2xl bg-muted p-4"><p className="text-3xl font-bold tabular-nums">{bestPronunciation == null ? "—" : Math.round(bestPronunciation)}</p><p className="text-xs text-muted-foreground">phát âm tốt nhất</p></div>
       <div className="rounded-2xl bg-muted p-4"><p className="text-xl font-bold">Review</p><p className="text-xs text-muted-foreground">bước tiếp theo</p></div>
     </div>
-    <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row"><Button asChildCompat="a"><Link href="/review">Ôn từ đến hạn</Link></Button><Button variant="outline" asChildCompat="a"><Link href="/">Về Today</Link></Button></div>
+    <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">{session?.course_id && <Button asChildCompat="a"><Link href={`/courses/${session.course_id}`}>Về lộ trình</Link></Button>}<Button variant="outline" asChildCompat="a"><Link href="/review">Ôn từ đến hạn</Link></Button><Button variant="ghost" asChildCompat="a"><Link href="/">Về Today</Link></Button></div>
   </Card></div>;
 }
