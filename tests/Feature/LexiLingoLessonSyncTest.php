@@ -236,6 +236,11 @@ class LexiLingoLessonSyncTest extends TestCase
             'entity' => 'lessons',
             'external_id' => 'lesson-123',
         ]);
+        $this->assertSame(0, $result->nextCursor);
+        $this->assertDatabaseHas('lexilingo_import_checkpoints', [
+            'entity' => 'lessons',
+            'cursor' => 0,
+        ]);
     }
 
     public function test_lesson_content_sync_handles_retry_and_timeout(): void

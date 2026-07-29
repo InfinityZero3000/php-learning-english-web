@@ -57,7 +57,7 @@ class LessonContentImporter extends AbstractLexiLingoImporter
                         $this->archiveFailure($externalId, [], ["API returned status {$response->status()}"]);
                     }
 
-                    continue;
+                    break;
                 }
 
                 $payload = $response->json();
@@ -76,7 +76,7 @@ class LessonContentImporter extends AbstractLexiLingoImporter
                         $this->archiveFailure($externalId, $payload, $errors);
                     }
 
-                    continue;
+                    break;
                 }
 
                 if ($dryRun) {
@@ -152,10 +152,12 @@ class LessonContentImporter extends AbstractLexiLingoImporter
                 if (! $dryRun) {
                     $this->archiveFailure($externalId, [], [$e->getMessage()]);
                 }
+
+                break;
             }
         }
 
-        $nextCursor = $offset + $lessons->count();
+        $nextCursor = $offset + $processed;
 
         if (! $dryRun) {
             $this->advanceCheckpoint($nextCursor);
