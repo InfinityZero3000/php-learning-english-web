@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\CheckRole;
+use App\Http\Middleware\LogContextMiddleware;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -15,9 +16,12 @@ return Application::configure(basePath: dirname(__DIR__))
         then: fn () => Route::middleware('web')->group(base_path('routes/spa.php')),
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->append(LogContextMiddleware::class);
+
         $middleware->redirectGuestsTo(fn (Request $request) => rtrim((string) config(
             $request->is('admin/*') || $request->is('admin') ? 'app.admin_frontend_url' : 'app.frontend_url'
         ), '/').'/login');
+
         $middleware->alias([
             'role' => CheckRole::class,
         ]);
