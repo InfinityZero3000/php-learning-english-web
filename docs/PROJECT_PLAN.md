@@ -227,6 +227,42 @@ khi hai Next.js app được chuyển đổi. Giao diện production cuối cùn
   cần `LEXILINGO_AI_URL`/`LEXILINGO_BACKEND_URL` cấu hình thật mới chạy được
   local, không đảm bảo chạy được ngay mặc định.
 
+### Trạng thái xác minh 29/07/2026 — Issue #26 (hoàn thiện tài liệu API và hướng dẫn sử dụng)
+
+- Đồng bộ `docs/openapi/laravel-v1.yaml` với toàn bộ route còn thiếu theo
+  `docs/api/route-doc-gap-log.md` (issue #28 bàn giao): root info, OAuth
+  redirect/callback, catalog, bookmarks, quizzes, progress, admin taxonomy
+  (topics/levels/categories CRUD), admin media, content proxy, enrichment —
+  ~29 path key mới. Schema/validation lấy từ đọc trực tiếp controller và
+  Resource, không suy đoán (đã xác nhận idempotency của quiz submit,
+  `AnswerResource` không lộ `is_correct`, hai cơ chế 403 khác nhau giữa
+  `/api/admin/*` và `/api/v1/admin/*`).
+- `redocly lint`: **0 lỗi** (trong lúc viết phát hiện và sửa lỗi YAML của
+  chính đợt này — mô tả chứa dấu phẩy trong flow-mapping một dòng bị tách
+  sai thành key giả), 9 warning cùng loại "thiếu 4xx/2xx" như 4 warning cũ,
+  không chặn build.
+- `docs/architecture.md` mới: sơ đồ kiến trúc hệ thống + ERD bằng Mermaid —
+  trước đây repo chưa có sơ đồ nào. Đã xác minh cú pháp bằng cách render
+  thật qua `@mermaid-js/mermaid-cli`, không chỉ đọc lại text.
+- `docs/USER_GUIDE.md` mới: tài khoản demo, cơ chế session+CSRF, luồng
+  learner và admin — mọi ví dụ `curl` đã chạy thật trên
+  `migrate:fresh --seed` local, không viết từ trí nhớ code.
+- `docs/api_docs_lexilingo.md`: thêm mục tra cứu nhanh "endpoint nào thực
+  sự được Laravel gọi" (lệnh import + 4 route AI proxy), không viết lại
+  toàn bộ inventory ~200 endpoint bên ngoài.
+- README.md: thêm mục "Tài liệu bàn giao" liên kết đủ mọi tài liệu (USER
+  GUIDE, architecture, openapi, postman, PROJECT_PLAN, DEVELOPMENT_WORKFLOW,
+  PRODUCTION_ENV, api_docs_lexilingo, route-doc-gap-log, checklist).
+- `docs/DOCS_REVIEW_CHECKLIST.md` mới: checklist tự rà soát link/câu lệnh,
+  điền theo nội dung thật đã bàn giao (không phải template rỗng).
+- `php artisan test`: **226 tests pass** (không đổi so với issue #28 —
+  đợt này thuần tài liệu, không sửa code PHP). `./vendor/bin/pint --test`:
+  pass.
+- Chưa làm trong đợt này (cố ý, đã ghi trong `docs/api_docs_lexilingo.md`
+  và trong issue #10's ghi chú trước đó): schema request/response thật của
+  LexiLingo vẫn best-effort/chưa đối chiếu với Swagger thật của chính dịch
+  vụ đó — nằm ngoài phạm vi issue #26.
+
 ## Quy ước bàn giao
 
 - Biến môi trường production được quản lý tại `docs/PRODUCTION_ENV.md`; mọi thay
