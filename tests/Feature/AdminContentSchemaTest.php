@@ -2,6 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\AdminImportItem;
+use App\Models\AdminImportRun;
+use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -11,6 +14,161 @@ use Tests\TestCase;
 class AdminContentSchemaTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_import_staging_schema_keeps_reviewable_safe_state(): void
+    {
+        foreach ([
+            'initiator_type', 'reviewed_by', 'reviewed_at', 'approved_by',
+            'approved_at', 'applied_at',
+        ] as $column) {
+            $this->assertTrue(Schema::hasColumn('admin_import_runs', $column), "Missing admin_import_runs.{$column}");
+        }
+        foreach ([
+            'admin_import_run_id', 'parent_item_id', 'entity', 'source_system',
+            'external_id', 'natural_key', 'normalized_fingerprint', 'candidate_payload',
+            'target_id', 'base_revision', 'base_fingerprint', 'base_snapshot',
+            'base_override_at', 'classification', 'selected_action', 'dependencies',
+            'validation_errors', 'reviewed_by', 'reviewed_at', 'applied_at',
+        ] as $column) {
+            $this->assertTrue(Schema::hasColumn('admin_import_items', $column), "Missing admin_import_items.{$column}");
+        }
+
+        $actor = User::factory()->create();
+        $run = AdminImportRun::create([
+            'request_id' => fake()->uuid(),
+            'entity' => 'courses',
+            'payload_fingerprint' => str_repeat('a', 64),
+            'actor_id' => $actor->id,
+            'initiator_type' => 'admin',
+            'status' => 'review_ready',
+            'requested_limit' => 10,
+        ]);
+        $parent = AdminImportItem::create([
+            'admin_import_run_id' => $run->id,
+            'entity' => 'course',
+            'source_system' => 'lexilingo',
+            'external_id' => 'course-1',
+            'natural_key' => 'course-one',
+            'normalized_fingerprint' => str_repeat('b', 64),
+            'candidate_payload' => ['title' => 'Course one'],
+            'classification' => 'new',
+            'selected_action' => 'add',
+            'dependencies' => [],
+            'validation_errors' => [],
+        ]);
+        $child = AdminImportItem::create([
+            'admin_import_run_id' => $run->id,
+            'parent_item_id' => $parent->id,
+            'entity' => 'unit',
+            'source_system' => 'lexilingo',
+            'external_id' => 'unit-1',
+            'normalized_fingerprint' => str_repeat('c', 64),
+            'candidate_payload' => ['title' => 'Unit one'],
+            'base_revision' => 2,
+            'base_fingerprint' => str_repeat('d', 64),
+            'base_snapshot' => ['title' => 'Old unit'],
+            'classification' => 'upstream_update',
+            'selected_action' => 'replace',
+            'dependencies' => [['entity' => 'course', 'external_id' => 'course-1']],
+            'validation_errors' => [],
+            'reviewed_by' => $actor->id,
+            'reviewed_at' => now(),
+        ]);
+
+        $this->assertSame(['title' => 'Unit one'], $child->fresh()->candidate_payload);
+        $this->assertSame([['entity' => 'course', 'external_id' => 'course-1']], $child->fresh()->dependencies);
+        $this->assertSame($parent->id, $child->parent->id);
+        $this->assertCount(2, $run->items);
+        $this->assertSame([
+            'fetching', 'validating', 'review_ready', 'approved', 'applying',
+            'completed', 'validation_failed', 'apply_failed', 'cancelled',
+        ], AdminImportRun::STATUSES);
+    }
+
+    public function test_import_run_initiator_actor_invariant_is_enforced(): void
+    {
+        $cli = AdminImportRun::create([
+            'request_id' => fake()->uuid(),
+            'entity' => 'courses',
+            'payload_fingerprint' => str_repeat('a', 64),
+            'initiator_type' => 'cli',
+            'status' => 'fetching',
+            'requested_limit' => 1,
+        ]);
+        $this->assertNull($cli->actor_id);
+
+        $this->expectException(\InvalidArgumentException::class);
+        AdminImportRun::create([
+            'request_id' => fake()->uuid(),
+            'entity' => 'courses',
+            'payload_fingerprint' => str_repeat('b', 64),
+            'initiator_type' => 'admin',
+            'status' => 'fetching',
+            'requested_limit' => 1,
+        ]);
+    }
+
+    public function test_import_run_invariants_are_enforced_on_updates(): void
+    {
+        $actor = User::factory()->create();
+        $run = AdminImportRun::create([
+            'request_id' => fake()->uuid(),
+            'entity' => 'courses',
+            'payload_fingerprint' => str_repeat('a', 64),
+            'actor_id' => $actor->id,
+            'initiator_type' => 'admin',
+            'status' => 'fetching',
+            'requested_limit' => 1,
+        ]);
+
+        foreach ([
+            ['actor_id' => null],
+            ['initiator_type' => 'worker'],
+            ['status' => 'mystery'],
+        ] as $mutation) {
+            try {
+                $run->fresh()->update($mutation);
+                $this->fail('Invalid import run mutation should be rejected.');
+            } catch (\InvalidArgumentException) {
+                $this->assertDatabaseHas('admin_import_runs', [
+                    'id' => $run->id,
+                    'actor_id' => $actor->id,
+                    'initiator_type' => 'admin',
+                    'status' => 'fetching',
+                ]);
+            }
+        }
+    }
+
+    public function test_import_staging_rollback_refusal_preserves_items(): void
+    {
+        $run = AdminImportRun::create([
+            'request_id' => fake()->uuid(),
+            'entity' => 'courses',
+            'payload_fingerprint' => str_repeat('a', 64),
+            'initiator_type' => 'cli',
+            'status' => 'review_ready',
+            'requested_limit' => 1,
+        ]);
+        AdminImportItem::create([
+            'admin_import_run_id' => $run->id,
+            'entity' => 'course',
+            'external_id' => 'course-rollback',
+            'normalized_fingerprint' => str_repeat('b', 64),
+            'candidate_payload' => ['title' => 'Preserve me'],
+            'classification' => 'new',
+            'selected_action' => 'add',
+        ]);
+        $migration = require database_path('migrations/2026_07_29_030000_create_admin_import_staging.php');
+
+        try {
+            $migration->down();
+            $this->fail('Rollback should refuse CLI runs without actors.');
+        } catch (\LogicException) {
+            $this->assertTrue(Schema::hasTable('admin_import_items'));
+            $this->assertDatabaseHas('admin_import_items', ['external_id' => 'course-rollback']);
+        }
+    }
 
     public function test_catalog_rows_have_local_ownership_metadata_by_default(): void
     {
