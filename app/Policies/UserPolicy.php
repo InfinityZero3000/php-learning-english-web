@@ -8,6 +8,6 @@ class UserPolicy
 {
     public function manage(User $user): bool
     {
-        return $user->role?->slug === 'admin';
+        return $user->isAdmin();
     }
 }

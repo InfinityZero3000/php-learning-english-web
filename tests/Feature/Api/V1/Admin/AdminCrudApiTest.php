@@ -431,6 +431,12 @@ class AdminCrudApiTest extends TestCase
      */
     public function test_admin_cannot_demote_self_or_last_admin(): void
     {
+        $this->actingAs($this->admin)
+            ->putJson("/api/v1/admin/users/{$this->learner->id}/role", [
+                'role_id' => $this->learnerRoleId,
+            ])
+            ->assertOk();
+
         // Self demote
         $this->actingAs($this->admin)
             ->putJson("/api/v1/admin/users/{$this->admin->id}/role", [

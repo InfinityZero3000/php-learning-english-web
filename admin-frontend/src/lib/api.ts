@@ -221,3 +221,8 @@ export const adminUsers = {
   assignRole: (id: number, role: string) =>
     request(`/api/admin/users/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
 };
+
+// Admin – Audit Logs
+export const auditLogs = {
+  list: () => request('/api/admin/audit-logs'),
+};

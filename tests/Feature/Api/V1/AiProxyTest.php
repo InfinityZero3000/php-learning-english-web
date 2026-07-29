@@ -220,4 +220,38 @@ class AiProxyTest extends TestCase
 
         Http::assertNothingSent();
     }
+
+    public function test_other_ai_routes_reject_unauthenticated_requests(): void
+    {
+        Http::fake();
+
+        $this->postJson('/api/v1/ai/pronunciation', [])->assertUnauthorized();
+        $this->postJson('/api/v1/ai/speech-to-text', [])->assertUnauthorized();
+        $this->postJson('/api/v1/ai/text-to-speech', [])->assertUnauthorized();
+
+        Http::assertNothingSent();
+    }
+
+    public function test_pronunciation_route_is_rate_limited(): void
+    {
+        Http::fake(['ai.lexilingo.test/*' => Http::response(['score' => 0.9])]);
+
+        $user = $this->learner();
+
+        for ($i = 0; $i < 10; $i++) {
+            $this->actingAs($user)
+                ->postJson('/api/v1/ai/pronunciation', [
+                    'audio' => UploadedFile::fake()->create('word.mp3', 100, 'audio/mpeg'),
+                    'reference_text' => 'hello',
+                ])
+                ->assertOk();
+        }
+
+        $this->actingAs($user)
+            ->postJson('/api/v1/ai/pronunciation', [
+                'audio' => UploadedFile::fake()->create('word.mp3', 100, 'audio/mpeg'),
+                'reference_text' => 'hello',
+            ])
+            ->assertStatus(429);
+    }
 }
