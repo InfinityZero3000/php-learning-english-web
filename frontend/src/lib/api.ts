@@ -1,5 +1,6 @@
 import type {
   AppUser,
+  CourseLearningPath,
 } from "@/types/api";
 import { initializeCsrf, xsrfToken } from "@/lib/csrf";
 
@@ -124,16 +125,17 @@ export const api = {
   learningAssignments: () => apiRequest<LearnerAssignment[]>("/api/v1/assignments"),
   catalogCourses: () => request<Envelope<CourseCard[]> & { meta: { total?: number } }>("/api/v1/catalog/courses"),
   catalogCourse: (id: number) => apiRequest<CourseDetail>(`/api/v1/catalog/courses/${id}`),
+  coursePath: (id: number) => apiRequest<CourseLearningPath>(`/api/v1/catalog/courses/${id}/path`),
   catalogCourseLessons: (id: number) => request<Envelope<LessonCard[]> & { meta: { total?: number } }>(`/api/v1/catalog/courses/${id}/lessons?per_page=100`),
   catalogLesson: (id: number) => apiRequest<LessonDetail>(`/api/v1/catalog/lessons/${id}`),
   enrollments: () => apiRequest<Enrollment[]>("/api/v1/enrollments"),
   enroll: (courseId: number) => apiRequest<Enrollment>("/api/v1/enrollments", {
     method: "POST", headers: { "X-Request-ID": crypto.randomUUID() }, body: JSON.stringify({ course_id: courseId })
   }),
-  startSession: (enrollmentId: number) => apiRequest<LearningSession>("/api/v1/learning/sessions", {
+  startSession: (enrollmentId: number, lessonId?: number) => apiRequest<LearningSession>("/api/v1/learning/sessions", {
     method: "POST",
     headers: { "X-Request-ID": crypto.randomUUID() },
-    body: JSON.stringify({ enrollment_id: enrollmentId })
+    body: JSON.stringify({ enrollment_id: enrollmentId, ...(lessonId ? { lesson_id: lessonId } : {}) })
   }),
   startAssignment: (assignmentId: number) => apiRequest<LearningSession>("/api/v1/learning/sessions", {
     method: "POST",
