@@ -448,7 +448,7 @@ export async function fetchQuizzes(): Promise<QuizResource[]> {
 }
 
 export interface QuizSubmissionPayload {
-  answers: Array<{ question_id: number; answer_id: number | null }>;
+  answers: Array<{ question_id: number; answer_id: number }>;
 }
 
 export async function submitQuiz(quizId: number, payload: QuizSubmissionPayload): Promise<AttemptResource> {
@@ -496,7 +496,8 @@ export async function publicVocabulary(params: {
   if (params.search) searchParams.set("search", params.search);
   if (params.perPage) searchParams.set("per_page", String(params.perPage));
   const qs = searchParams.toString();
-  return apiRequest<{ words: Word[]; meta: PaginationMeta }>("GET", `/api/v1/vocabulary/public${qs ? `?${qs}` : ""}`);
+  const result = await apiRequest<{ data: Word[]; meta: PaginationMeta }>("GET", `/api/v1/vocabulary${qs ? `?${qs}` : ""}`);
+  return { words: result.data, meta: result.meta };
 }
 
 export async function reviewWord(wordId: number, rating: number, timeSpent: number): Promise<void> {

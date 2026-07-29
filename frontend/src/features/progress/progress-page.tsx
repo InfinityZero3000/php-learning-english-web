@@ -57,7 +57,7 @@ export function ProgressPage() {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">
-        <Activity title="Completed Lessons" empty="No lessons completed yet.">
+        <Activity title="Recent Completed Lessons" empty="No lessons completed yet.">
           {progress.map((item) => (
             <ActivityRow
               key={item.id}

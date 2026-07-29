@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError, auth } from "./api";
+import { ApiError, auth, publicVocabulary } from "./api";
 
 describe("session API client", () => {
   beforeEach(() => {
@@ -56,5 +56,13 @@ describe("session API client", () => {
     await request();
 
     expect(fetchMock).toHaveBeenNthCalledWith(2, url, expect.objectContaining({ method: "POST" }));
+  });
+
+  it("maps the public vocabulary envelope used by flashcards", async () => {
+    const payload = { data: [{ id: 1, word: "hello" }], meta: { current_page: 1, last_page: 1, per_page: 20, total: 1 } };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(JSON.stringify(payload), { status: 200 }));
+
+    await expect(publicVocabulary({ search: "hello", perPage: 20 })).resolves.toEqual({ words: payload.data, meta: payload.meta });
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/vocabulary?search=hello&per_page=20", expect.any(Object));
   });
 });

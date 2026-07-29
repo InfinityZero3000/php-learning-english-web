@@ -52,7 +52,7 @@ export function QuizPage() {
   const [quiz, setQuiz] = useState<QuizResource | null>(null);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [selectedAnswerId, setSelectedAnswerId] = useState<number | null>(null);
-  const [answers, setAnswers] = useState<Array<{ question_id: number; answer_id: number | null }>>([]);
+  const [answers, setAnswers] = useState<Array<{ question_id: number; answer_id: number }>>([]);
   const [attempt, setAttempt] = useState<AttemptResource | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [loadingQuiz, setLoadingQuiz] = useState(false);
@@ -109,7 +109,7 @@ export function QuizPage() {
   const currentQuestion = quiz?.questions?.[questionIndex] ?? null;
   const totalQuestions = quiz?.questions?.length ?? 0;
 
-  function handleAnswer(answerId: number | null) {
+  function handleAnswer(answerId: number) {
     if (selectedAnswerId !== null || !currentQuestion) return;
     setSelectedAnswerId(answerId);
     const newAnswers = [...answers, { question_id: currentQuestion.id, answer_id: answerId }];
