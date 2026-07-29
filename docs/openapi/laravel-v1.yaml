@@ -8,6 +8,24 @@ info:
 servers:
   - url: /
 paths:
+  /api/v1:
+    get:
+      summary: API root info
+      operationId: rootInfo
+      security: []
+      responses:
+        "200":
+          description: Basic app metadata and a link to the health endpoint
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [name, version, status, health]
+                properties:
+                  name: { type: string }
+                  version: { const: v1 }
+                  status: { const: ok }
+                  health: { type: string, format: uri }
   /api/v1/health:
     get:
       summary: Check API health
@@ -90,6 +108,54 @@ paths:
         "419": { $ref: "#/components/responses/CsrfError" }
         "422": { $ref: "#/components/responses/ValidationError" }
         "429": { $ref: "#/components/responses/MessageResponse" }
+  /api/v1/auth/oauth/{provider}:
+    get:
+      summary: Start an OAuth login (Google/Facebook)
+      operationId: oauthRedirect
+      security: []
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema: { type: string, enum: [google, facebook] }
+        - in: query
+          name: next
+          description: Learner-frontend-relative path to return to after login; sanitized server-side.
+          schema: { type: string }
+      responses:
+        "302":
+          description: Redirect to the provider's consent screen
+          headers:
+            Location:
+              required: true
+              schema: { type: string, format: uri }
+        "404": { description: "Unknown provider" }
+  /api/v1/auth/oauth/{provider}/callback:
+    get:
+      summary: OAuth provider callback
+      operationId: oauthCallback
+      security: []
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema: { type: string, enum: [google, facebook] }
+      description: >-
+        Always responds with a redirect, never JSON. On success, creates or
+        logs in a learner account and redirects to
+        `{FRONTEND_URL}/auth/callback?next=...`. On failure, redirects to
+        `{FRONTEND_URL}/login?oauth_error=<code>` where `code` is one of
+        `cancelled`, `email_missing`, `role_conflict`, `invalid_state`,
+        `provider_failed` (an existing non-learner account, e.g. an admin,
+        attempting OAuth login maps to `role_conflict`).
+      responses:
+        "302":
+          description: Redirect to the learner frontend (success or mapped failure)
+          headers:
+            Location:
+              required: true
+              schema: { type: string, format: uri }
+        "404": { description: "Unknown provider" }
   /api/v1/auth/logout:
     post:
       summary: Log out the current user
@@ -238,6 +304,472 @@ paths:
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "419": { $ref: "#/components/responses/CsrfError" }
         "422": { $ref: "#/components/responses/ValidationError" }
+  /api/v1/catalog/courses:
+    get:
+      summary: List published courses
+      operationId: listCourses
+      security: []
+      parameters:
+        - in: query
+          name: search
+          description: Matches title or description.
+          schema: { type: string }
+        - in: query
+          name: level_id
+          schema: { type: integer }
+        - in: query
+          name: category_id
+          schema: { type: integer }
+        - in: query
+          name: topic_id
+          schema: { type: integer }
+        - in: query
+          name: sort_by
+          schema: { type: string, enum: [title, created_at], default: total_xp }
+        - in: query
+          name: per_page
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: Paginated published courses
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Course" }
+                  meta: { type: object }
+  /api/v1/catalog/courses/{course}:
+    get:
+      summary: Get a published course's detail
+      operationId: getCourse
+      security: []
+      parameters:
+        - in: path
+          name: course
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Course detail
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { $ref: "#/components/schemas/Course" }
+                  meta: { type: object }
+        "404": { description: "Course does not exist, or exists but is not published" }
+  /api/v1/catalog/courses/{course}/lessons:
+    get:
+      summary: List a published course's published lessons
+      operationId: listCourseLessons
+      security: []
+      parameters:
+        - in: path
+          name: course
+          required: true
+          schema: { type: integer }
+        - in: query
+          name: per_page
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: Paginated lessons for the course
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Lesson" }
+                  meta: { type: object }
+        "404": { description: "Course does not exist, or exists but is not published" }
+  /api/v1/catalog/lessons:
+    get:
+      summary: List published lessons (across published courses)
+      operationId: listLessons
+      security: []
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string }
+        - in: query
+          name: course_id
+          schema: { type: integer }
+        - in: query
+          name: lesson_type
+          schema: { type: string }
+        - in: query
+          name: per_page
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: Paginated published lessons
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Lesson" }
+                  meta: { type: object }
+  /api/v1/catalog/lessons/{lesson}:
+    get:
+      summary: Get a published lesson's detail (with content)
+      operationId: getLesson
+      security: []
+      parameters:
+        - in: path
+          name: lesson
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Lesson detail, including body content
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { $ref: "#/components/schemas/Lesson" }
+                  meta: { type: object }
+        "404": { description: "Lesson (or its course) does not exist, or exists but is not published" }
+  /api/v1/bookmarks:
+    get:
+      summary: List the current user's bookmarks
+      operationId: listBookmarks
+      security: [{ session: [] }]
+      parameters:
+        - in: query
+          name: bookmark_type
+          description: Exact-match filter; unknown values simply return an empty page, not a validation error.
+          schema: { type: string, enum: [vocabulary, lesson] }
+        - in: query
+          name: per_page
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: Paginated bookmarks
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Bookmark" }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+  /api/v1/bookmarks/vocabulary/{vocabulary}/toggle:
+    post:
+      summary: Toggle a bookmark on a vocabulary item
+      operationId: toggleVocabularyBookmark
+      security: [{ session: [], csrf: [] }]
+      parameters:
+        - in: path
+          name: vocabulary
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Bookmark removed (it existed)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: object, required: [status], properties: { status: { const: unbookmarked } } }
+                  meta: { type: object }
+        "201":
+          description: Bookmark created (it did not exist)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: object, required: [status], properties: { status: { const: bookmarked } } }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { description: "Vocabulary does not exist" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+  /api/v1/bookmarks/lesson/{lesson}/toggle:
+    post:
+      summary: Toggle a bookmark on a lesson
+      operationId: toggleLessonBookmark
+      security: [{ session: [], csrf: [] }]
+      parameters:
+        - in: path
+          name: lesson
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Bookmark removed (it existed)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: object, required: [status], properties: { status: { const: unbookmarked } } }
+                  meta: { type: object }
+        "201":
+          description: Bookmark created (it did not exist)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: object, required: [status], properties: { status: { const: bookmarked } } }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { description: "Lesson does not exist" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+  /api/v1/quizzes/{quiz}:
+    get:
+      summary: Get a published quiz with its questions and answers
+      operationId: getQuiz
+      security: [{ session: [] }]
+      description: Answer options never include `is_correct` — that stays server-side until submit.
+      parameters:
+        - in: path
+          name: quiz
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Quiz with nested questions/answers
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { $ref: "#/components/schemas/Quiz" }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { description: "Quiz does not exist, or the quiz/lesson/course chain is not fully published" }
+  /api/v1/quizzes/{quiz}/submit:
+    post:
+      summary: Submit quiz answers and get a score
+      operationId: submitQuiz
+      security: [{ session: [], csrf: [] }]
+      description: >-
+        Idempotent per (user, quiz): the first submission creates and scores
+        an Attempt (201); resubmitting returns the original Attempt
+        unchanged (200) rather than re-scoring or creating a duplicate.
+      parameters:
+        - in: path
+          name: quiz
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [answers]
+              properties:
+                answers:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [question_id, answer_id]
+                    properties:
+                      question_id: { type: integer }
+                      answer_id: { type: integer }
+      responses:
+        "200":
+          description: Already-completed attempt, returned unchanged (idempotent resubmit)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { $ref: "#/components/schemas/Attempt" }
+                  meta: { type: object }
+        "201":
+          description: First submission, newly scored
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { $ref: "#/components/schemas/Attempt" }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { description: "Quiz does not exist, or the quiz/lesson/course chain is not fully published" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422":
+          description: Missing/invalid answers, or an answer_id that does not belong to its submitted question_id
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ValidationError" }
+  /api/v1/quizzes/{quiz}/history:
+    get:
+      summary: List the current user's attempts for a quiz
+      operationId: getQuizHistory
+      security: [{ session: [] }]
+      parameters:
+        - in: path
+          name: quiz
+          required: true
+          schema: { type: integer }
+        - in: query
+          name: per_page
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: Paginated attempts, most recent first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Attempt" }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { description: "Quiz does not exist, or the quiz/lesson/course chain is not fully published" }
+  /api/v1/progress:
+    get:
+      summary: List the current user's lesson-completion progress
+      operationId: listMyProgress
+      security: [{ session: [] }]
+      parameters:
+        - in: query
+          name: course_id
+          schema: { type: integer }
+        - in: query
+          name: per_page
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: Paginated progress records
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Progress" }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+  /api/v1/progress/dashboard:
+    get:
+      summary: Get the current user's learning dashboard overview
+      operationId: getProgressDashboard
+      security: [{ session: [] }]
+      responses:
+        "200":
+          description: Overview counters plus recent activity/attempts
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: object
+                    required: [overview, recent_activity, recent_attempts]
+                    properties:
+                      overview:
+                        type: object
+                        required: [completed_lessons, quiz_attempts, average_score]
+                        properties:
+                          completed_lessons: { type: integer }
+                          quiz_attempts: { type: integer }
+                          average_score: { type: number }
+                      recent_activity:
+                        type: array
+                        items: { $ref: "#/components/schemas/Progress" }
+                      recent_attempts:
+                        type: array
+                        items: { $ref: "#/components/schemas/Attempt" }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+  /api/v1/progress/course/{course}:
+    get:
+      summary: Get the current user's completion percentage for a course
+      operationId: getCourseProgress
+      security: [{ session: [] }]
+      parameters:
+        - in: path
+          name: course
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Completion summary for the course
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: object
+                    required: [course, progress_percent, completed_lessons, total_lessons]
+                    properties:
+                      course:
+                        type: object
+                        required: [id, title]
+                        properties:
+                          id: { type: integer }
+                          title: { type: string }
+                      progress_percent: { type: integer }
+                      completed_lessons: { type: integer }
+                      total_lessons: { type: integer }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { description: "Course does not exist, or exists but is not published" }
+  /api/v1/progress/lesson/{lesson}/complete:
+    post:
+      summary: Mark a lesson as completed for the current user
+      operationId: markLessonCompleted
+      security: [{ session: [], csrf: [] }]
+      description: Idempotent — resubmitting does not update the original completed_at timestamp or create a duplicate record.
+      parameters:
+        - in: path
+          name: lesson
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Marked completed (or already was)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: object, required: [status], properties: { status: { const: completed } } }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { description: "Lesson does not exist, or the lesson/course chain is not fully published" }
+        "419": { $ref: "#/components/responses/CsrfError" }
   /api/admin/users:
     get:
       summary: List users (admin)
@@ -556,6 +1088,554 @@ paths:
         "429": { $ref: "#/components/responses/MessageResponse" }
         "502": { $ref: "#/components/responses/UpstreamError" }
         "504": { $ref: "#/components/responses/UpstreamTimeout" }
+  /api/v1/admin/topics:
+    get:
+      summary: List topics (admin)
+      operationId: adminListTopics
+      security: [{ session: [] }]
+      description: >-
+        Authorized via `Gate::authorize('manage', Topic::class)` inside the
+        controller action (only `auth` middleware at the route level) —
+        this is a *different* 403 codepath than `/api/admin/users*`, which
+        uses the `role:admin` route middleware. Both currently reject
+        non-admins, but they are two distinct mechanisms.
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string }
+        - in: query
+          name: per_page
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: Paginated topics
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Topic" }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      summary: Create a topic (admin)
+      operationId: adminCreateTopic
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 255 }
+                slug: { type: [string, "null"], maxLength: 255, description: "Defaults to a slug of name if omitted; must be unique." }
+      responses:
+        "201":
+          description: Topic created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { $ref: "#/components/schemas/Topic" }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+  /api/v1/admin/topics/{topic}:
+    get:
+      summary: Get a topic (admin)
+      operationId: adminGetTopic
+      security: [{ session: [] }]
+      parameters:
+        - in: path
+          name: topic
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Topic detail
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { $ref: "#/components/schemas/Topic" }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { description: "Topic does not exist" }
+    put:
+      summary: Update a topic (admin)
+      operationId: adminUpdateTopic
+      security: [{ session: [], csrf: [] }]
+      parameters:
+        - in: path
+          name: topic
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 255 }
+                slug: { type: [string, "null"], maxLength: 255, description: "Uniqueness check ignores this topic's own current slug." }
+      responses:
+        "200":
+          description: Topic updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { $ref: "#/components/schemas/Topic" }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { description: "Topic does not exist" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+    delete:
+      summary: Delete a topic (admin)
+      operationId: adminDeleteTopic
+      security: [{ session: [], csrf: [] }]
+      parameters:
+        - in: path
+          name: topic
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: Topic deleted }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { description: "Topic does not exist" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+  /api/v1/admin/levels:
+    get:
+      summary: List levels (admin)
+      operationId: adminListLevels
+      security: [{ session: [] }]
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string }
+        - in: query
+          name: per_page
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: Paginated levels
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Level" }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      summary: Create a level (admin)
+      operationId: adminCreateLevel
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 255 }
+                slug: { type: [string, "null"], maxLength: 255 }
+                sort_order: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "201":
+          description: Level created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { $ref: "#/components/schemas/Level" }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+  /api/v1/admin/levels/{level}:
+    get:
+      summary: Get a level (admin)
+      operationId: adminGetLevel
+      security: [{ session: [] }]
+      parameters:
+        - in: path
+          name: level
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Level detail
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { $ref: "#/components/schemas/Level" }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { description: "Level does not exist" }
+    put:
+      summary: Update a level (admin)
+      operationId: adminUpdateLevel
+      security: [{ session: [], csrf: [] }]
+      parameters:
+        - in: path
+          name: level
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 255 }
+                slug: { type: [string, "null"], maxLength: 255 }
+                sort_order: { type: integer, minimum: 0 }
+      responses:
+        "200":
+          description: Level updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { $ref: "#/components/schemas/Level" }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { description: "Level does not exist" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+    delete:
+      summary: Delete a level (admin)
+      operationId: adminDeleteLevel
+      security: [{ session: [], csrf: [] }]
+      parameters:
+        - in: path
+          name: level
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: Level deleted }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { description: "Level does not exist" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+  /api/v1/admin/categories:
+    get:
+      summary: List course categories (admin)
+      operationId: adminListCategories
+      security: [{ session: [] }]
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string }
+        - in: query
+          name: per_page
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: Paginated categories
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/CourseCategory" }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      summary: Create a course category (admin)
+      operationId: adminCreateCategory
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 255 }
+                slug: { type: [string, "null"], maxLength: 255 }
+                description: { type: [string, "null"] }
+                icon: { type: [string, "null"], maxLength: 255 }
+                color: { type: [string, "null"], maxLength: 20 }
+                sort_order: { type: integer, minimum: 0, default: 0 }
+                is_active: { type: boolean, default: true }
+      responses:
+        "201":
+          description: Category created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { $ref: "#/components/schemas/CourseCategory" }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+  /api/v1/admin/categories/{category}:
+    get:
+      summary: Get a course category (admin)
+      operationId: adminGetCategory
+      security: [{ session: [] }]
+      parameters:
+        - in: path
+          name: category
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Category detail
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { $ref: "#/components/schemas/CourseCategory" }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { description: "Category does not exist" }
+    put:
+      summary: Update a course category (admin)
+      operationId: adminUpdateCategory
+      security: [{ session: [], csrf: [] }]
+      parameters:
+        - in: path
+          name: category
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 255 }
+                slug: { type: [string, "null"], maxLength: 255 }
+                description: { type: [string, "null"] }
+                icon: { type: [string, "null"], maxLength: 255 }
+                color: { type: [string, "null"], maxLength: 20 }
+                sort_order: { type: integer, minimum: 0 }
+                is_active: { type: boolean }
+      responses:
+        "200":
+          description: Category updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { $ref: "#/components/schemas/CourseCategory" }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { description: "Category does not exist" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+    delete:
+      summary: Delete a course category (admin)
+      operationId: adminDeleteCategory
+      security: [{ session: [], csrf: [] }]
+      parameters:
+        - in: path
+          name: category
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: Category deleted }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { description: "Category does not exist" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+  /api/v1/admin/media/upload:
+    post:
+      summary: Upload a media file (admin)
+      operationId: adminUploadMedia
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        "201":
+          description: File stored
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: object
+                    required: [filename, original_name, mime_type, size, url, path, disk]
+                    properties:
+                      filename: { type: string }
+                      original_name: { type: string }
+                      mime_type: { type: string }
+                      size: { type: integer }
+                      url: { type: string, format: uri }
+                      path: { type: string }
+                      disk: { type: string }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+  /api/v1/admin/media/{path}:
+    delete:
+      summary: Delete an uploaded media file (admin)
+      operationId: adminDeleteMedia
+      security: [{ session: [], csrf: [] }]
+      parameters:
+        - in: path
+          name: path
+          required: true
+          description: The stored path returned by the upload endpoint (e.g. `uploads/2026/07/example.jpg`).
+          schema: { type: string }
+      responses:
+        "204": { description: File deleted }
+        "400": { $ref: "#/components/responses/AdminMediaError" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/AdminMediaError" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+  /api/v1/content/news:
+    get:
+      summary: Proxy LexiLingo news content
+      operationId: contentNews
+      security: [{ session: [] }]
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer }
+        - in: query
+          name: page_size
+          schema: { type: integer }
+        - in: query
+          name: category
+          schema: { type: string }
+        - in: query
+          name: language
+          schema: { type: string }
+      responses:
+        "200":
+          description: Upstream response relayed as-is (not wrapped in a data/meta envelope)
+          content:
+            application/json:
+              schema: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "503": { $ref: "#/components/responses/LexiLingoContentUnavailable" }
+  /api/v1/content/youtube:
+    get:
+      summary: Proxy LexiLingo YouTube search content
+      operationId: contentYoutube
+      security: [{ session: [] }]
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string }
+        - in: query
+          name: page
+          schema: { type: integer }
+        - in: query
+          name: page_size
+          schema: { type: integer }
+        - in: query
+          name: language
+          schema: { type: string }
+      responses:
+        "200":
+          description: Upstream response relayed as-is (not wrapped in a data/meta envelope)
+          content:
+            application/json:
+              schema: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "503": { $ref: "#/components/responses/LexiLingoContentUnavailable" }
+  /api/v1/enrichment/words/{vocabulary}:
+    post:
+      summary: Enrich a vocabulary entry from external dictionary/translation/image sources
+      operationId: enrichVocabulary
+      security: [{ session: [] }]
+      description: >-
+        Guarded by both the route's `auth` middleware and a redundant
+        in-closure `abort_unless(auth()->check(), 401)` — intentional
+        belt-and-suspenders, not a bug. Only works when
+        `APP_ENRICHMENT_ENABLED=true` and at least one of the enrichment
+        provider env vars is configured; otherwise the service throws and
+        the request fails with an unhandled 500 (no dedicated error
+        contract exists for the disabled case today).
+      parameters:
+        - in: path
+          name: vocabulary
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The vocabulary entry, updated in place with any newly enriched fields
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { $ref: "#/components/schemas/Vocabulary" }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { description: "Vocabulary does not exist" }
 components:
   securitySchemes:
     session:
@@ -643,6 +1723,139 @@ components:
         difficulty_level: { type: [string, "null"] }
         tags: { type: [array, "null"] }
         external_audio_url: { type: [string, "null"] }
+    Level:
+      type: object
+      required: [id, name, slug]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        slug: { type: string }
+        sort_order: { type: integer }
+        courses_count: { type: integer, description: "Present only when eager-loaded with a count." }
+    CourseCategory:
+      type: object
+      required: [id, name, slug]
+      properties:
+        id: { type: integer }
+        external_id: { type: [string, "null"] }
+        name: { type: string }
+        slug: { type: string }
+        description: { type: [string, "null"] }
+        icon: { type: [string, "null"] }
+        color: { type: [string, "null"] }
+        sort_order: { type: integer }
+        is_active: { type: boolean }
+        courses_count: { type: integer, description: "Present only when eager-loaded with a count." }
+    Topic:
+      type: object
+      required: [id, name, slug]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        slug: { type: string }
+        courses_count: { type: integer, description: "Present only when eager-loaded with a count." }
+        vocabularies_count: { type: integer, description: "Present only when eager-loaded with a count." }
+    Course:
+      type: object
+      required: [id, title, slug, status]
+      properties:
+        id: { type: integer }
+        external_id: { type: [string, "null"] }
+        title: { type: string }
+        slug: { type: string }
+        description: { type: [string, "null"] }
+        status: { type: string, enum: [draft, published] }
+        language: { type: [string, "null"] }
+        thumbnail_url: { type: [string, "null"] }
+        estimated_duration: { type: [integer, "null"] }
+        total_xp: { type: integer }
+        level: { $ref: "#/components/schemas/Level" }
+        category: { $ref: "#/components/schemas/CourseCategory" }
+        topics:
+          type: array
+          items: { $ref: "#/components/schemas/Topic" }
+        lessons_count: { type: integer, description: "Present only when eager-loaded with a count." }
+        units_count: { type: integer, description: "Present only when eager-loaded with a count." }
+    Lesson:
+      type: object
+      required: [id, title, slug, status]
+      properties:
+        id: { type: integer }
+        external_id: { type: [string, "null"] }
+        title: { type: string }
+        slug: { type: string }
+        lesson_type: { type: [string, "null"] }
+        sort_order: { type: integer }
+        status: { type: string, enum: [draft, published] }
+        estimated_minutes: { type: [integer, "null"] }
+        xp_reward: { type: integer }
+        pass_threshold: { type: [integer, "null"] }
+        course: { $ref: "#/components/schemas/Course" }
+        unit_id: { type: [integer, "null"] }
+        quizzes_count: { type: integer, description: "Present only when eager-loaded with a count." }
+        vocabularies_count: { type: integer, description: "Present only when eager-loaded with a count." }
+        content: { type: string, description: "Only present on the single-lesson detail response." }
+    Bookmark:
+      type: object
+      required: [id, bookmark_type, created_at]
+      properties:
+        id: { type: integer }
+        bookmark_type: { type: string, enum: [vocabulary, lesson] }
+        vocabulary: { $ref: "#/components/schemas/Vocabulary" }
+        lesson: { $ref: "#/components/schemas/Lesson" }
+        created_at: { type: string, format: date-time }
+    Answer:
+      type: object
+      required: [id, content]
+      description: Never includes is_correct — that stays server-side until submit.
+      properties:
+        id: { type: integer }
+        content: { type: string }
+    Question:
+      type: object
+      required: [id, quiz_id, content]
+      properties:
+        id: { type: integer }
+        quiz_id: { type: integer }
+        content: { type: string }
+        explanation: { type: [string, "null"] }
+        sort_order: { type: integer }
+        answers:
+          type: array
+          items: { $ref: "#/components/schemas/Answer" }
+    Quiz:
+      type: object
+      required: [id, lesson_id, title, passing_score, status]
+      properties:
+        id: { type: integer }
+        lesson_id: { type: integer }
+        title: { type: string }
+        passing_score: { type: integer }
+        status: { type: string, enum: [draft, published] }
+        questions_count: { type: integer, description: "Present only when eager-loaded with a count." }
+        questions:
+          type: array
+          items: { $ref: "#/components/schemas/Question" }
+        lesson: { $ref: "#/components/schemas/Lesson" }
+    Attempt:
+      type: object
+      required: [id, quiz_id, score]
+      properties:
+        id: { type: integer }
+        quiz_id: { type: integer }
+        score: { type: number }
+        started_at: { type: [string, "null"], format: date-time }
+        completed_at: { type: [string, "null"], format: date-time }
+        created_at: { type: string, format: date-time }
+        quiz: { $ref: "#/components/schemas/Quiz" }
+    Progress:
+      type: object
+      required: [id, lesson_id]
+      properties:
+        id: { type: integer }
+        lesson_id: { type: integer }
+        completed_at: { type: [string, "null"], format: date-time }
+        lesson: { $ref: "#/components/schemas/Lesson" }
     AdminUser:
       type: object
       required: [id, email, name, avatarUrl, role, locked, createdAt, lastLoginAt]
@@ -786,3 +1999,26 @@ components:
             properties:
               message: { type: string }
               code: { const: UPSTREAM_TIMEOUT }
+    AdminMediaError:
+      description: Path traversal rejected (400) or file not found (404) — a literal app-level JSON body, not a framework exception
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data, meta]
+            properties:
+              data:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string, enum: ["Invalid file path", "File not found"] }
+              meta: { type: object }
+    LexiLingoContentUnavailable:
+      description: The LexiLingo content proxy could not reach or parse the upstream response
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [message]
+            properties:
+              message: { type: string }
