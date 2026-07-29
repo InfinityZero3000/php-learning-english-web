@@ -130,6 +130,26 @@ curl http://localhost:8080/health
 
 Redis phải trả `PONG`; health endpoint phải trả HTTP 200.
 
+## Postman
+
+Bộ Postman collection + environment tại `postman/` là nguồn xác minh API
+dùng chung cho toàn bộ `/api/v1` và `/api/admin` — issue tài liệu API (#26)
+chỉ liên kết tới đây, không tạo bản sao khác.
+
+```bash
+docker compose exec app php artisan migrate:fresh --seed
+# Import postman/php-learning-english-web.postman_collection.json
+# và postman/local.postman_environment.json vào Postman, hoặc chạy CLI:
+npx newman run postman/php-learning-english-web.postman_collection.json \
+  -e postman/local.postman_environment.json --folder "0a - Login as Learner" \
+  --folder "2 - Catalog" --folder "3 - Learning"
+```
+
+Ứng dụng xác thực bằng session + CSRF cookie (không dùng bearer token), nên
+collection cần chạy đúng thứ tự đăng nhập/đăng xuất — xem mô tả trong
+collection (`postman/php-learning-english-web.postman_collection.json`) để
+biết chi tiết từng folder.
+
 ## Cấu trúc phát triển
 
 - `app/Models`: model và quan hệ Eloquent nền.
@@ -139,6 +159,7 @@ Redis phải trả `PONG`; health endpoint phải trả HTTP 200.
 - `routes`: điểm vào web và API.
 - `docs/PROJECT_PLAN.md`: phân chia nhiệm vụ và phụ thuộc.
 - `docs/DEVELOPMENT_WORKFLOW.md`: branch, push, Pull Request, PHPUnit và CI/CD Fly.io.
+- `postman/`: Postman collection + environment dùng chung cho kiểm thử API thủ công.
 
 Controller, Form Request, Policy, Resource và Service chỉ được tạo khi module nghiệp vụ tương ứng bắt đầu.
 

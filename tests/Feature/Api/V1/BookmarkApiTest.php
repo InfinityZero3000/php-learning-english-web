@@ -140,6 +140,14 @@ class BookmarkApiTest extends TestCase
         ]);
     }
 
+    public function test_toggle_returns_404_for_nonexistent_target(): void
+    {
+        $this->actingAs($this->user);
+
+        $this->postJson('/api/v1/bookmarks/vocabulary/999999/toggle')->assertNotFound();
+        $this->postJson('/api/v1/bookmarks/lesson/999999/toggle')->assertNotFound();
+    }
+
     public function test_bookmark_index_paginates(): void
     {
         $this->actingAs($this->user);

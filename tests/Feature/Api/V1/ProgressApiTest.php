@@ -150,6 +150,38 @@ class ProgressApiTest extends TestCase
         $this->getJson("/api/v1/progress/course/{$this->course1Id}")->assertNotFound();
     }
 
+    public function test_course_progress_returns_404_for_nonexistent_course(): void
+    {
+        $this->actingAs($this->user);
+
+        $this->getJson('/api/v1/progress/course/999999')->assertNotFound();
+    }
+
+    public function test_user_cannot_see_other_user_dashboard(): void
+    {
+        $otherUser = User::factory()->create();
+        $this->actingAs($this->user);
+
+        Progress::create([
+            'user_id' => $otherUser->id,
+            'lesson_id' => $this->lesson1Id,
+            'completed_at' => now(),
+        ]);
+        Attempt::create([
+            'user_id' => $otherUser->id,
+            'quiz_id' => $this->quiz1Id,
+            'score' => 80,
+            'started_at' => now(),
+            'completed_at' => now(),
+        ]);
+
+        $this->getJson('/api/v1/progress/dashboard')
+            ->assertOk()
+            ->assertJsonPath('data.overview.completed_lessons', 0)
+            ->assertJsonPath('data.overview.quiz_attempts', 0)
+            ->assertJsonPath('data.overview.average_score', 0);
+    }
+
     public function test_dashboard_returns_overview(): void
     {
         $this->actingAs($this->user);

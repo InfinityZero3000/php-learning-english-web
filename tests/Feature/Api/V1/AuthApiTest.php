@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class AuthApiTest extends TestCase
@@ -63,5 +64,60 @@ class AuthApiTest extends TestCase
         ])->assertForbidden()->assertJsonPath('code', 'ACCOUNT_LOCKED');
 
         $this->getJson('/api/v1/auth/me')->assertUnauthorized();
+    }
+
+    public static function registerValidationCasesProvider(): array
+    {
+        $base = ['name' => 'Learner', 'email' => 'learner@example.com', 'password' => 'password123', 'password_confirmation' => 'password123'];
+
+        return [
+            'missing name' => [array_merge($base, ['name' => '']), 'name'],
+            'missing email' => [array_merge($base, ['email' => '']), 'email'],
+            'invalid email format' => [array_merge($base, ['email' => 'not-an-email']), 'email'],
+            'missing password' => [array_merge($base, ['password' => '', 'password_confirmation' => '']), 'password'],
+            'password too short' => [array_merge($base, ['password' => 'short', 'password_confirmation' => 'short']), 'password'],
+            'password confirmation mismatch' => [array_merge($base, ['password_confirmation' => 'different123']), 'password'],
+        ];
+    }
+
+    #[DataProvider('registerValidationCasesProvider')]
+    public function test_register_validation_errors_for_missing_and_invalid_fields(array $payload, string $invalidField): void
+    {
+        $this->seed();
+
+        $this->postJson('/api/v1/auth/register', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors($invalidField);
+    }
+
+    public function test_register_rejects_duplicate_email(): void
+    {
+        $this->seed();
+        $existing = User::factory()->create(['email' => 'duplicate@example.com']);
+
+        $this->postJson('/api/v1/auth/register', [
+            'name' => 'Learner',
+            'email' => $existing->email,
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ])->assertUnprocessable()->assertJsonValidationErrors('email');
+    }
+
+    public static function loginValidationCasesProvider(): array
+    {
+        return [
+            'missing email' => [['email' => '', 'password' => 'password123'], 'email'],
+            'missing password' => [['email' => 'learner@example.com', 'password' => ''], 'password'],
+        ];
+    }
+
+    #[DataProvider('loginValidationCasesProvider')]
+    public function test_login_validation_errors_for_missing_fields(array $payload, string $invalidField): void
+    {
+        $this->seed();
+
+        $this->postJson('/api/v1/auth/login', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors($invalidField);
     }
 }
