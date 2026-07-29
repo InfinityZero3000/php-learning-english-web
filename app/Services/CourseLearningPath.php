@@ -152,7 +152,7 @@ class CourseLearningPath
             ->contains(fn (Lesson $lesson) => ! $completedIds->contains($lesson->id));
     }
 
-    private function candidates(Course $course)
+    public function candidates(Course $course)
     {
         return Lesson::query()
             ->select('lessons.*')
