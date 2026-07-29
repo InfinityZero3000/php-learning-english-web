@@ -2,6 +2,19 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BookmarkController;
+use App\Http\Controllers\CourseController;
+use App\Http\Controllers\EmailVerificationController;
+use App\Http\Controllers\ForgotPasswordController;
+use App\Http\Controllers\LessonController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ProgressController;
+use App\Http\Controllers\QuizAttemptController;
+use App\Http\Controllers\QuizController;
+use App\Http\Controllers\VocabularyController;
+use App\Http\Controllers\WordsController;
 use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
@@ -10,19 +23,19 @@ class NoBladeRuntimeTest extends TestCase
     public function test_no_production_route_uses_a_legacy_blade_controller(): void
     {
         $legacy = [
-            \App\Http\Controllers\AuthController::class,
-            \App\Http\Controllers\BookmarkController::class,
-            \App\Http\Controllers\CourseController::class,
-            \App\Http\Controllers\EmailVerificationController::class,
-            \App\Http\Controllers\ForgotPasswordController::class,
-            \App\Http\Controllers\LessonController::class,
-            \App\Http\Controllers\ProfileController::class,
-            \App\Http\Controllers\ProgressController::class,
-            \App\Http\Controllers\QuizAttemptController::class,
-            \App\Http\Controllers\QuizController::class,
-            \App\Http\Controllers\VocabularyController::class,
-            \App\Http\Controllers\WordsController::class,
-            \App\Http\Controllers\Admin\UserController::class,
+            AuthController::class,
+            BookmarkController::class,
+            CourseController::class,
+            EmailVerificationController::class,
+            ForgotPasswordController::class,
+            LessonController::class,
+            ProfileController::class,
+            ProgressController::class,
+            QuizAttemptController::class,
+            QuizController::class,
+            VocabularyController::class,
+            WordsController::class,
+            UserController::class,
         ];
 
         foreach (Route::getRoutes() as $route) {

@@ -13,6 +13,7 @@ class AdminQuizService
         return DB::transaction(function () use ($data): Quiz {
             $quiz = Quiz::create(collect($data)->except('questions')->all());
             $this->replaceQuestions($quiz, $data['questions']);
+
             return $quiz;
         });
     }
@@ -21,10 +22,13 @@ class AdminQuizService
     {
         return DB::transaction(function () use ($quiz, $data): Quiz {
             $quiz = Quiz::query()->lockForUpdate()->findOrFail($quiz->id);
-            if ($quiz->attempts()->where('status', 'active')->exists()) throw new ConflictHttpException('ACTIVE_ATTEMPTS');
+            if ($quiz->attempts()->where('status', 'active')->exists()) {
+                throw new ConflictHttpException('ACTIVE_ATTEMPTS');
+            }
             $quiz->update(collect($data)->except('questions')->all());
             $quiz->questions()->delete();
             $this->replaceQuestions($quiz, $data['questions']);
+
             return $quiz;
         });
     }
@@ -33,8 +37,11 @@ class AdminQuizService
     {
         return DB::transaction(function () use ($quiz): bool {
             $quiz = Quiz::query()->lockForUpdate()->findOrFail($quiz->id);
-            if ($quiz->attempts()->exists()) return false;
+            if ($quiz->attempts()->exists()) {
+                return false;
+            }
             $quiz->delete();
+
             return true;
         });
     }
@@ -46,7 +53,9 @@ class AdminQuizService
                 'content' => $questionData['content'], 'explanation' => $questionData['explanation'] ?? null,
                 'sort_order' => $questionIndex,
             ]);
-            foreach ($questionData['answers'] as $answerData) $question->answers()->create($answerData);
+            foreach ($questionData['answers'] as $answerData) {
+                $question->answers()->create($answerData);
+            }
         }
     }
 }

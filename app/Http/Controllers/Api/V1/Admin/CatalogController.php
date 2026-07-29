@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\CourseResource;
+use App\Http\Resources\VocabularyResource;
 use App\Models\Course;
 use App\Models\Level;
 use App\Models\OperationsAudit;
@@ -13,8 +14,8 @@ use App\Models\VocabularyDeck;
 use App\Support\ApiResponse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -52,7 +53,7 @@ class CatalogController extends Controller
     {
         $this->authorizeCatalog($request);
 
-        return ApiResponse::success((new \App\Http\Resources\VocabularyResource($vocabulary->load('topic:id,name')->loadCount('decks')))->resolve());
+        return ApiResponse::success((new VocabularyResource($vocabulary->load('topic:id,name')->loadCount('decks')))->resolve());
     }
 
     public function decks(Request $request): JsonResponse
@@ -114,6 +115,7 @@ class CatalogController extends Controller
         $paths = $this->ownedVocabularyMediaPaths([$model->image_path, $model->audio_path]);
         $response = $this->delete($request, Vocabulary::class, $vocabulary, 'vocabulary');
         Storage::disk('public')->delete($paths);
+
         return $response;
     }
 
@@ -129,12 +131,20 @@ class CatalogController extends Controller
             return ApiResponse::error('VALIDATION_ERROR', 'At least one media operation is required.', 422);
         }
         $new = [];
-        if ($request->hasFile('image') && ! ($data['remove_image'] ?? false)) $new['image_path'] = $request->file('image')->store('vocabularies/images', 'public');
-        if ($request->hasFile('audio') && ! ($data['remove_audio'] ?? false)) $new['audio_path'] = $request->file('audio')->store('vocabularies/audio', 'public');
+        if ($request->hasFile('image') && ! ($data['remove_image'] ?? false)) {
+            $new['image_path'] = $request->file('image')->store('vocabularies/images', 'public');
+        }
+        if ($request->hasFile('audio') && ! ($data['remove_audio'] ?? false)) {
+            $new['audio_path'] = $request->file('audio')->store('vocabularies/audio', 'public');
+        }
         $old = ['image_path' => $vocabulary->image_path, 'audio_path' => $vocabulary->audio_path];
         $updates = $new;
-        if ($data['remove_image'] ?? false) $updates['image_path'] = null;
-        if ($data['remove_audio'] ?? false) $updates['audio_path'] = null;
+        if ($data['remove_image'] ?? false) {
+            $updates['image_path'] = null;
+        }
+        if ($data['remove_audio'] ?? false) {
+            $updates['audio_path'] = null;
+        }
         try {
             DB::transaction(fn () => $vocabulary->update($updates));
         } catch (\Throwable $exception) {
@@ -142,10 +152,12 @@ class CatalogController extends Controller
             throw $exception;
         }
         foreach ($updates as $field => $path) {
-            if ($old[$field] && $old[$field] !== $path && $this->ownedVocabularyMediaPaths([$old[$field]])) Storage::disk('public')->delete($old[$field]);
+            if ($old[$field] && $old[$field] !== $path && $this->ownedVocabularyMediaPaths([$old[$field]])) {
+                Storage::disk('public')->delete($old[$field]);
+            }
         }
 
-        return ApiResponse::success((new \App\Http\Resources\VocabularyResource($vocabulary->fresh()->load('topic')))->resolve());
+        return ApiResponse::success((new VocabularyResource($vocabulary->fresh()->load('topic')))->resolve());
     }
 
     public function createDeck(Request $request): JsonResponse
@@ -249,7 +261,9 @@ class CatalogController extends Controller
             DB::transaction(function () use ($request, $course, $data, $fingerprint, $topicIds): void {
                 $before = $course->toArray();
                 $course->update($data);
-                if ($topicIds !== null) $course->topics()->sync($topicIds);
+                if ($topicIds !== null) {
+                    $course->topics()->sync($topicIds);
+                }
                 $this->audit($request, 'course.updated', $course, $fingerprint, $before);
             });
         } catch (QueryException $exception) {

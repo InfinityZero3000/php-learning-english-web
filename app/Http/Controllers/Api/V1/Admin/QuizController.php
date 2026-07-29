@@ -7,9 +7,9 @@ use App\Http\Requests\Api\V1\Admin\WriteQuizRequest;
 use App\Models\Quiz;
 use App\Services\AdminQuizService;
 use App\Support\ApiResponse;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Exceptions\HttpResponseException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class QuizController extends Controller
@@ -24,7 +24,9 @@ class QuizController extends Controller
             'status' => ['nullable', 'in:draft,published,archived'], 'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
-        if ($validator->fails()) throw new HttpResponseException(ApiResponse::error('VALIDATION_ERROR', 'The given data was invalid.', 422, ['errors' => $validator->errors()]));
+        if ($validator->fails()) {
+            throw new HttpResponseException(ApiResponse::error('VALIDATION_ERROR', 'The given data was invalid.', 422, ['errors' => $validator->errors()]));
+        }
         $validated = $validator->validated();
         $search = trim((string) ($validated['search'] ?? ''));
         $page = Quiz::query()->with('lesson.course')->withCount(['questions', 'attempts'])
@@ -46,6 +48,7 @@ class QuizController extends Controller
     public function show(Request $request, Quiz $quiz): JsonResponse
     {
         $this->authorizeContent($request);
+
         return ApiResponse::success($this->detail($quiz));
     }
 
@@ -54,7 +57,9 @@ class QuizController extends Controller
         try {
             return ApiResponse::success($this->detail($this->service->update($quiz, $request->validated())));
         } catch (ConflictHttpException $exception) {
-            if ($exception->getMessage() === 'ACTIVE_ATTEMPTS') return ApiResponse::error('ACTIVE_ATTEMPTS', 'The quiz has active attempts.', 409);
+            if ($exception->getMessage() === 'ACTIVE_ATTEMPTS') {
+                return ApiResponse::error('ACTIVE_ATTEMPTS', 'The quiz has active attempts.', 409);
+            }
             throw $exception;
         }
     }
@@ -62,7 +67,10 @@ class QuizController extends Controller
     public function destroy(Request $request, Quiz $quiz): JsonResponse
     {
         $this->authorizeContent($request);
-        if (! $this->service->delete($quiz)) return ApiResponse::error('DEPENDENCY_EXISTS', 'The quiz has learner attempts.', 409);
+        if (! $this->service->delete($quiz)) {
+            return ApiResponse::error('DEPENDENCY_EXISTS', 'The quiz has learner attempts.', 409);
+        }
+
         return response()->json(null, 204);
     }
 
@@ -78,6 +86,7 @@ class QuizController extends Controller
     private function detail(Quiz $quiz): array
     {
         $quiz->load(['lesson.course', 'questions' => fn ($query) => $query->orderBy('sort_order'), 'questions.answers']);
+
         return [
             'id' => $quiz->id, 'lesson_id' => $quiz->lesson_id, 'lesson' => ['id' => $quiz->lesson->id, 'title' => $quiz->lesson->title],
             'title' => $quiz->title, 'passing_score' => $quiz->passing_score, 'status' => $quiz->status,

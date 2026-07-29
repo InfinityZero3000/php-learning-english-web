@@ -39,7 +39,9 @@ class MediaListeningController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        if ($disabled = $this->disabled()) return $disabled;
+        if ($disabled = $this->disabled()) {
+            return $disabled;
+        }
         $data = $request->validate([
             'external_id' => ['required', 'string', 'max:100'],
             'title' => ['required', 'string', 'max:255'],
@@ -57,7 +59,9 @@ class MediaListeningController extends Controller
 
     public function update(Request $request, MediaListeningSession $session): JsonResponse
     {
-        if ($disabled = $this->disabled()) return $disabled;
+        if ($disabled = $this->disabled()) {
+            return $disabled;
+        }
         $this->owns($request, $session);
         $data = $request->validate([
             'position_seconds' => ['required', 'integer', 'min:0', 'max:86400'],
@@ -75,7 +79,9 @@ class MediaListeningController extends Controller
 
     public function pronunciation(Request $request, MediaListeningSession $session): JsonResponse
     {
-        if ($disabled = $this->disabled()) return $disabled;
+        if ($disabled = $this->disabled()) {
+            return $disabled;
+        }
         $this->owns($request, $session);
         $request->validate([
             'audio' => ['required', 'file', 'mimes:mp3,wav,m4a,ogg,webm', 'max:'.config('services.lexilingo.max_audio_kb', 10240)],
@@ -100,7 +106,9 @@ class MediaListeningController extends Controller
 
     public function complete(Request $request, MediaListeningSession $session): JsonResponse
     {
-        if ($disabled = $this->disabled()) return $disabled;
+        if ($disabled = $this->disabled()) {
+            return $disabled;
+        }
         $this->owns($request, $session);
         if ($session->watched_percentage < 80 || $session->shadowing_attempts < 1) {
             return ApiResponse::error('COMPLETION_REQUIREMENTS', 'Watch at least 80% and complete one shadowing attempt.', 422);
@@ -114,22 +122,29 @@ class MediaListeningController extends Controller
 
     public function progress(Request $request): JsonResponse
     {
-        if ($disabled = $this->disabled()) return $disabled;
+        if ($disabled = $this->disabled()) {
+            return $disabled;
+        }
 
         return ApiResponse::success(MediaListeningSession::where('user_id', $request->user()->id)->latest()->get());
     }
 
     private function partner(string $path, Request $request, array $allowed): JsonResponse
     {
-        if ($disabled = $this->disabled()) return $disabled;
+        if ($disabled = $this->disabled()) {
+            return $disabled;
+        }
         $query = $request->only($allowed);
-        if (isset($query['per_page'])) $query['per_page'] = min(50, max(1, (int) $query['per_page']));
+        if (isset($query['per_page'])) {
+            $query['per_page'] = min(50, max(1, (int) $query['per_page']));
+        }
         try {
             return ApiResponse::success($this->client->partnerOnce()->get($path, $query)->throw()->json());
         } catch (ConnectionException) {
             return ApiResponse::error('UPSTREAM_TIMEOUT', 'Listening service timed out.', 504);
         } catch (RequestException $exception) {
             $status = $exception->response->status();
+
             return ApiResponse::error($status === 429 ? 'UPSTREAM_RATE_LIMITED' : 'UPSTREAM_ERROR', $status === 429 ? 'Listening quota reached.' : 'Listening service is unavailable.', $status === 429 ? 429 : 502)
                 ->withHeaders(array_filter(['Retry-After' => $exception->response->header('Retry-After')]));
         }

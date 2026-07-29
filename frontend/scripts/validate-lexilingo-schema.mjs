@@ -5,12 +5,13 @@ import addFormats from "ajv-formats";
 
 const root = new URL("../../", import.meta.url);
 const schema = JSON.parse(await readFile(new URL("docs/openapi/lexilingo-import.schema.json", root)));
-const traceCagContracts = await Promise.all([
-  readFile(new URL("docs/openapi/trace-cag-external-v1.schema.json", root)),
-  readFile(new URL("../LexiLingo/contracts/trace-cag/external-analyze-v1.schema.json", root)),
-]);
+const localTraceCagContract = await readFile(new URL("docs/openapi/trace-cag-external-v1.schema.json", root));
+const externalTraceCagPath = process.env.LEXILINGO_TRACE_CAG_CONTRACT;
+const traceCagContracts = externalTraceCagPath
+  ? [localTraceCagContract, await readFile(externalTraceCagPath)]
+  : [localTraceCagContract];
 const hashes = traceCagContracts.map((contract) => createHash("sha256").update(contract).digest("hex"));
-if (hashes[0] !== hashes[1]) throw new Error(`TraceCAG contract SHA-256 mismatch: ${hashes.join(" != ")}`);
+if (hashes.length === 2 && hashes[0] !== hashes[1]) throw new Error(`TraceCAG contract SHA-256 mismatch: ${hashes.join(" != ")}`);
 
 const ajv = new Ajv2020({ allErrors: true });
 addFormats(ajv);

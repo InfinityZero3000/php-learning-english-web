@@ -33,6 +33,7 @@ class LessonQuizController extends Controller
             if ($lesson->status !== 'published' || ! $service->eligibleForLesson($request->user(), $lesson->id, $lesson->course_id)) {
                 throw new LessonQuizException('NOT_FOUND', 404, 'The requested lesson is unavailable.');
             }
+
             return ApiResponse::success(LessonQuizResource::collection(
                 Quiz::query()->where('lesson_id', $lesson->id)->where('status', 'published')->withCount('questions')->orderBy('id')->get(),
             ));

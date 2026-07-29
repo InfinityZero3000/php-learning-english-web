@@ -19,6 +19,7 @@ class LessonQuizApiTest extends TestCase
     use RefreshDatabase;
 
     private User $learner;
+
     private Quiz $quiz;
 
     protected function setUp(): void

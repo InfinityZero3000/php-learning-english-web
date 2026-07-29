@@ -7,9 +7,9 @@ use App\Http\Requests\Api\V1\Admin\WriteLessonRequest;
 use App\Http\Resources\LessonResource;
 use App\Models\Lesson;
 use App\Support\ApiResponse;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
 
 class LessonController extends Controller
@@ -22,7 +22,9 @@ class LessonController extends Controller
             'status' => ['nullable', 'in:draft,published,archived'], 'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
-        if ($validator->fails()) throw new HttpResponseException(ApiResponse::error('VALIDATION_ERROR', 'The given data was invalid.', 422, ['errors' => $validator->errors()]));
+        if ($validator->fails()) {
+            throw new HttpResponseException(ApiResponse::error('VALIDATION_ERROR', 'The given data was invalid.', 422, ['errors' => $validator->errors()]));
+        }
         $validated = $validator->validated();
         $search = trim((string) ($validated['search'] ?? ''));
         $page = Lesson::query()->with('course')->withCount(['vocabularies', 'quizzes'])
@@ -80,12 +82,16 @@ class LessonController extends Controller
                 'attempts' => DB::table('attempts')->whereIn('quiz_id', $locked->quizzes()->select('id'))->count(),
                 'learning_sessions' => DB::table('learning_sessions')->where('lesson_id', $locked->id)->count(),
             ];
-            if ($locked->status !== 'draft' || array_sum($counts) > 0) return $counts;
+            if ($locked->status !== 'draft' || array_sum($counts) > 0) {
+                return $counts;
+            }
             $locked->delete();
 
             return null;
         });
-        if ($result !== null) return ApiResponse::error('DEPENDENCY_EXISTS', 'The lesson has protected learning evidence.', 409, ['dependencies' => $result]);
+        if ($result !== null) {
+            return ApiResponse::error('DEPENDENCY_EXISTS', 'The lesson has protected learning evidence.', 409, ['dependencies' => $result]);
+        }
 
         return response()->json(null, 204);
     }
@@ -99,9 +105,12 @@ class LessonController extends Controller
                 return false;
             }
             $locked->update(['status' => $status]);
+
             return $locked;
         });
-        if ($lesson === false) return ApiResponse::error('INVALID_STATE', 'Invalid lesson state transition.', 409);
+        if ($lesson === false) {
+            return ApiResponse::error('INVALID_STATE', 'Invalid lesson state transition.', 409);
+        }
 
         return ApiResponse::success($this->resource($lesson));
     }

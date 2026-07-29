@@ -2,11 +2,12 @@
 
 namespace Tests\Feature\Api\V1;
 
-use App\Models\Role;
+use App\Models\Course;
 use App\Models\Level;
+use App\Models\Role;
 use App\Models\Topic;
-use App\Models\Vocabulary;
 use App\Models\User;
+use App\Models\Vocabulary;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -142,8 +143,8 @@ class AdminCatalogApiTest extends TestCase
     {
         $this->seed();
         $this->actingAs($this->user('admin'));
-        $draft = \App\Models\Course::create(['title' => 'Disposable', 'slug' => 'disposable', 'status' => 'draft']);
-        $published = \App\Models\Course::create(['title' => 'Protected', 'slug' => 'protected', 'status' => 'published']);
+        $draft = Course::create(['title' => 'Disposable', 'slug' => 'disposable', 'status' => 'draft']);
+        $published = Course::create(['title' => 'Protected', 'slug' => 'protected', 'status' => 'published']);
 
         $this->deleteJson("/api/v1/admin/catalog/courses/{$published->id}")
             ->assertConflict()->assertJsonPath('code', 'DEPENDENCY_EXISTS');
