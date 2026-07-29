@@ -38,10 +38,14 @@ class LearningSessionController extends Controller
         $input = $request->validate([
             'enrollment_id' => ['nullable', 'integer'],
             'assignment_id' => ['nullable', 'integer'],
+            'lesson_id' => ['nullable', 'integer'],
             'timezone' => ['nullable', 'timezone'],
         ]);
         if (isset($input['enrollment_id']) === isset($input['assignment_id'])) {
             abort(422, 'Provide exactly one enrollment_id or assignment_id.');
+        }
+        if (isset($input['assignment_id'], $input['lesson_id'])) {
+            abort(422, 'lesson_id is only supported with enrollment_id.');
         }
 
         $requestId = $this->requestId($request);

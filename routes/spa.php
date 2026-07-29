@@ -104,6 +104,7 @@ Route::prefix('api/v1')->group(function (): void {
     });
 
     Route::middleware('auth')->group(function (): void {
+        Route::get('/catalog/courses/{course}/path', [CatalogController::class, 'coursePath']);
         Route::get('/bookmarks', [BookmarkApiController::class, 'index']);
         Route::post('/bookmarks/vocabulary/{vocabulary}/toggle', [BookmarkApiController::class, 'toggleVocabulary']);
         Route::post('/bookmarks/lesson/{lesson}/toggle', [BookmarkApiController::class, 'toggleLesson']);
