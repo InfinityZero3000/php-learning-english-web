@@ -125,6 +125,13 @@ class CatalogApiTest extends TestCase
             ->assertJsonStructure(['data' => ['quizzes_count', 'vocabularies_count']]);
     }
 
+    public function test_nonexistent_course_and_lesson_routes_return_404(): void
+    {
+        $this->getJson('/api/v1/catalog/courses/999999')->assertNotFound();
+        $this->getJson('/api/v1/catalog/courses/999999/lessons')->assertNotFound();
+        $this->getJson('/api/v1/catalog/lessons/999999')->assertNotFound();
+    }
+
     public function test_pagination_respects_per_page(): void
     {
         $this->getJson('/api/v1/catalog/lessons?per_page=1')
