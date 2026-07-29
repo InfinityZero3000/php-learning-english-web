@@ -62,6 +62,7 @@ class UserAdminController extends Controller
 
         // Prevent last admin demotion or self-demotion
         if ((int) $validated['role_id'] !== (int) $adminRoleId
+            && (int) $user->role_id === (int) $adminRoleId
             && ($user->is($request->user()) || User::query()->where('role_id', $adminRoleId)->count() <= 1)) {
             throw ValidationException::withMessages([
                 'role_id' => 'Không thể hạ quyền quản trị viên cuối cùng hoặc tự hạ quyền tài khoản này.',
