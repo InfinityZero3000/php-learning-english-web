@@ -93,6 +93,7 @@ Route::prefix('api/v1')->group(function (): void {
         Route::post('/bookmarks/lesson/{lesson}/toggle', [BookmarkApiController::class, 'toggleLesson']);
 
         // Quizzes
+        Route::get('/quizzes', [QuizController::class, 'index']);
         Route::get('/quizzes/{quiz}', [QuizController::class, 'show']);
         Route::post('/quizzes/{quiz}/submit', [QuizController::class, 'submit']);
         Route::get('/quizzes/{quiz}/history', [QuizController::class, 'history']);

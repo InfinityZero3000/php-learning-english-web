@@ -15,55 +15,28 @@ import {
   saveSelectedBackground,
   type BackgroundOption
 } from "@/lib/background-settings";
-import { api, profile } from "@/lib/api";
+import { fetchMe, fetchVocabulary, profile } from "@/lib/api";
 import { cn, formatDateTime } from "@/lib/utils";
-import type { AppUser, ReminderSettings } from "@/types/api";
-
-const defaultReminderSettings: ReminderSettings = {
-  reviewRemindersEnabled: true,
-  preferredReminderTime: "20:00",
-  eveningReminderEnabled: true,
-  eveningReminderTime: "21:30",
-  comebackReminderEnabled: true,
-  comebackReminderIntervalDays: 3,
-  eveningRemainingThreshold: 10
-};
-
-function toTimeInput(value?: string) {
-  return value ? value.slice(0, 5) : "";
-}
+import type { AppUser } from "@/types/api";
 
 export function ProfilePage() {
   const [user, setUser] = useState<AppUser | null>(null);
-  const [summary, setSummary] = useState({ words: 0, streak: 0 });
+  const [wordCount, setWordCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [selectedBackgroundId, setSelectedBackgroundId] = useState<string | null>(null);
   const [cachedBackgroundIds, setCachedBackgroundIds] = useState<Set<string>>(new Set());
   const [savingBackgroundId, setSavingBackgroundId] = useState<string | null>(null);
-  const [reminderSettings, setReminderSettings] = useState<ReminderSettings>(defaultReminderSettings);
-  const [savingReminders, setSavingReminders] = useState(false);
-  const [reminderStatus, setReminderStatus] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [profileStatus, setProfileStatus] = useState("");
 
   useEffect(() => {
     Promise.all([
-      api.me().catch(() => null),
-      api.wordCount().catch(() => ({ count: 0 })),
-      api.streak().catch(() => ({} as Record<string, number>)),
-      api.reminderSettings().catch(() => null),
-    ]).then(([me, words, streak, reminders]) => {
+      fetchMe().catch(() => null),
+      fetchVocabulary({ per_page: 1 }).catch(() => null),
+    ]).then(([me, vocabulary]) => {
       setUser(me);
       setDisplayName(me?.name ?? "");
-      setSummary({ words: words.count ?? 0, streak: streak.currentStreak ?? 0 });
-      if (reminders) {
-        setReminderSettings({
-          ...defaultReminderSettings,
-          ...reminders,
-          preferredReminderTime: toTimeInput(reminders.preferredReminderTime),
-          eveningReminderTime: toTimeInput(reminders.eveningReminderTime)
-        });
-      }
+      setWordCount(vocabulary?.meta.total ?? vocabulary?.data.length ?? 0);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
@@ -110,30 +83,6 @@ export function ProfilePage() {
   function selectDefaultBackground() {
     clearSelectedBackground();
     setSelectedBackgroundId(null);
-  }
-
-  function updateReminderSetting<K extends keyof ReminderSettings>(key: K, value: ReminderSettings[K]) {
-    setReminderStatus(null);
-    setReminderSettings((current) => ({ ...current, [key]: value }));
-  }
-
-  async function saveReminderSettings() {
-    setSavingReminders(true);
-    setReminderStatus(null);
-    try {
-      const saved = await api.updateReminderSettings(reminderSettings);
-      setReminderSettings({
-        ...defaultReminderSettings,
-        ...saved,
-        preferredReminderTime: toTimeInput(saved.preferredReminderTime),
-        eveningReminderTime: toTimeInput(saved.eveningReminderTime)
-      });
-      setReminderStatus("Saved");
-    } catch {
-      setReminderStatus("Could not save");
-    } finally {
-      setSavingReminders(false);
-    }
   }
 
   if (loading) return <AppShellLoading label="Loading profile..." />;
@@ -183,18 +132,21 @@ export function ProfilePage() {
                 <CardDescription>Vocabulary in your collection</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="font-display text-4xl font-bold text-primary">{summary.words}</p>
+                <p className="font-display text-4xl font-bold text-primary">{wordCount}</p>
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle>Current Streak</CardTitle>
-                <CardDescription>Consecutive study days</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="font-display text-4xl font-bold text-primary">{summary.streak}</p>
-              </CardContent>
-            </Card>
+            {/*
+              Streak card hidden – no backend API yet.
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle>Current Streak</CardTitle>
+                  <CardDescription>Consecutive study days</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="font-display text-4xl font-bold text-primary">{summary.streak}</p>
+                </CardContent>
+              </Card>
+            */}
           </div>
         </section>
 
@@ -240,93 +192,15 @@ export function ProfilePage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <IconBellRinging className="h-5 w-5 text-primary" />
+              <IconBellRinging className="h-5 w-5 text-muted-foreground" />
               Review Reminders
             </CardTitle>
-            <CardDescription>Choose when due-card reminders appear.</CardDescription>
+            <CardDescription>Review reminders will be available in a future update.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="grid gap-5 lg:grid-cols-3">
-              <div className="flex min-h-[132px] flex-col justify-between rounded-xl border-2 border-border bg-muted/40 p-4">
-                <span className="flex items-start gap-3">
-                  <input
-                    id="daily-reminder-enabled"
-                    type="checkbox"
-                    className="mt-1 h-5 w-5 accent-primary"
-                    checked={reminderSettings.reviewRemindersEnabled}
-                    onChange={(event) => updateReminderSetting("reviewRemindersEnabled", event.target.checked)}
-                  />
-                  <label htmlFor="daily-reminder-enabled">
-                    <span className="block font-display text-sm font-bold uppercase tracking-[0.05em]">Daily due</span>
-                    <span className="mt-1 block text-sm font-medium text-muted-foreground">Today&apos;s due queue</span>
-                  </label>
-                </span>
-                <Input
-                  type="time"
-                  value={reminderSettings.preferredReminderTime}
-                  onChange={(event) => updateReminderSetting("preferredReminderTime", event.target.value)}
-                  disabled={!reminderSettings.reviewRemindersEnabled}
-                  aria-label="Daily due reminder time"
-                />
-              </div>
-
-              <div className="flex min-h-[132px] flex-col justify-between rounded-xl border-2 border-border bg-muted/40 p-4">
-                <span className="flex items-start gap-3">
-                  <input
-                    id="evening-reminder-enabled"
-                    type="checkbox"
-                    className="mt-1 h-5 w-5 accent-primary"
-                    checked={reminderSettings.eveningReminderEnabled}
-                    onChange={(event) => updateReminderSetting("eveningReminderEnabled", event.target.checked)}
-                  />
-                  <label htmlFor="evening-reminder-enabled">
-                    <span className="block font-display text-sm font-bold uppercase tracking-[0.05em]">Evening fallback</span>
-                    <span className="mt-1 block text-sm font-medium text-muted-foreground">If reviews remain</span>
-                  </label>
-                </span>
-                <Input
-                  type="time"
-                  value={reminderSettings.eveningReminderTime}
-                  onChange={(event) => updateReminderSetting("eveningReminderTime", event.target.value)}
-                  disabled={!reminderSettings.eveningReminderEnabled}
-                  aria-label="Evening reminder time"
-                />
-              </div>
-
-              <div className="flex min-h-[132px] flex-col justify-between rounded-xl border-2 border-border bg-muted/40 p-4">
-                <span className="flex items-start gap-3">
-                  <input
-                    id="comeback-reminder-enabled"
-                    type="checkbox"
-                    className="mt-1 h-5 w-5 accent-primary"
-                    checked={reminderSettings.comebackReminderEnabled}
-                    onChange={(event) => updateReminderSetting("comebackReminderEnabled", event.target.checked)}
-                  />
-                  <label htmlFor="comeback-reminder-enabled">
-                    <span className="block font-display text-sm font-bold uppercase tracking-[0.05em]">Comeback</span>
-                    <span className="mt-1 block text-sm font-medium text-muted-foreground">Every few inactive days</span>
-                  </label>
-                </span>
-                <Input
-                  type="number"
-                  min={2}
-                  max={3}
-                  value={reminderSettings.comebackReminderIntervalDays}
-                  onChange={(event) => updateReminderSetting("comebackReminderIntervalDays", Number(event.target.value))}
-                  disabled={!reminderSettings.comebackReminderEnabled}
-                  aria-label="Comeback reminder interval days"
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <Button type="button" onClick={saveReminderSettings} disabled={savingReminders}>
-                {savingReminders ? "Saving..." : "Save Reminders"}
-              </Button>
-              {reminderStatus ? (
-                <span className="font-display text-sm font-bold text-muted-foreground">{reminderStatus}</span>
-              ) : null}
-            </div>
+          <CardContent>
+            <p className="text-sm font-semibold text-muted-foreground">
+              Push notification settings for due-card reminders are not yet available in this version. Check back soon.
+            </p>
           </CardContent>
         </Card>
 

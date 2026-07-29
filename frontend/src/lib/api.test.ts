@@ -44,4 +44,17 @@ describe("session API client", () => {
     await auth.resendVerification();
     expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/auth/email/resend", expect.objectContaining({ method: "POST" }));
   });
+
+  it.each([
+    ["forgotPassword", () => auth.forgotPassword("learner@example.com"), "/api/v1/auth/password/forgot"],
+    ["resetPassword", () => auth.resetPassword({ token: "token", email: "learner@example.com", password: "password", password_confirmation: "password" }), "/api/v1/auth/password/reset"],
+  ])("uses the Laravel %s route", async (_name, request, url) => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { message: "ok" } }), { status: 200 }));
+
+    await request();
+
+    expect(fetchMock).toHaveBeenNthCalledWith(2, url, expect.objectContaining({ method: "POST" }));
+  });
 });
