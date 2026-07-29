@@ -19,6 +19,28 @@ trường triển khai.
 - API gọi nội bộ dùng secret riêng, ví dụ `X-AI-Service-Secret`.
 - Yêu cầu xác thực cụ thể của từng route được thể hiện đầy đủ tại `/docs`.
 
+## Endpoint thực sự được Laravel gọi
+
+Toàn bộ danh sách bên dưới là bề mặt API của LexiLingo (đến từ chính hai
+FastAPI service, không phải mọi endpoint đều được ứng dụng này dùng). Trên
+thực tế, ứng dụng Laravel trong repo này chỉ gọi một tập con rất nhỏ, luôn
+qua `App\Support\LexiLingoClient` (server-to-server, secret không lộ ra
+frontend):
+
+| Mục đích | Cơ chế gọi trong Laravel | Endpoint LexiLingo tương ứng |
+|---|---|---|
+| Đồng bộ category/course/unit/lesson | `php artisan lexilingo:import {entity}` (`App\Console\Commands`) | Backend Service, nhóm Courses/Categories/Learning |
+| Đồng bộ vocabulary | `php artisan lexilingo:sync-vocabulary` | Backend Service, nhóm Vocabulary |
+| Dịch văn bản | `POST /api/v1/ai/translate` (Laravel) → `LexiLingoClient::internalAi()` | AI Service, nhóm AI/Translate |
+| Chấm phát âm | `POST /api/v1/ai/pronunciation` (Laravel) | AI Service, nhóm Speech/Voice |
+| Speech-to-text | `POST /api/v1/ai/speech-to-text` (Laravel) | AI Service, nhóm Speech/Voice |
+| Text-to-speech | `POST /api/v1/ai/text-to-speech` (Laravel) | AI Service, nhóm Speech/Voice |
+
+Toàn bộ phần còn lại của tài liệu này (gamification, chat/Lexi, games,
+content YouTube/news/podcast, admin content-agent, v.v.) thuộc bề mặt của
+chính LexiLingo, **không** được ứng dụng Laravel trong repo này gọi tới ở
+thời điểm hiện tại — giữ lại để tham khảo khi mở rộng tích hợp sau này.
+
 ## Backend Service
 
 Phần lớn endpoint nghiệp vụ có tiền tố `/api/v1`. Các endpoint health và
