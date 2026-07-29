@@ -169,6 +169,15 @@ class MediaUploadTest extends TestCase
             ->assertStatus(400); // or 404/422 depending on implementation
     }
 
+    public function test_delete_returns_404_for_nonexistent_media_path(): void
+    {
+        Storage::fake('media');
+
+        $this->actingAs($this->adminUser)
+            ->deleteJson('/api/v1/admin/media/uploads/2020/01/does-not-exist.jpg')
+            ->assertNotFound();
+    }
+
     // ── Delete media ───────────────────────────────────────────
 
     public function test_admin_can_delete_uploaded_media(): void
