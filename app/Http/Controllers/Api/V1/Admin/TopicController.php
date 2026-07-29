@@ -54,6 +54,7 @@ class TopicController extends Controller
             'name' => $validated['name'],
             'slug' => $validated['slug'] ?? Str::slug($validated['name']),
         ]);
+        $topic->applyLocalEdit([]);
 
         return ApiResponse::success(new TopicResource($topic), 201);
     }
@@ -76,7 +77,7 @@ class TopicController extends Controller
             'slug' => ['nullable', 'string', 'max:255', Rule::unique('topics', 'slug')->ignore($topic->id)],
         ]);
 
-        $topic->update([
+        $topic->applyLocalEdit([
             'name' => $validated['name'],
             'slug' => $validated['slug'] ?? $topic->slug,
         ]);

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Lesson;
 use App\Models\Quiz;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
@@ -13,6 +14,7 @@ class AdminQuizService
         return DB::transaction(function () use ($data): Quiz {
             $quiz = Quiz::create(collect($data)->except('questions')->all());
             $this->replaceQuestions($quiz, $data['questions']);
+            Lesson::query()->findOrFail($quiz->lesson_id)->applyLocalEdit([]);
 
             return $quiz;
         });
@@ -25,9 +27,13 @@ class AdminQuizService
             if ($quiz->attempts()->where('status', 'active')->exists()) {
                 throw new ConflictHttpException('ACTIVE_ATTEMPTS');
             }
+            $oldLessonId = $quiz->lesson_id;
             $quiz->update(collect($data)->except('questions')->all());
             $quiz->questions()->delete();
             $this->replaceQuestions($quiz, $data['questions']);
+            foreach (array_unique([$oldLessonId, $quiz->lesson_id]) as $lessonId) {
+                Lesson::query()->findOrFail($lessonId)->applyLocalEdit([]);
+            }
 
             return $quiz;
         });
@@ -40,6 +46,7 @@ class AdminQuizService
             if ($quiz->attempts()->exists()) {
                 return false;
             }
+            Lesson::query()->findOrFail($quiz->lesson_id)->applyLocalEdit([]);
             $quiz->delete();
 
             return true;

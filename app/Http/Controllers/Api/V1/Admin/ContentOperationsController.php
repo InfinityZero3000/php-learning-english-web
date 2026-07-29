@@ -206,6 +206,7 @@ class ContentOperationsController extends Controller
     public function start(Request $request): JsonResponse
     {
         abort_unless($request->user()->can('start-content-sync'), 403);
+        abort_unless(config('features.lexilingo_import'), 503, 'LexiLingo import is disabled.');
 
         return $this->reserve($request, false);
     }
@@ -213,6 +214,7 @@ class ContentOperationsController extends Controller
     public function reset(Request $request, RecentPassword $recentPassword): JsonResponse
     {
         abort_unless($request->user()->can('retry-content-sync'), 403);
+        abort_unless(config('features.lexilingo_import'), 503, 'LexiLingo import is disabled.');
         $recentPassword->require($request);
 
         return $this->reserve($request, true);

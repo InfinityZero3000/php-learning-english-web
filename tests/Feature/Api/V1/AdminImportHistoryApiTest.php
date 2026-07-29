@@ -18,6 +18,7 @@ class AdminImportHistoryApiTest extends TestCase
     public function test_admin_can_list_run_history_with_pagination_and_filters(): void
     {
         $this->seed();
+        config()->set('features.lexilingo_import', true);
         $admin = $this->user('admin');
         $this->makeRun($admin, 'categories', 'review-ready');
         $this->makeRun($admin, 'courses', 'review-ready');
@@ -40,6 +41,7 @@ class AdminImportHistoryApiTest extends TestCase
     public function test_admin_can_list_staged_items_for_a_run_filtered_by_classification(): void
     {
         $this->seed();
+        config()->set('features.lexilingo_import', true);
         $admin = $this->user('admin');
         $run = $this->makeRun($admin, 'categories', 'review-ready');
         StagedItem::create([
@@ -61,6 +63,7 @@ class AdminImportHistoryApiTest extends TestCase
     public function test_staged_item_diff_only_exposes_allowlisted_fields(): void
     {
         $this->seed();
+        config()->set('features.lexilingo_import', true);
         config()->set('services.lexilingo.backend_url', 'http://localhost');
         config()->set('services.lexilingo.partner_api_key', 'partner-test');
         Http::fake([
@@ -89,6 +92,7 @@ class AdminImportHistoryApiTest extends TestCase
     public function test_run_transitions_to_review_ready_without_writing_the_category(): void
     {
         $this->seed();
+        config()->set('features.lexilingo_import', true);
         config()->set('services.lexilingo.backend_url', 'http://localhost');
         config()->set('services.lexilingo.partner_api_key', 'partner-test');
         Http::fake([

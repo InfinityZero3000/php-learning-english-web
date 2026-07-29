@@ -19,6 +19,7 @@ class AdminImportApplyApiTest extends TestCase
     public function test_admin_cannot_apply(): void
     {
         $this->seed();
+        config()->set('features.lexilingo_import', true);
         $run = $this->makeRun($this->user('admin'), 'categories');
 
         $this->actingAs($this->user('admin'))->withHeader('X-Request-ID', (string) Str::uuid())
@@ -29,6 +30,7 @@ class AdminImportApplyApiTest extends TestCase
     public function test_super_admin_without_recent_google_step_up_is_rejected(): void
     {
         $this->seed();
+        config()->set('features.lexilingo_import', true);
         $run = $this->makeRun($this->user('admin'), 'categories');
         $super = $this->user('super_admin');
 
@@ -42,6 +44,7 @@ class AdminImportApplyApiTest extends TestCase
     public function test_super_admin_can_apply_a_new_staged_category(): void
     {
         $this->seed();
+        config()->set('features.lexilingo_import', true);
         $run = $this->makeRun($this->user('admin'), 'categories');
         $item = $this->stageCategory($run, 'cat-1', 'new', [
             'name' => 'Everyday English', 'slug' => 'everyday-english',
@@ -62,6 +65,7 @@ class AdminImportApplyApiTest extends TestCase
     public function test_apply_rejects_a_stale_item_without_overwriting_the_row(): void
     {
         $this->seed();
+        config()->set('features.lexilingo_import', true);
         $category = CourseCategory::create(['external_id' => 'cat-2', 'name' => 'Old Name', 'slug' => 'old-slug']);
         $run = $this->makeRun($this->user('admin'), 'categories');
         $item = $this->stageCategory($run, 'cat-2', 'update', [
@@ -81,6 +85,7 @@ class AdminImportApplyApiTest extends TestCase
     public function test_replaying_apply_on_an_already_applied_item_is_a_no_op(): void
     {
         $this->seed();
+        config()->set('features.lexilingo_import', true);
         $run = $this->makeRun($this->user('admin'), 'categories');
         $item = $this->stageCategory($run, 'cat-3', 'new', [
             'name' => 'Idioms', 'slug' => 'idioms',
@@ -101,6 +106,7 @@ class AdminImportApplyApiTest extends TestCase
     public function test_apply_is_not_supported_for_other_entities_yet(): void
     {
         $this->seed();
+        config()->set('features.lexilingo_import', true);
         $run = $this->makeRun($this->user('admin'), 'courses');
 
         $this->actingAs($this->user('super_admin'))->withHeader('X-Request-ID', (string) Str::uuid())
@@ -111,6 +117,7 @@ class AdminImportApplyApiTest extends TestCase
     public function test_apply_writes_a_single_audit_row_with_only_counts(): void
     {
         $this->seed();
+        config()->set('features.lexilingo_import', true);
         $run = $this->makeRun($this->user('admin'), 'categories');
         $item = $this->stageCategory($run, 'cat-4', 'new', [
             'name' => 'Travel', 'slug' => 'travel',

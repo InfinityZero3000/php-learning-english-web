@@ -16,6 +16,12 @@ class SyncLexiLingoVocabulary extends Command
 
     public function handle(LexiLingoVocabularySync $sync): int
     {
+        if (! config('features.lexilingo_import')) {
+            $this->error('LexiLingo import is disabled.');
+
+            return self::FAILURE;
+        }
+
         $count = $sync->syncPage(
             (int) $this->option('offset'),
             (int) $this->option('limit'),

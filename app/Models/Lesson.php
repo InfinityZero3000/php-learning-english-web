@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasCatalogOwnership;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -9,6 +10,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Lesson extends Model
 {
+    use HasCatalogOwnership;
+
     protected $fillable = [
         'course_id', 'unit_id', 'source_system', 'external_id',
         'source_fingerprint', 'source_snapshot', 'local_override_at',
