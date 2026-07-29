@@ -11,7 +11,7 @@ class MediaPolicy
      */
     public function upload(User $user): bool
     {
-        return $user->role?->slug === 'admin';
+        return $user->hasRole('admin', 'super_admin');
     }
 
     /**
@@ -19,6 +19,6 @@ class MediaPolicy
      */
     public function delete(User $user): bool
     {
-        return $user->role?->slug === 'admin';
+        return $user->hasRole('admin', 'super_admin');
     }
 }

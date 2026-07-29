@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Quiz extends Model
 {
-    protected $fillable = ['lesson_id', 'title', 'passing_score', 'status'];
+    protected $fillable = ['lesson_id', 'external_id', 'title', 'passing_score', 'status'];
 
     public function lesson(): BelongsTo
     {

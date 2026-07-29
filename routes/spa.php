@@ -5,15 +5,19 @@ use App\Http\Controllers\Api\Admin\AuditLogController;
 use App\Http\Controllers\Api\Admin\UserController as LegacyAdminUserController;
 use App\Http\Controllers\Api\V1\Admin\CatalogController as AdminCatalogController;
 use App\Http\Controllers\Api\V1\Admin\ContentOperationsController as AdminContentOperationsController;
+use App\Http\Controllers\Api\V1\Admin\CourseAdminController;
 use App\Http\Controllers\Api\V1\Admin\CourseCategoryController;
 use App\Http\Controllers\Api\V1\Admin\LearningController as AdminLearningController;
+use App\Http\Controllers\Api\V1\Admin\LessonAdminController;
 use App\Http\Controllers\Api\V1\Admin\LessonController as AdminLessonController;
 use App\Http\Controllers\Api\V1\Admin\LevelController;
 use App\Http\Controllers\Api\V1\Admin\MediaController;
 use App\Http\Controllers\Api\V1\Admin\OperationsController;
+use App\Http\Controllers\Api\V1\Admin\QuizAdminController;
 use App\Http\Controllers\Api\V1\Admin\QuizController as AdminQuizController;
 use App\Http\Controllers\Api\V1\Admin\TopicController;
 use App\Http\Controllers\Api\V1\Admin\UserController as AdminUserController;
+use App\Http\Controllers\Api\V1\Admin\VocabularyAdminController;
 use App\Http\Controllers\Api\V1\AiProxyController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BookmarkApiController;
@@ -86,10 +90,14 @@ Route::prefix('api/v1')->group(function (): void {
     Route::post('/auth/password/forgot', [PasswordController::class, 'forgot'])->middleware('throttle:3,1');
     Route::post('/auth/password/reset', [PasswordController::class, 'reset']);
 
-    Route::middleware('auth')->prefix('admin')->group(function (): void {
+    Route::middleware(['auth', 'can:manage-content'])->prefix('admin')->group(function (): void {
         Route::apiResource('topics', TopicController::class);
         Route::apiResource('levels', LevelController::class);
         Route::apiResource('categories', CourseCategoryController::class);
+        Route::apiResource('courses', CourseAdminController::class);
+        Route::apiResource('lessons', LessonAdminController::class);
+        Route::apiResource('vocabulary', VocabularyAdminController::class);
+        Route::apiResource('quizzes', QuizAdminController::class);
         Route::post('/media/upload', [MediaController::class, 'upload']);
         Route::delete('/media/{path?}', [MediaController::class, 'destroy'])->where('path', '.*');
     });
