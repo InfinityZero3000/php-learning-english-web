@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class SecurityAndObservabilityTest extends TestCase
@@ -26,7 +27,7 @@ class SecurityAndObservabilityTest extends TestCase
             ->getJson('/health');
 
         $this->assertNotSame('forged-log', $response->headers->get('X-Request-ID'));
-        $this->assertTrue(\Illuminate\Support\Str::isUuid($response->headers->get('X-Request-ID')));
+        $this->assertTrue(Str::isUuid($response->headers->get('X-Request-ID')));
     }
 
     public function test_log_context_middleware_includes_user_context_when_authenticated(): void
