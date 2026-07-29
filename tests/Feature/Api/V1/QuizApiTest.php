@@ -155,6 +155,33 @@ class QuizApiTest extends TestCase
         ]);
     }
 
+    public function test_quiz_routes_return_404_for_nonexistent_quiz_id(): void
+    {
+        $this->actingAs($this->user);
+
+        $this->getJson('/api/v1/quizzes/999999')->assertNotFound();
+        $this->postJson('/api/v1/quizzes/999999/submit', ['answers' => []])->assertNotFound();
+        $this->getJson('/api/v1/quizzes/999999/history')->assertNotFound();
+    }
+
+    public function test_submit_rejects_answer_not_belonging_to_question(): void
+    {
+        $this->actingAs($this->user);
+
+        $questions = Question::where('quiz_id', $this->quiz1Id)->orderBy('sort_order')->pluck('id');
+        $firstQuestionId = $questions[0];
+        $secondQuestionAnswerId = Answer::where('question_id', $questions[1])->first()->id;
+
+        $this->postJson("/api/v1/quizzes/{$this->quiz1Id}/submit", ['answers' => [
+            ['question_id' => $firstQuestionId, 'answer_id' => $secondQuestionAnswerId],
+        ]])->assertUnprocessable()->assertJsonValidationErrors('answers');
+
+        $this->assertDatabaseMissing('attempts', [
+            'user_id' => $this->user->id,
+            'quiz_id' => $this->quiz1Id,
+        ]);
+    }
+
     public function test_draft_quiz_cannot_be_viewed_or_submitted(): void
     {
         $this->actingAs($this->user);

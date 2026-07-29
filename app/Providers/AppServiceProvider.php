@@ -32,7 +32,11 @@ class AppServiceProvider extends ServiceProvider
 
         // Gate cho phép dùng @can('is-admin') trong Blade
         Gate::define('is-admin', function ($user) {
-            return $user->role && $user->role->slug === 'admin';
+            return $user->isAdmin();
         });
+
+        // Media gates (no associated model, so defined manually)
+        Gate::define('upload-media', fn ($user) => $user->role?->slug === 'admin');
+        Gate::define('delete-media', fn ($user) => $user->role?->slug === 'admin');
     }
 }
