@@ -1,113 +1,60 @@
 "use client";
 
-import { render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProgressPage } from "@/features/progress/progress-page";
 import * as api from "@/lib/api";
-
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
-}));
-
-vi.mock("@/features/auth/auth-context", () => ({
-  useAuth: () => ({ status: "authenticated" }),
-}));
-
-vi.mock("@/components/ui/toast", () => ({
-  useToast: () => ({ toast: vi.fn() }),
-}));
 
 vi.mock("@/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api")>();
   return { ...actual, fetchDashboard: vi.fn(), fetchMyProgress: vi.fn() };
 });
 
-const emptyDashboard = {
-  total_words: 0,
-  total_bookmarks: 0,
-  completed_lessons: 0,
-  total_lessons: 0,
-  recent_attempts: [],
-  course_progress: [],
+const dashboard = {
+  overview: { completed_lessons: 8, quiz_attempts: 3, average_score: 85 },
+  recent_activity: [],
+  recent_attempts: [{ id: 1, quiz_id: 2, score: 85 }],
 };
 
 describe("ProgressPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("shows overview stats on success", async () => {
-    vi.mocked(api.fetchDashboard).mockResolvedValue({
-      total_words: 25,
-      total_bookmarks: 5,
-      completed_lessons: 8,
-      total_lessons: 16,
-      recent_attempts: [{ id: 1, score: 85 }],
-      course_progress: [],
-    });
+    vi.mocked(api.fetchDashboard).mockResolvedValue(dashboard);
     vi.mocked(api.fetchMyProgress).mockResolvedValue([
-      { id: 1, progress_percent: 80 },
-      { id: 2, progress_percent: 90 },
+      { id: 1, lesson_id: 4, lesson: { id: 4, title: "Greetings" } },
     ]);
+  });
 
+  it("renders the Laravel progress contract", async () => {
     render(<ProgressPage />);
 
-    await waitFor(() => {
-      expect(screen.getByText("25")).toBeInTheDocument();
-    });
-    expect(screen.getAllByText("8").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("16")).toBeInTheDocument();
-    expect(screen.getByText("50%")).toBeInTheDocument();
-    expect(screen.getByText("Total Words")).toBeInTheDocument();
-    expect(screen.getByText("Lessons Done")).toBeInTheDocument();
-    expect(screen.getByText("Total Lessons")).toBeInTheDocument();
+    expect(await screen.findByText("Greetings")).toBeInTheDocument();
+    expect(screen.getByText("8")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getByText("85%")).toBeInTheDocument();
+    expect(screen.getByText("Score: 85%")).toBeInTheDocument();
   });
 
-  it("shows empty state with zero values", async () => {
-    vi.mocked(api.fetchDashboard).mockResolvedValue(emptyDashboard);
+  it("shows truthful empty states", async () => {
+    vi.mocked(api.fetchDashboard).mockResolvedValue({
+      overview: { completed_lessons: 0, quiz_attempts: 0, average_score: 0 },
+      recent_activity: [],
+      recent_attempts: [],
+    });
     vi.mocked(api.fetchMyProgress).mockResolvedValue([]);
 
     render(<ProgressPage />);
 
-    await waitFor(() => {
-      expect(screen.getAllByText("0%").length).toBeGreaterThanOrEqual(1);
-    });
-    expect(screen.getByText("No quiz sessions yet.")).toBeInTheDocument();
-    expect(screen.getByText("No courses started yet.")).toBeInTheDocument();
+    expect(await screen.findByText("No lessons completed yet.")).toBeInTheDocument();
+    expect(screen.getByText("No quiz attempts yet.")).toBeInTheDocument();
   });
 
-  it("shows error message and retry button on API failure", async () => {
-    vi.mocked(api.fetchDashboard).mockResolvedValue(emptyDashboard);
-    vi.mocked(api.fetchMyProgress).mockRejectedValue(new Error("Network Error"));
+  it("retries both APIs after an error", async () => {
+    vi.mocked(api.fetchDashboard).mockRejectedValueOnce(new Error("Network Error"));
 
     render(<ProgressPage />);
 
-    await waitFor(() => {
-      expect(screen.getByText(/Network Error/)).toBeInTheDocument();
-    });
-    expect(screen.getByText("Retry")).toBeInTheDocument();
-  });
-
-  it("shows dashboard data even when progress fails", async () => {
-    vi.mocked(api.fetchDashboard).mockResolvedValue({
-      total_words: 42,
-      total_bookmarks: 3,
-      completed_lessons: 5,
-      total_lessons: 20,
-      recent_attempts: [],
-      course_progress: [],
-    });
-    vi.mocked(api.fetchMyProgress).mockRejectedValue(new Error("Network Error"));
-
-    render(<ProgressPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("42")).toBeInTheDocument();
-    });
-    expect(screen.getByText("3")).toBeInTheDocument();
+    fireEvent.click(await screen.findByText("Retry"));
+    await waitFor(() => expect(api.fetchDashboard).toHaveBeenCalledTimes(2));
   });
 });

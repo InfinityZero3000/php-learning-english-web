@@ -18,12 +18,13 @@ vi.mock("@/components/ui/toast", () => ({
 
 vi.mock("@/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api")>();
-  return { ...actual, fetchQuiz: vi.fn(), submitQuiz: vi.fn() };
+  return { ...actual, fetchQuiz: vi.fn(), fetchQuizzes: vi.fn(), submitQuiz: vi.fn() };
 });
 
 describe("QuizPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(api.fetchQuizzes).mockResolvedValue([{ id: 1, title: "Test Quiz", questions_count: 1 }]);
   });
 
   afterEach(() => {
@@ -34,7 +35,7 @@ describe("QuizPage", () => {
     render(<QuizPage />);
 
     expect(screen.getByText(/Quiz Setup/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/Enter quiz ID/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Choose a quiz/i)).toBeInTheDocument();
   });
 
   it("shows loading then quiz questions on successful start", async () => {
@@ -46,8 +47,8 @@ describe("QuizPage", () => {
           id: 1,
           content: "What is 2+2?",
           answers: [
-            { id: 1, content: "3", is_correct: false },
-            { id: 2, content: "4", is_correct: true },
+            { id: 1, content: "3" },
+            { id: 2, content: "4" },
           ],
         },
       ],
@@ -55,7 +56,7 @@ describe("QuizPage", () => {
 
     render(<QuizPage />);
 
-    const input = screen.getByPlaceholderText(/Enter quiz ID/i);
+    const input = await screen.findByLabelText(/Choose a quiz/i);
     fireEvent.change(input, { target: { value: "1" } });
     fireEvent.click(screen.getByText(/Start Quiz/i));
 
@@ -73,7 +74,7 @@ describe("QuizPage", () => {
 
     render(<QuizPage />);
 
-    const input = screen.getByPlaceholderText(/Enter quiz ID/i);
+    const input = await screen.findByLabelText(/Choose a quiz/i);
     fireEvent.change(input, { target: { value: "1" } });
     fireEvent.click(screen.getByText(/Start Quiz/i));
 
@@ -91,7 +92,7 @@ describe("QuizPage", () => {
 
     render(<QuizPage />);
 
-    const input = screen.getByPlaceholderText(/Enter quiz ID/i);
+    const input = await screen.findByLabelText(/Choose a quiz/i);
     fireEvent.change(input, { target: { value: "1" } });
     fireEvent.click(screen.getByText(/Start Quiz/i));
 

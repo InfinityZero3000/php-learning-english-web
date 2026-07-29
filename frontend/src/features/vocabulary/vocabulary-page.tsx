@@ -37,7 +37,7 @@ export function VocabularyPage() {
 
   // Only show vocabulary bookmarks
   const vocabBookmarks = useMemo(
-    () => bookmarks.filter((b) => b.bookmarkable_type === "vocabulary"),
+    () => bookmarks.filter((b) => b.bookmark_type === "vocabulary"),
     [bookmarks],
   );
 
@@ -55,7 +55,7 @@ export function VocabularyPage() {
     async (offset: number, size: number, mode: "replace" | "append") => {
       try {
         const page = Math.floor(offset / size) + 1;
-        const res = await fetchBookmarks({ page, per_page: size });
+        const res = await fetchBookmarks({ bookmark_type: "vocabulary", page, per_page: size });
         const newBookmarks = res.data ?? [];
         const meta = res.meta;
 

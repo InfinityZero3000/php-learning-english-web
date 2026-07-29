@@ -6,7 +6,7 @@ describe("learner route policy", () => {
     expect(isProtectedPath("/profile")).toBe(true);
     expect(isProtectedPath("/profile/security")).toBe(true);
     expect(isProtectedPath("/profiled")).toBe(false);
-    expect(isProtectedPath("/vocabulary")).toBe(false);
+    expect(isProtectedPath("/vocabulary")).toBe(true);
   });
 
   it("preserves and encodes the return URL", () => {

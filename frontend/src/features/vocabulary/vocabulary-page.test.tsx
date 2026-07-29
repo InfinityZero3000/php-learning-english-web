@@ -60,8 +60,7 @@ describe("VocabularyPage", () => {
       data: [
         {
           id: 1,
-          bookmarkable_type: "vocabulary",
-          bookmarkable_id: 1,
+          bookmark_type: "vocabulary",
           vocabulary: { id: 1, word: "hello", meaning: "greeting word" },
           created_at: "2026-01-01T00:00:00Z",
         },

@@ -145,7 +145,7 @@ export async function fetchMe(): Promise<AppUser> {
 }
 
 export async function forgotPassword(email: string): Promise<ApiEnvelope<{ message: string }>> {
-  return apiRequest("POST", "/api/v1/auth/forgot-password", { email });
+  return apiRequest("POST", "/api/v1/auth/password/forgot", { email });
 }
 
 export async function resendVerification(): Promise<ApiEnvelope<{ message: string }>> {
@@ -158,7 +158,7 @@ export async function resetPassword(payload: {
   password: string;
   password_confirmation: string;
 }): Promise<ApiEnvelope<{ message: string }>> {
-  return apiRequest("POST", "/api/v1/auth/reset-password", payload);
+  return apiRequest("POST", "/api/v1/auth/password/reset", payload);
 }
 
 // --- Convenience objects (auto-init CSRF for auth mutations) ----------------
@@ -240,8 +240,7 @@ export interface LessonResource {
 
 export interface BookmarkResource {
   id: number;
-  bookmarkable_type?: string;
-  bookmarkable_id?: number;
+  bookmark_type: "lesson" | "vocabulary";
   lesson?: {
     id: number;
     title: string;
@@ -278,35 +277,32 @@ export interface QuestionResource {
 export interface AnswerResource {
   id: number;
   content: string;
-  is_correct?: boolean;
   sort_order?: number;
 }
 
 export interface AttemptResource {
   id: number;
   score: number;
-  total_questions?: number;
-  correct_answers?: number;
-  is_completed?: boolean;
+  quiz_id?: number;
   completed_at?: string;
   created_at?: string;
 }
 
 export interface ProgressResource {
   id: number;
-  course?: { id: number; title: string };
-  completed_lessons?: number;
-  total_lessons?: number;
-  progress_percent?: number;
+  lesson_id?: number;
+  completed_at?: string;
+  lesson?: LessonResource;
 }
 
 export interface DashboardResource {
-  total_words?: number;
-  total_bookmarks?: number;
-  completed_lessons?: number;
-  total_lessons?: number;
+  overview: {
+    completed_lessons: number;
+    quiz_attempts: number;
+    average_score: number;
+  };
+  recent_activity: ProgressResource[];
   recent_attempts?: AttemptResource[];
-  course_progress?: ProgressResource[];
 }
 
 export async function fetchCourses(params?: {
@@ -414,6 +410,7 @@ export async function fetchVocabulary(params?: {
 // --- Bookmarks (auth) -------------------------------------------------------
 
 export async function fetchBookmarks(params?: {
+  bookmark_type?: "lesson" | "vocabulary";
   per_page?: number;
   page?: number;
 }): Promise<{ data: BookmarkResource[]; meta: PaginationMeta }> {
@@ -430,11 +427,11 @@ export async function fetchBookmarks(params?: {
   return apiRequest("GET", url);
 }
 
-export async function toggleBookmarkVocabulary(vocabularyId: number): Promise<ApiEnvelope<{ bookmarked: boolean }>> {
+export async function toggleBookmarkVocabulary(vocabularyId: number): Promise<ApiEnvelope<{ status: "bookmarked" | "unbookmarked" }>> {
   return apiRequest("POST", `/api/v1/bookmarks/vocabulary/${vocabularyId}/toggle`);
 }
 
-export async function toggleBookmarkLesson(lessonId: number): Promise<ApiEnvelope<{ bookmarked: boolean }>> {
+export async function toggleBookmarkLesson(lessonId: number): Promise<ApiEnvelope<{ status: "bookmarked" | "unbookmarked" }>> {
   return apiRequest("POST", `/api/v1/bookmarks/lesson/${lessonId}/toggle`);
 }
 
@@ -442,6 +439,11 @@ export async function toggleBookmarkLesson(lessonId: number): Promise<ApiEnvelop
 
 export async function fetchQuiz(quizId: number): Promise<QuizResource> {
   const result = await apiRequest<ApiEnvelope<QuizResource>>("GET", `/api/v1/quizzes/${quizId}`);
+  return result.data;
+}
+
+export async function fetchQuizzes(): Promise<QuizResource[]> {
+  const result = await apiRequest<ApiEnvelope<QuizResource[]>>("GET", "/api/v1/quizzes");
   return result.data;
 }
 

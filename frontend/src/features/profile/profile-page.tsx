@@ -15,17 +15,13 @@ import {
   saveSelectedBackground,
   type BackgroundOption
 } from "@/lib/background-settings";
-import { fetchMe, fetchDashboard, profile } from "@/lib/api";
+import { fetchMe, fetchVocabulary, profile } from "@/lib/api";
 import { cn, formatDateTime } from "@/lib/utils";
 import type { AppUser } from "@/types/api";
 
-function toTimeInput(value?: string) {
-  return value ? value.slice(0, 5) : "";
-}
-
 export function ProfilePage() {
   const [user, setUser] = useState<AppUser | null>(null);
-  const [summary, setSummary] = useState({ words: 0, streak: 0, bookmarks: 0 });
+  const [wordCount, setWordCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [selectedBackgroundId, setSelectedBackgroundId] = useState<string | null>(null);
   const [cachedBackgroundIds, setCachedBackgroundIds] = useState<Set<string>>(new Set());
@@ -36,15 +32,11 @@ export function ProfilePage() {
   useEffect(() => {
     Promise.all([
       fetchMe().catch(() => null),
-      fetchDashboard().catch(() => null),
-    ]).then(([me, dashboard]) => {
+      fetchVocabulary({ per_page: 1 }).catch(() => null),
+    ]).then(([me, vocabulary]) => {
       setUser(me);
       setDisplayName(me?.name ?? "");
-      setSummary({
-        words: dashboard?.total_words ?? 0,
-        streak: 0,
-        bookmarks: dashboard?.total_bookmarks ?? 0,
-      });
+      setWordCount(vocabulary?.meta.total ?? vocabulary?.data.length ?? 0);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
@@ -140,7 +132,7 @@ export function ProfilePage() {
                 <CardDescription>Vocabulary in your collection</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="font-display text-4xl font-bold text-primary">{summary.words}</p>
+                <p className="font-display text-4xl font-bold text-primary">{wordCount}</p>
               </CardContent>
             </Card>
             {/*

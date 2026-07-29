@@ -1,11 +1,11 @@
 "use client";
 
-import { IconArrowLeft, IconCircleCheck, IconCircleX, IconPlayerPlay, IconPuzzle } from "@tabler/icons-react";
-import { useState } from "react";
+import { IconArrowLeft, IconCircleCheck, IconPlayerPlay, IconPuzzle } from "@tabler/icons-react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShellLoading } from "@/components/layout/app-shell";
 import { useToast } from "@/components/ui/toast";
-import { ApiError, fetchQuiz, submitQuiz } from "@/lib/api";
+import { ApiError, fetchQuiz, fetchQuizzes, submitQuiz } from "@/lib/api";
 import type { QuizResource, AttemptResource } from "@/lib/api";
 import { useAuth } from "@/features/auth/auth-context";
 import { loginHref } from "@/features/auth/route-policy";
@@ -29,8 +29,6 @@ function QuizHero() {
 }
 
 function ResultHero({ attempt }: { attempt: AttemptResource }) {
-  const total = attempt.total_questions ?? 0;
-  const correct = attempt.correct_answers ?? 0;
   const score = attempt.score;
   return (
     <div className="mb-6 rounded-xl bg-primary p-6 text-primary-foreground">
@@ -39,10 +37,6 @@ function ResultHero({ attempt }: { attempt: AttemptResource }) {
         <div className="text-center">
           <p className="font-display text-[32px] font-bold text-accent">{score}</p>
           <p className="text-sm font-semibold text-sky-100">Score</p>
-        </div>
-        <div className="text-center">
-          <p className="font-display text-[32px] font-bold text-accent">{correct}/{total}</p>
-          <p className="text-sm font-semibold text-sky-100">Correct</p>
         </div>
       </div>
     </div>
@@ -63,6 +57,17 @@ export function QuizPage() {
   const [submitting, setSubmitting] = useState(false);
   const [loadingQuiz, setLoadingQuiz] = useState(false);
   const [selectedQuizId, setSelectedQuizId] = useState<number | null>(null);
+  const [availableQuizzes, setAvailableQuizzes] = useState<QuizResource[]>([]);
+
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    fetchQuizzes()
+      .then(setAvailableQuizzes)
+      .catch((reason) => {
+        if (reason instanceof ApiError && reason.status === 401) router.push(loginHref("/quiz"));
+        else toast("Could not load available quizzes.", "error");
+      });
+  }, [router, status, toast]);
 
   async function startQuiz() {
     if (status !== "authenticated") {
@@ -147,19 +152,21 @@ export function QuizPage() {
           <h3 className="mb-5 font-display text-xl font-bold text-foreground">Quiz Setup</h3>
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <label className="font-display text-[13px] font-bold uppercase tracking-widest text-muted-foreground">
-                Quiz ID
+              <label htmlFor="quiz-select" className="font-display text-[13px] font-bold uppercase tracking-widest text-muted-foreground">
+                Choose a quiz
               </label>
-              <input
-                type="number"
+              <select
+                id="quiz-select"
                 className="rounded-xl border-2 border-border bg-muted/30 px-4 py-3 font-bold text-foreground focus:border-primary focus:outline-none"
-                placeholder="Enter quiz ID (e.g., 1)"
                 value={selectedQuizId ?? ""}
                 onChange={(e) => setSelectedQuizId(e.target.value ? Number(e.target.value) : null)}
-              />
-              <p className="text-xs font-semibold text-muted-foreground">
-                You can find quiz IDs in course lessons.
-              </p>
+              >
+                <option value="">Select an available quiz</option>
+                {availableQuizzes.map((item) => (
+                  <option key={item.id} value={item.id}>{item.title ?? `Quiz #${item.id}`} · {item.questions_count ?? 0} questions</option>
+                ))}
+              </select>
+              {availableQuizzes.length === 0 ? <p className="text-xs font-semibold text-muted-foreground">No published quizzes are available.</p> : null}
             </div>
 
             <button
@@ -261,15 +268,9 @@ export function QuizPage() {
             const letter = LETTERS[i] ?? String(i);
             let borderClass = "border-2 border-muted hover:border-primary hover:bg-muted";
             if (selectedAnswerId !== null) {
-              if (answer.id === selectedAnswerId) {
-                borderClass = answer.is_correct
-                  ? "border-2 border-green-500 bg-green-50"
-                  : "border-2 border-red-500 bg-red-50";
-              } else if (answer.is_correct) {
-                borderClass = "border-2 border-green-500 bg-green-50";
-              } else {
-                borderClass = "border-2 border-muted opacity-60";
-              }
+              borderClass = answer.id === selectedAnswerId
+                ? "border-2 border-primary bg-accent"
+                : "border-2 border-muted opacity-60";
             }
             return (
               <button
@@ -291,25 +292,10 @@ export function QuizPage() {
         {/* Feedback */}
         {selectedAnswerId !== null && (
           <div className="mt-5 rounded-xl bg-muted/50 p-4">
-            {answers[answers.length - 1] &&
-             currentQuestion.answers?.find((a) => a.id === answers[answers.length - 1].answer_id)?.is_correct ? (
-              <div className="flex items-center gap-2 text-green-600">
-                <IconCircleCheck className="h-5 w-5" />
-                <span className="font-display font-bold uppercase">Correct!</span>
+            <div className="flex items-center gap-2 text-primary">
+              <IconCircleCheck className="h-5 w-5" />
+              <span className="font-display font-bold uppercase">Answer recorded</span>
               </div>
-            ) : (
-              <div>
-                <div className="flex items-center gap-2 text-red-600">
-                  <IconCircleX className="h-5 w-5" />
-                  <span className="font-display font-bold uppercase">Incorrect</span>
-                </div>
-                {currentQuestion.answers?.find((a) => a.is_correct) && (
-                  <p className="mt-2 text-sm font-semibold text-muted-foreground">
-                    Correct answer: {currentQuestion.answers.find((a) => a.is_correct)!.content}
-                  </p>
-                )}
-              </div>
-            )}
           </div>
         )}
 
