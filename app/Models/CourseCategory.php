@@ -11,13 +11,21 @@ class CourseCategory extends Model
     use HasFactory;
 
     protected $fillable = [
-        'external_id', 'name', 'slug', 'description', 'icon', 'color',
+        'source_system', 'external_id', 'source_fingerprint', 'source_snapshot',
+        'local_override_at', 'last_synced_at', 'catalog_revision',
+        'name', 'slug', 'description', 'icon', 'color',
         'sort_order', 'is_active',
     ];
 
     protected function casts(): array
     {
-        return ['is_active' => 'boolean'];
+        return [
+            'is_active' => 'boolean',
+            'source_snapshot' => 'array',
+            'local_override_at' => 'datetime',
+            'last_synced_at' => 'datetime',
+            'catalog_revision' => 'integer',
+        ];
     }
 
     public function courses(): HasMany

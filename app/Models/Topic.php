@@ -11,7 +11,20 @@ class Topic extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['external_id', 'name', 'slug'];
+    protected $fillable = [
+        'source_system', 'external_id', 'source_fingerprint', 'source_snapshot',
+        'local_override_at', 'last_synced_at', 'catalog_revision', 'name', 'slug',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'source_snapshot' => 'array',
+            'local_override_at' => 'datetime',
+            'last_synced_at' => 'datetime',
+            'catalog_revision' => 'integer',
+        ];
+    }
 
     public function courses(): BelongsToMany
     {
