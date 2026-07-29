@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Vocabulary extends Model
 {
     protected $fillable = [
-        'lesson_id', 'topic_id', 'external_id', 'word', 'meaning', 'definition',
+        'lesson_id', 'topic_id', 'external_id', 'import_fingerprint', 'word', 'meaning', 'definition',
         'translation', 'pronunciation', 'part_of_speech', 'difficulty_level',
         'tags', 'example', 'image_path', 'audio_path', 'external_audio_url',
     ];

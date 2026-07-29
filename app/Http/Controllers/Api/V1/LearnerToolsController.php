@@ -103,12 +103,23 @@ class LearnerToolsController extends Controller
             $created = 0;
             $skipped = 0;
             foreach ($data['rows'] as $row) {
+                $attributes = [
+                    'word' => trim($row['word']), 'meaning' => trim($row['translation']),
+                    'pronunciation' => $row['pronunciation'] ?? null,
+                    'part_of_speech' => $row['partOfSpeech'] ?? $row['category'] ?? null,
+                    'difficulty_level' => $row['difficulty'] ?? null,
+                    'tags' => empty($row['cefrLevel']) ? null : [$row['cefrLevel']],
+                    'topic_id' => $row['topicId'] ?? null, 'example' => $row['example'] ?? null,
+                ];
+                $fingerprint = hash('sha256', json_encode([
+                    mb_strtolower(preg_replace('/\s+/u', ' ', $attributes['word'])),
+                    mb_strtolower(preg_replace('/\s+/u', ' ', $attributes['meaning'])),
+                    $attributes['topic_id'], $attributes['part_of_speech'], $attributes['difficulty_level'], $attributes['tags'],
+                    $attributes['pronunciation'], $attributes['example'],
+                ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
                 $word = Vocabulary::query()->firstOrCreate(
-                    ['word' => trim($row['word'])],
-                    ['meaning' => trim($row['translation']), 'pronunciation' => $row['pronunciation'] ?? null,
-                        'part_of_speech' => $row['partOfSpeech'] ?? $row['category'] ?? null, 'difficulty_level' => $row['difficulty'] ?? null,
-                        'tags' => empty($row['cefrLevel']) ? null : [$row['cefrLevel']],
-                        'topic_id' => $row['topicId'] ?? null, 'example' => $row['example'] ?? null],
+                    ['import_fingerprint' => $fingerprint],
+                    $attributes,
                 );
                 $state = UserVocabulary::query()->firstOrCreate(
                     ['user_id' => $request->user()->id, 'vocabulary_id' => $word->id],

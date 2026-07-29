@@ -39,6 +39,21 @@ class LearnerToolsApiTest extends TestCase
         $this->assertDatabaseHas('vocabularies', ['word' => 'backend', 'part_of_speech' => 'noun']);
         $this->assertSame(['B1'], Vocabulary::query()->where('word', 'backend')->firstOrFail()->tags);
 
+        $this->actingAs($user)->postJson('/api/v1/learner-imports', [
+            'sourceType' => 'PASTE', 'rows' => [['word' => 'backend', 'translation' => 'hệ thống phía sau']],
+        ])->assertCreated()->assertJsonPath('data.createdCount', 1);
+        $this->assertSame(2, Vocabulary::query()->where('word', 'backend')->count());
+
+        $this->actingAs($user)->postJson('/api/v1/learner-imports', $payload)
+            ->assertCreated()->assertJsonPath('data.createdCount', 0);
+        $this->assertSame(2, Vocabulary::query()->where('word', 'backend')->count());
+
+        $corrected = $payload;
+        $corrected['rows'][0]['pronunciation'] = '/ˈbæk.end/';
+        $this->actingAs($user)->postJson('/api/v1/learner-imports', $corrected)
+            ->assertCreated()->assertJsonPath('data.createdCount', 1);
+        $this->assertSame(3, Vocabulary::query()->where('word', 'backend')->count());
+
         $this->actingAs($user)->postJson('/api/v1/learner-imports', ['sourceType' => 'PASTE', 'rows' => []])
             ->assertUnprocessable();
     }

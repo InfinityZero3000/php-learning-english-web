@@ -44,6 +44,10 @@ class AnonymizeAccount
             DB::table('attempts')->where('user_id', $id)->delete();
             DB::table('progress')->where('user_id', $id)->delete();
             DB::table('bookmarks')->where('user_id', $id)->delete();
+            DB::table('media_listening_sessions')->where('user_id', $id)->delete();
+            DB::table('vocabulary_quiz_sessions')->where('user_id', $id)->delete();
+            DB::table('learner_import_runs')->where('user_id', $id)->delete();
+            DB::table('learner_notification_reads')->where('user_id', $id)->delete();
             DB::table('operations_audits')->where('actor_id', $id)->update(['actor_id' => null]);
             DB::table('alert_rules')->where('created_by', $id)->update(['created_by' => null]);
             DB::table('quota_policies')->where('created_by', $id)->update(['created_by' => null]);

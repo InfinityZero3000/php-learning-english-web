@@ -88,6 +88,10 @@ class AccountAnonymizationTest extends TestCase
             'payload' => '',
             'last_activity' => now()->timestamp,
         ]);
+        DB::table('media_listening_sessions')->insert(['user_id' => $user->id, 'external_id' => 'private-video', 'title' => 'Private', 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('vocabulary_quiz_sessions')->insert(['user_id' => $user->id, 'quiz_type' => 'en-vi', 'word_ids' => '[]', 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('learner_import_runs')->insert(['user_id' => $user->id, 'source_type' => 'PASTE', 'target_set_name' => 'Private list', 'total_rows' => 1, 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('learner_notification_reads')->insert(['user_id' => $user->id, 'notification_key' => 'private', 'read_at' => now()]);
 
         $this->actingAs($user)
             ->deleteJson('/api/v1/profile', ['password' => 'password'])
@@ -103,6 +107,10 @@ class AccountAnonymizationTest extends TestCase
         $this->assertModelExists($review);
         $this->assertDatabaseMissing('learning_sessions', ['user_id' => $user->id]);
         $this->assertDatabaseMissing('sessions', ['user_id' => $user->id]);
+        $this->assertDatabaseMissing('media_listening_sessions', ['user_id' => $user->id]);
+        $this->assertDatabaseMissing('vocabulary_quiz_sessions', ['user_id' => $user->id]);
+        $this->assertDatabaseMissing('learner_import_runs', ['user_id' => $user->id]);
+        $this->assertDatabaseMissing('learner_notification_reads', ['user_id' => $user->id]);
         $this->assertDatabaseMissing('supervision_alerts', ['fingerprint' => 'open-alert']);
         $this->assertSame(['anonymized' => true], $resolvedAlert->fresh()->evidence);
         $this->assertNull($resolvedAlert->fresh()->resolution_note);
