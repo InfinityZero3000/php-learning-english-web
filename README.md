@@ -150,6 +150,21 @@ collection cần chạy đúng thứ tự đăng nhập/đăng xuất — xem m�
 collection (`postman/php-learning-english-web.postman_collection.json`) để
 biết chi tiết từng folder.
 
+## Tài liệu bàn giao
+
+| Tài liệu | Nội dung |
+|---|---|
+| [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) | Tài khoản demo, luồng learner/admin có ví dụ `curl` chạy thật, troubleshooting riêng cho API |
+| [`docs/architecture.md`](docs/architecture.md) | Sơ đồ kiến trúc hệ thống và ERD (Mermaid) |
+| [`docs/openapi/laravel-v1.yaml`](docs/openapi/laravel-v1.yaml) | Hợp đồng API đầy đủ — request/response/mã lỗi cho mọi route `/api/v1` và `/api/admin` |
+| [`postman/`](postman/) | Postman collection + environment dùng chung để kiểm thử API thủ công (xem mục "Postman" phía trên) |
+| [`docs/PROJECT_PLAN.md`](docs/PROJECT_PLAN.md) | Phân chia nhiệm vụ, phụ thuộc và trạng thái xác minh theo từng issue |
+| [`docs/DEVELOPMENT_WORKFLOW.md`](docs/DEVELOPMENT_WORKFLOW.md) | Branch, push, Pull Request, PHPUnit và CI/CD Fly.io |
+| [`docs/PRODUCTION_ENV.md`](docs/PRODUCTION_ENV.md) | Biến môi trường production |
+| [`docs/api_docs_lexilingo.md`](docs/api_docs_lexilingo.md) | API của LexiLingo (dịch vụ ngoài) và phần thực sự được app này gọi |
+| [`docs/api/route-doc-gap-log.md`](docs/api/route-doc-gap-log.md) | Nhật ký rà soát route thực tế so với OpenAPI (issue #28 → #26) |
+| [`docs/DOCS_REVIEW_CHECKLIST.md`](docs/DOCS_REVIEW_CHECKLIST.md) | Checklist tự rà soát link và câu lệnh trong đợt tài liệu hóa issue #26 |
+
 ## Cấu trúc phát triển
 
 - `app/Models`: model và quan hệ Eloquent nền.
