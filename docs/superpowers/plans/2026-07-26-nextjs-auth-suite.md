@@ -1,5 +1,8 @@
 # Next.js Auth Suite Implementation Plan
 
+> **Trạng thái:** kế hoạch lịch sử; auth suite hiện đã triển khai và được test.
+> Checkbox bên dưới không phải backlog. Xem [`../../CURRENT_STATUS.md`](../../CURRENT_STATUS.md).
+
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Deliver a polished Next.js authentication suite with working email registration/reset and Google/Facebook OAuth while removing learner-facing Blade auth from production.

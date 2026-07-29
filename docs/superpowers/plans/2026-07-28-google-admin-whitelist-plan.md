@@ -1,5 +1,9 @@
 # Google-only Admin Whitelist Implementation Plan
 
+> **Trạng thái:** implementation đã có và được test; xác minh production nằm tại
+> [`../../CURRENT_STATUS.md`](../../CURRENT_STATUS.md). Checkbox bên dưới là hồ
+> sơ kế hoạch.
+
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Allow admin-panel access only through Google OAuth for emails in environment-only admin or super-admin whitelists.

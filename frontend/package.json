@@ -17,10 +17,10 @@
     "@radix-ui/react-toast": "^1.2.15",
     "@tabler/icons-react": "^3.44.0",
     "eslint": "^9.39.4",
-    "eslint-config-next": "16.2.6",
+    "eslint-config-next": "16.2.12",
     "lottie-react": "^2.4.1",
     "lucide-react": "1.14.0",
-    "next": "16.2.6",
+    "next": "16.2.12",
     "react": "19.2.6",
     "react-dom": "19.2.6"
   },
@@ -34,9 +34,9 @@
     "ajv": "8.17.1",
     "ajv-formats": "3.0.1",
     "autoprefixer": "10.5.0",
+    "jsdom": "^29.1.1",
     "postcss": "8.5.14",
     "tailwindcss": "^3.4.17",
-    "jsdom": "^29.1.1",
     "typescript": "6.0.3",
     "vitest": "^4.1.10"
   }

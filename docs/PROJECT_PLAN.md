@@ -2,6 +2,10 @@
 
 Nguồn: [Plan-Project-PHP](https://docs.google.com/spreadsheets/d/1FEMThp6qikntxxWZBMP4xU36zlVGsNTJ_NxxyTZHl3A/edit?gid=0#gid=0). Mốc báo cáo: **31/07/2026**.
 
+> Trạng thái hiện hành: xem [`CURRENT_STATUS.md`](CURRENT_STATUS.md). Các mục
+> "Trạng thái xác minh" theo ngày bên dưới là nhật ký lịch sử, không phải backlog
+> hiện tại.
+
 | # | Module | Nhiệm vụ | Phụ trách | Phụ thuộc | Sản phẩm bàn giao |
 |---|---|---|---|---|---|
 | 1 | Nền tảng | Laravel, MVC, routing, env, Docker, GitHub workflow | Thắng | Không | Repository, `compose.yaml`, README |
@@ -62,11 +66,11 @@ Laravel là hệ thống chính và là nguồn dữ liệu nghiệp vụ duy nh
 - Không import user, token, progress, notification hoặc dữ liệu cá nhân.
 - Request AI thời gian thực phải có timeout, lỗi an toàn và không làm lộ secret.
 
-Blade hiện tại là giao diện chuyển tiếp để Auth/Profile tiếp tục hoạt động trong
-khi hai Next.js app được chuyển đổi. Giao diện production cuối cùng là
-`frontend/` và `admin-frontend/`.
+Các route giao diện Laravel hiện chuyển hướng sang hai ứng dụng Next.js.
+Giao diện production là `frontend/` và `admin-frontend/`; Blade không còn là
+nguồn giao diện runtime.
 
-### Trạng thái xác minh 25/07/2026
+### Nhật ký xác minh 25/07/2026 (lịch sử)
 
 - Hoàn thành contract Laravel v1, schema import LexiLingo, migration/model tích
   hợp, session Auth API, mail/password/profile API và login guard cho hai
@@ -91,7 +95,7 @@ khi hai Next.js app được chuyển đổi. Giao diện production cuối cùn
   translate/STT/TTS/pronunciation, admin CRUD API, browser smoke production và
   kiểm thử trực tiếp với host/secret LexiLingo thật.
 
-### Trạng thái xác minh 26/07/2026 — Issue #9 (importer category/course/unit/lesson/vocabulary)
+### Nhật ký xác minh 26/07/2026 — Issue #9 (lịch sử)
 
 - Importer idempotent đã có cho category, course (kèm unit và lesson outline
   lồng trong course detail) và vocabulary: validate bằng
@@ -111,7 +115,7 @@ khi hai Next.js app được chuyển đổi. Giao diện production cuối cùn
   list không mang `category_id`), đồng bộ `tags` sang `Topic`, và nội dung đầy
   đủ từng lesson (vẫn chỉ có outline).
 
-### Trạng thái xác minh 27/07/2026 — Issue #10 (proxy AI translate/pronunciation/STT/TTS)
+### Nhật ký xác minh 27/07/2026 — Issue #10 (lịch sử)
 
 - 4 endpoint mới dưới `/api/v1/ai/*` (`translate`, `pronunciation`,
   `speech-to-text`, `text-to-speech`), yêu cầu đăng nhập, dùng
@@ -143,7 +147,7 @@ khi hai Next.js app được chuyển đổi. Giao diện production cuối cùn
   /api/v1/voice/ready`, `POST /api/v1/voice/ticket` (thuộc luồng streaming
   thời gian thực, kiến trúc khác với proxy HTTP này).
 
-### Trạng thái xác minh 28/07/2026 — Issue #30 (quản lý người dùng, phân quyền, audit log)
+### Nhật ký xác minh 28/07/2026 — Issue #30 (lịch sử)
 
 - `users` có thêm `locked_at`/`last_login_at`; đăng nhập session ghi
   `last_login_at` và từ chối tài khoản đã khóa (`403 ACCOUNT_LOCKED`) trước
@@ -194,7 +198,7 @@ khi hai Next.js app được chuyển đổi. Giao diện production cuối cùn
   (theo đúng hợp đồng UI đã build sẵn) thay vì gửi email reset link — có thể
   cân nhắc đổi hướng này khi có yêu cầu bảo mật chặt hơn.
 
-### Trạng thái xác minh 29/07/2026 — Issue #28 (kiểm thử hồi quy REST API và Postman collection)
+### Nhật ký xác minh 29/07/2026 — Issue #28 (lịch sử)
 
 - Rà soát toàn bộ route `/api/v1` và `/api/admin` (auth, catalog, learning,
   admin taxonomy/media, admin user management, AI proxy) so với độ phủ test

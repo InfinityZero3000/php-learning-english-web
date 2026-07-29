@@ -1,5 +1,9 @@
 # Full Admin System Implementation Plan
 
+> **Trạng thái:** phạm vi ứng dụng đã triển khai; production smoke/rollback còn
+> lại được theo dõi tại [`../../CURRENT_STATUS.md`](../../CURRENT_STATUS.md).
+> Checkbox bên dưới là hồ sơ kế hoạch, không phải trạng thái hiện hành.
+
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Deliver a complete, role-aware Admin and Super Admin system in `admin-frontend` with every retained screen discoverable and backed by authorized, non-mock Laravel APIs.

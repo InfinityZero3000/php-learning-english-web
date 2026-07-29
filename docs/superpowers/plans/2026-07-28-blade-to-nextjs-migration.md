@@ -1,5 +1,9 @@
 # Blade to Next.js Migration Implementation Plan
 
+> **Trạng thái:** migration runtime đã hoàn thành; các bước production/rollback
+> còn lại được theo dõi tại [`../../CURRENT_STATUS.md`](../../CURRENT_STATUS.md).
+> Checkbox bên dưới là hồ sơ kế hoạch, không phải trạng thái hiện hành.
+
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace all Blade user interfaces with the existing learner and administrator Next.js applications, remove duplicate HTML mutation routes, and delete `resources/views` without losing required behavior.

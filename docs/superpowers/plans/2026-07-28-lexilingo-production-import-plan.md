@@ -1,5 +1,9 @@
 # LexiLingo Production Import and Interface Completion Implementation Plan
 
+> **Trạng thái:** luồng local/queue và UI đã triển khai; probe contract bằng host
+> thật còn thiếu. Xem [`../../CURRENT_STATUS.md`](../../CURRENT_STATUS.md).
+> Checkbox bên dưới là hồ sơ kế hoạch.
+
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Import a bounded real LexiLingo catalog safely and expose working learner/admin interfaces for courses, lessons, vocabulary, FSRS, TraceCAG, STT and TTS.

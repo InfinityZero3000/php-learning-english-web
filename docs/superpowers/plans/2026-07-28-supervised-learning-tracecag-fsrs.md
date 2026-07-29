@@ -1,5 +1,9 @@
 # Supervised Learning, TraceCAG, and FSRS Implementation Plan
 
+> **Trạng thái:** đây là plan gốc đã được thay thế bởi các plan completion/gap
+> closure và implementation hiện tại. Không dùng 100 checkbox trống làm backlog;
+> xem [`../../CURRENT_STATUS.md`](../../CURRENT_STATUS.md).
+
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Deliver an end-to-end learner, teacher, admin, and super-admin system in which Laravel owns identity and learning state while LexiLingo supplies content, TraceCAG, STT, pronunciation, and TTS services.

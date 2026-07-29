@@ -1,5 +1,10 @@
 # Supervised Learning Completion Implementation Plan
 
+> **Trạng thái:** phần lớn phạm vi đã hoàn thành và được kiểm tra; contract và
+> production verification còn lại nằm tại
+> [`../../CURRENT_STATUS.md`](../../CURRENT_STATUS.md). Checkbox bên dưới là hồ
+> sơ kế hoạch.
+
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Complete every approved learner, teacher, admin and super-admin workflow with correct session progression, stable APIs and resilient interfaces.
