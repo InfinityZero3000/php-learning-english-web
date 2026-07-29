@@ -2,11 +2,16 @@
 
 namespace App\Services\Import;
 
+use App\Models\AdminImportItem;
+use App\Models\AdminImportRun;
 use App\Models\LexiLingoImportCheckpoint;
 use App\Models\LexiLingoImportFailure;
+use App\Support\CatalogFingerprint;
 use App\Support\LexiLingoClient;
 use App\Support\LexiLingoSchemaValidator;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
+use RuntimeException;
 
 abstract class AbstractLexiLingoImporter
 {
@@ -35,6 +40,23 @@ abstract class AbstractLexiLingoImporter
         return is_array($payload['data'] ?? null)
             ? $payload['data']
             : (array_is_list($payload) ? $payload : []);
+    }
+
+    protected function stagedItems(mixed $payload, ?int $maxItems = null): array
+    {
+        if (! is_array($payload)) {
+            throw new RuntimeException('LexiLingo returned an invalid batch.');
+        }
+
+        $items = array_key_exists('data', $payload) ? $payload['data'] : $payload;
+        if (! is_array($items) || ! array_is_list($items)) {
+            throw new RuntimeException('LexiLingo returned an invalid batch.');
+        }
+        if ($maxItems !== null && count($items) > $maxItems) {
+            throw new RuntimeException('LexiLingo returned an oversized batch.');
+        }
+
+        return $items;
     }
 
     protected function startingCursor(bool $reset, ?int $cursor = null): int
@@ -92,5 +114,67 @@ abstract class AbstractLexiLingoImporter
     protected function logInfo(string $message, array $context = []): void
     {
         Log::info($message, ['entity' => $this->entity(), ...$context]);
+    }
+
+    protected function stageItem(
+        AdminImportRun $run,
+        StagedImportClassifier $classifier,
+        string $entity,
+        ?string $externalId,
+        ?string $naturalKey,
+        array $candidate,
+        ?Model $existing = null,
+        array $naturalKeyMatches = [],
+        array $validationErrors = [],
+        ?AdminImportItem $parent = null,
+        array $dependencies = [],
+    ): AdminImportItem {
+        if ($externalId !== null && $staged = AdminImportItem::query()
+            ->where('admin_import_run_id', $run->id)
+            ->where('entity', $entity)
+            ->where('source_system', 'lexilingo')
+            ->where('external_id', $externalId)
+            ->first()) {
+            if ($staged->normalized_fingerprint !== CatalogFingerprint::make($entity, $candidate)) {
+                throw new RuntimeException("LexiLingo returned conflicting {$entity} identities.");
+            }
+
+            return $staged;
+        }
+
+        return AdminImportItem::create([
+            'admin_import_run_id' => $run->id,
+            'parent_item_id' => $parent?->id,
+            'entity' => $entity,
+            'source_system' => 'lexilingo',
+            'external_id' => $externalId,
+            'natural_key' => $naturalKey,
+            'candidate_payload' => $candidate,
+            'dependencies' => $dependencies,
+            ...$classifier->classify(
+                $entity,
+                $candidate,
+                $existing?->only([
+                    'id', 'catalog_revision', 'source_fingerprint',
+                    'source_snapshot', 'local_override_at',
+                ]),
+                $validationErrors,
+                $naturalKeyMatches,
+            ),
+        ]);
+    }
+
+    protected function requireApplyEnabled(bool $dryRun): void
+    {
+        if (! $dryRun && ! config('features.lexilingo_import_apply')) {
+            throw new RuntimeException('LexiLingo import apply is disabled.');
+        }
+    }
+
+    protected function requireValidSchema(string $schema, array $payload): void
+    {
+        if ($this->validator->validate($schema, $payload) !== []) {
+            throw new RuntimeException('LexiLingo response schema validation failed.');
+        }
     }
 }

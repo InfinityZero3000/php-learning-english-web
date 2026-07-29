@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\AdminImportRunner;
 use App\Services\Import\AbstractLexiLingoImporter;
 use App\Services\Import\CategoryImporter;
 use App\Services\Import\CourseImporter;
@@ -27,7 +28,7 @@ class ImportLexiLingoDataset extends Command
         'vocabulary' => LexiLingoVocabularySync::class,
     ];
 
-    public function handle(): int
+    public function handle(AdminImportRunner $runner): int
     {
         if (! config('features.lexilingo_import')) {
             $this->error('LexiLingo import is disabled.');
@@ -56,16 +57,19 @@ class ImportLexiLingoDataset extends Command
             /** @var AbstractLexiLingoImporter $importer */
             $importer = $this->laravel->make($this->importers[$name]);
 
-            $result = $importer->import($limit, $dryRun, $reset);
-
-            $this->info(sprintf(
-                '[%s] processed=%d skipped=%d next_cursor=%d%s',
-                $name,
-                $result->processed,
-                $result->skipped,
-                $result->nextCursor,
-                $dryRun ? ' (dry-run)' : '',
-            ));
+            if ($dryRun) {
+                $result = $importer->import($limit, true, $reset);
+                $this->info(sprintf(
+                    '[%s] processed=%d skipped=%d next_cursor=%d (dry-run)',
+                    $name,
+                    $result->processed,
+                    $result->skipped,
+                    $result->nextCursor,
+                ));
+            } else {
+                $run = $runner->runCli($name, $limit, $reset);
+                $this->info("[{$name}] run={$run->id} status={$run->status}; admin review required.");
+            }
         }
 
         return self::SUCCESS;

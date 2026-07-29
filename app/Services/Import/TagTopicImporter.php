@@ -4,6 +4,7 @@ namespace App\Services\Import;
 
 use App\Models\Topic;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 class TagTopicImporter
 {
@@ -19,6 +20,10 @@ class TagTopicImporter
      */
     public function syncTags(array $tags, bool $dryRun = false): array
     {
+        if (! $dryRun && ! config('features.lexilingo_import_apply')) {
+            throw new RuntimeException('LexiLingo import apply is disabled.');
+        }
+
         $created = 0;
         $existing = 0;
         $topicIds = [];

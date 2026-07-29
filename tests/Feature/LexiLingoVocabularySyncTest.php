@@ -12,6 +12,12 @@ class LexiLingoVocabularySyncTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config()->set('features.lexilingo_import_apply', true);
+    }
+
     public function test_upstream_page_is_imported_and_vocabulary_is_persisted(): void
     {
         config()->set('services.lexilingo.backend_url', 'https://backend.lexilingo.test');

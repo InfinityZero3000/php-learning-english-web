@@ -36,15 +36,16 @@ class AdminContentOperationsApiTest extends TestCase
         $this->assertDatabaseCount('admin_import_runs', 0);
     }
 
-    public function test_admin_can_run_a_bounded_idempotent_import(): void
+    public function test_admin_can_stage_a_bounded_idempotent_import_without_catalog_or_checkpoint_mutation(): void
     {
         $this->seed();
         config()->set('services.lexilingo.backend_url', 'http://localhost');
         config()->set('services.lexilingo.partner_api_key', 'partner-test');
         Http::fake([
             'http://localhost/api/v1/integrations/categories*' => Http::response(['data' => [[
-                'id' => 'cat-1', 'name' => 'Everyday English', 'slug' => 'everyday-english',
-            ]]]),
+                'id' => 'cat-1', 'name' => 'Staged safe', 'slug' => 'staged-safe-unique',
+                'description' => null, 'icon' => null, 'color' => null, 'course_count' => 0,
+            ]], 'meta' => []]),
         ]);
         $requestId = (string) Str::uuid();
         $admin = $this->user('admin');
@@ -54,8 +55,16 @@ class AdminContentOperationsApiTest extends TestCase
             ->assertStatus(202)->assertJsonPath('data.entity', 'categories')
             ->assertJsonPath('data.requested_limit', 10);
         $runId = $response->json('data.id');
-        $this->assertDatabaseHas('admin_import_runs', ['id' => $runId, 'status' => 'succeeded']);
-        $this->assertDatabaseHas('lexilingo_import_checkpoints', ['entity' => 'categories', 'cursor' => 1]);
+        $this->assertDatabaseHas('admin_import_runs', ['id' => $runId, 'status' => 'review_ready']);
+        $this->assertDatabaseHas('admin_import_items', [
+            'admin_import_run_id' => $runId,
+            'entity' => 'category',
+            'external_id' => 'cat-1',
+            'classification' => 'new',
+            'selected_action' => 'add',
+        ]);
+        $this->assertDatabaseMissing('course_categories', ['external_id' => 'cat-1']);
+        $this->assertDatabaseMissing('lexilingo_import_checkpoints', ['entity' => 'categories']);
 
         $this->withHeader('X-Request-ID', $requestId)
             ->postJson('/api/v1/admin/imports', ['entity' => 'categories', 'limit' => 50])
@@ -83,15 +92,16 @@ class AdminContentOperationsApiTest extends TestCase
             ->assertStatus(428);
     }
 
-    public function test_super_admin_reset_replaces_the_checkpoint(): void
+    public function test_super_admin_reset_stages_from_zero_without_replacing_the_checkpoint(): void
     {
         $this->seed();
         config()->set('services.lexilingo.backend_url', 'http://localhost');
         config()->set('services.lexilingo.partner_api_key', 'partner-test');
         Http::fake([
             'http://localhost/api/v1/integrations/categories*' => Http::response(['data' => [[
-                'id' => 'cat-reset', 'name' => 'Reset Category', 'slug' => 'reset-category',
-            ]]]),
+                'id' => 'cat-reset', 'name' => 'Reset Category', 'slug' => 'reset-category-unique',
+                'description' => null, 'icon' => null, 'color' => null, 'course_count' => 0,
+            ]], 'meta' => []]),
         ]);
         LexiLingoImportCheckpoint::create(['entity' => 'categories', 'cursor' => 500]);
 
@@ -99,7 +109,36 @@ class AdminContentOperationsApiTest extends TestCase
             ->postJson('/api/v1/admin/imports/reset', ['entity' => 'categories', 'limit' => 10])
             ->assertStatus(202)->assertJsonPath('data.starting_cursor', 0);
 
-        $this->assertDatabaseHas('lexilingo_import_checkpoints', ['entity' => 'categories', 'cursor' => 1]);
+        $this->assertDatabaseHas('lexilingo_import_checkpoints', ['entity' => 'categories', 'cursor' => 500]);
+        $this->assertDatabaseHas('admin_import_items', ['external_id' => 'cat-reset', 'classification' => 'new']);
+        $this->assertDatabaseMissing('course_categories', ['external_id' => 'cat-reset']);
+    }
+
+    public function test_item_validation_failure_is_staged_for_review_without_advancing_checkpoint(): void
+    {
+        $this->seed();
+        config()->set('services.lexilingo.backend_url', 'http://localhost');
+        config()->set('services.lexilingo.partner_api_key', 'partner-test');
+        Http::fake([
+            'http://localhost/api/v1/integrations/categories*' => Http::response(['data' => [[
+                'id' => 'cat-invalid', 'name' => 'Missing slug',
+            ]], 'meta' => []]),
+        ]);
+
+        $response = $this->actingAs($this->user('admin'))
+            ->withHeader('X-Request-ID', (string) Str::uuid())
+            ->postJson('/api/v1/admin/imports', ['entity' => 'categories', 'limit' => 1])
+            ->assertStatus(202)
+            ->assertJsonPath('data.status', 'review_ready');
+
+        $this->assertDatabaseHas('admin_import_items', [
+            'admin_import_run_id' => $response->json('data.id'),
+            'external_id' => 'cat-invalid',
+            'classification' => 'invalid',
+            'selected_action' => 'exclude',
+        ]);
+        $this->assertDatabaseMissing('lexilingo_import_checkpoints', ['entity' => 'categories']);
+        $this->assertDatabaseMissing('lexilingo_import_failures', ['external_id' => 'cat-invalid']);
     }
 
     public function test_notifications_never_serialize_learner_identity_or_evidence(): void

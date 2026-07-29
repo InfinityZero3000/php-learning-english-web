@@ -16,6 +16,7 @@ class TagTopicIdempotencyTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        config()->set('features.lexilingo_import_apply', true);
         $this->importer = $this->app->make(TagTopicImporter::class);
     }
 

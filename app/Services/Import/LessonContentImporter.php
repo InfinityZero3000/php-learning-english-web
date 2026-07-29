@@ -2,6 +2,7 @@
 
 namespace App\Services\Import;
 
+use App\Models\AdminImportRun;
 use App\Models\Answer;
 use App\Models\Lesson;
 use App\Models\Question;
@@ -20,6 +21,7 @@ class LessonContentImporter extends AbstractLexiLingoImporter
 
     public function import(int $limit, bool $dryRun = false, bool $reset = false, ?int $cursor = null): ImportResult
     {
+        $this->requireApplyEnabled($dryRun);
         $offset = $this->startingCursor($reset, $cursor);
 
         // Get local lessons that have an external_id from LexiLingo
@@ -211,5 +213,56 @@ class LessonContentImporter extends AbstractLexiLingoImporter
         ]);
 
         return new ImportResult($processed, $skipped, $nextCursor);
+    }
+
+    public function stage(AdminImportRun $run, StagedImportClassifier $classifier): ImportResult
+    {
+        $offset = (int) $run->starting_cursor;
+        $lessons = Lesson::query()->where('source_system', 'lexilingo')
+            ->whereNotNull('external_id')->orderBy('id')->offset($offset)
+            ->limit($run->requested_limit)->get();
+        $invalid = 0;
+
+        foreach ($lessons as $lesson) {
+            $response = $this->client->protectedBackend()
+                ->retry(3, 200, throw: false)
+                ->get("/api/v1/admin/lessons/{$lesson->external_id}");
+            if ($response->failed()) {
+                throw new \RuntimeException('LexiLingo lesson content fetch failed.');
+            }
+            $payload = $response->json();
+            $errors = is_array($payload)
+                ? $this->validator->validate('LessonContentResponse', $payload)
+                : ['Invalid lesson content response.'];
+            $data = is_array($payload) ? (array) ($payload['data'] ?? []) : [];
+            $candidate = [
+                ...($lesson->source_snapshot ?? $lesson->only([
+                    'unit_external_id', 'title', 'slug', 'sort_order', 'status',
+                    'lesson_type', 'estimated_minutes', 'xp_reward', 'pass_threshold',
+                ])),
+                'estimated_minutes' => $data['estimated_minutes'] ?? null,
+                'pass_threshold' => $data['pass_threshold'] ?? null,
+                'content' => array_key_exists('content', $data)
+                    ? json_encode($data['content'], JSON_THROW_ON_ERROR)
+                    : null,
+                'quiz_tree' => data_get($data, 'content.quiz'),
+            ];
+            $staged = $this->stageItem(
+                $run,
+                $classifier,
+                'lesson',
+                (string) $lesson->external_id,
+                $lesson->slug,
+                $candidate,
+                $lesson,
+                validationErrors: $errors,
+                dependencies: $lesson->unit?->external_id ? [[
+                    'entity' => 'unit', 'external_id' => (string) $lesson->unit->external_id,
+                ]] : [],
+            );
+            $invalid += $staged->classification === 'invalid' ? 1 : 0;
+        }
+
+        return new ImportResult($lessons->count() - $invalid, $invalid, $offset + $lessons->count());
     }
 }

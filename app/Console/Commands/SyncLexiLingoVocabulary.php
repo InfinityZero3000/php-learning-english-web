@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\AdminImportRunner;
 use App\Services\LexiLingoVocabularySync;
 use Illuminate\Console\Command;
 
@@ -14,7 +15,7 @@ class SyncLexiLingoVocabulary extends Command
 
     protected $description = 'Persist LexiLingo vocabulary into the local database';
 
-    public function handle(LexiLingoVocabularySync $sync): int
+    public function handle(LexiLingoVocabularySync $sync, AdminImportRunner $runner): int
     {
         if (! config('features.lexilingo_import')) {
             $this->error('LexiLingo import is disabled.');
@@ -22,12 +23,15 @@ class SyncLexiLingoVocabulary extends Command
             return self::FAILURE;
         }
 
-        $count = $sync->syncPage(
-            (int) $this->option('offset'),
-            (int) $this->option('limit'),
-            (bool) $this->option('dry-run'),
-        );
-        $this->info("Synchronized {$count} vocabulary items.");
+        $offset = (int) $this->option('offset');
+        $limit = (int) $this->option('limit');
+        if ((bool) $this->option('dry-run')) {
+            $count = $sync->syncPage($offset, $limit, true);
+            $this->info("Validated {$count} vocabulary items (dry-run).");
+        } else {
+            $run = $runner->runCli('vocabulary', $limit, cursor: $offset);
+            $this->info("Vocabulary run={$run->id} status={$run->status}; admin review required.");
+        }
 
         return self::SUCCESS;
     }

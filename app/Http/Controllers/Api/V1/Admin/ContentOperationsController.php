@@ -172,11 +172,11 @@ class ContentOperationsController extends Controller
             $lock = AdminImportLock::query()->lockForUpdate()->findOrFail($data['entity']);
             if ($lock->current_run_id) {
                 $active = AdminImportRun::query()->find($lock->current_run_id);
-                if ($active && in_array($active->status, ['pending', 'running'], true)
+                if ($active && in_array($active->status, ['pending', 'running', 'fetching', 'validating'], true)
                     && $active->updated_at->gt(now('UTC')->subMinutes(15))) {
                     throw new ConflictHttpException('An import for this entity is already running.');
                 }
-                $active?->update(['status' => 'failed', 'error_code' => 'stale_run', 'error_message' => 'Import worker timed out.']);
+                $active?->update(['status' => 'validation_failed', 'error_code' => 'stale_run', 'error_message' => 'Import worker timed out.']);
             }
 
             $cursor = $reset ? 0 : (int) (LexiLingoImportCheckpoint::query()
@@ -186,7 +186,7 @@ class ContentOperationsController extends Controller
                 'entity' => $data['entity'],
                 'payload_fingerprint' => $fingerprint,
                 'actor_id' => $request->user()->id,
-                'status' => 'pending',
+                'status' => 'fetching',
                 'requested_limit' => $limit,
                 'reset' => $reset,
                 'starting_cursor' => $cursor,

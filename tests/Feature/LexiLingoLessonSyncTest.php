@@ -24,6 +24,7 @@ class LexiLingoLessonSyncTest extends TestCase
         config()->set('services.lexilingo.backend_url', 'https://backend.lexilingo.test');
         config()->set('services.lexilingo.import_key', 'import-key-secret');
         config()->set('cache.stores.redis', ['driver' => 'array']);
+        config()->set('features.lexilingo_import_apply', true);
     }
 
     public function test_valid_lesson_content_is_synced_including_quiz(): void

@@ -2,6 +2,7 @@
 
 namespace App\Services\Import;
 
+use App\Models\AdminImportRun;
 use App\Models\CourseCategory;
 use Illuminate\Support\Facades\DB;
 
@@ -14,6 +15,7 @@ class CategoryImporter extends AbstractLexiLingoImporter
 
     public function import(int $limit, bool $dryRun = false, bool $reset = false, ?int $cursor = null): ImportResult
     {
+        $this->requireApplyEnabled($dryRun);
         $offset = $this->startingCursor($reset, $cursor);
 
         $payload = $this->client->partner()
@@ -24,7 +26,7 @@ class CategoryImporter extends AbstractLexiLingoImporter
             ->throw()
             ->json();
 
-        $items = $this->items($payload);
+        $items = $this->stagedItems($payload);
 
         $processed = 0;
         $skipped = 0;
@@ -81,5 +83,59 @@ class CategoryImporter extends AbstractLexiLingoImporter
         ]);
 
         return new ImportResult($processed, $skipped, $nextCursor);
+    }
+
+    public function stage(AdminImportRun $run, StagedImportClassifier $classifier): ImportResult
+    {
+        $offset = (int) $run->starting_cursor;
+        $payload = $this->client->partner()
+            ->get('/api/v1/integrations/categories', [
+                'page' => intdiv($offset, $run->requested_limit) + 1,
+                'page_size' => $run->requested_limit,
+            ])
+            ->throw()
+            ->json();
+        $items = $this->stagedItems($payload, min(100, (int) $run->requested_limit));
+        $this->requireValidSchema('CategoryListResponse', [...$payload, 'data' => []]);
+        $invalid = 0;
+
+        foreach ($items as $item) {
+            $item = is_array($item) ? $item : [];
+            $externalId = isset($item['id']) ? (string) $item['id'] : null;
+            $candidate = array_intersect_key($item, array_flip([
+                'name', 'slug', 'description', 'icon', 'color',
+            ]));
+            $errors = $this->validator->validate('Category', $item);
+            $existing = $externalId
+                ? CourseCategory::query()->where('source_system', 'lexilingo')->where('external_id', $externalId)->first()
+                : null;
+            $naturalMatches = isset($candidate['slug'])
+                ? CourseCategory::query()->where('slug', $candidate['slug'])->get()->map->only([
+                    'id', 'catalog_revision', 'source_fingerprint', 'source_snapshot', 'local_override_at',
+                ])->all()
+                : [];
+            $classification = $classifier->classify(
+                'category',
+                $candidate,
+                $existing?->only(['id', 'catalog_revision', 'source_fingerprint', 'source_snapshot', 'local_override_at']),
+                $errors,
+                $naturalMatches,
+            );
+            $invalid += $classification['classification'] === 'invalid' ? 1 : 0;
+
+            $this->stageItem(
+                $run,
+                $classifier,
+                'category',
+                $externalId,
+                $candidate['slug'] ?? null,
+                $candidate,
+                $existing,
+                $naturalMatches,
+                $errors,
+            );
+        }
+
+        return new ImportResult(count($items) - $invalid, $invalid, $offset + count($items));
     }
 }
