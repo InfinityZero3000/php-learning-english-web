@@ -1,5 +1,17 @@
 <?php
 
+use App\Http\Controllers\Api\Admin\AuditLogController;
+use App\Http\Controllers\Api\Admin\UserController as AdminUserController;
+use App\Http\Controllers\Api\V1\Admin\CategoryAdminController;
+use App\Http\Controllers\Api\V1\Admin\CourseAdminController;
+use App\Http\Controllers\Api\V1\Admin\LessonAdminController;
+use App\Http\Controllers\Api\V1\Admin\LevelController;
+use App\Http\Controllers\Api\V1\Admin\MediaController;
+use App\Http\Controllers\Api\V1\Admin\QuizAdminController;
+use App\Http\Controllers\Api\V1\Admin\TopicController;
+use App\Http\Controllers\Api\V1\Admin\UserAdminController;
+use App\Http\Controllers\Api\V1\Admin\VocabularyAdminController;
+use App\Http\Controllers\Api\V1\AiProxyController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BookmarkApiController;
 use App\Http\Controllers\Api\V1\CatalogController;
@@ -59,6 +71,11 @@ Route::prefix('api/v1')->group(function (): void {
         Route::put('/profile', [ProfileController::class, 'update']);
         Route::put('/profile/password', [ProfileController::class, 'password']);
         Route::delete('/profile', [ProfileController::class, 'destroy']);
+
+        Route::post('/ai/translate', [AiProxyController::class, 'translate'])->middleware('throttle:20,1');
+        Route::post('/ai/pronunciation', [AiProxyController::class, 'pronunciation'])->middleware('throttle:10,1');
+        Route::post('/ai/speech-to-text', [AiProxyController::class, 'speechToText'])->middleware('throttle:10,1');
+        Route::post('/ai/text-to-speech', [AiProxyController::class, 'textToSpeech'])->middleware('throttle:20,1');
     });
 
     // Public catalog routes
@@ -86,4 +103,33 @@ Route::prefix('api/v1')->group(function (): void {
         Route::get('/progress/course/{course}', [ProgressController::class, 'courseProgress']);
         Route::post('/progress/lesson/{lesson}/complete', [ProgressController::class, 'markCompleted']);
     });
+
+    // Authenticated admin routes
+    Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function (): void {
+        Route::apiResource('topics', TopicController::class);
+        Route::apiResource('levels', LevelController::class);
+        Route::apiResource('categories', CategoryAdminController::class);
+        Route::apiResource('courses', CourseAdminController::class);
+        Route::apiResource('lessons', LessonAdminController::class);
+        Route::apiResource('vocabulary', VocabularyAdminController::class);
+        Route::apiResource('quizzes', QuizAdminController::class);
+        Route::get('users', [UserAdminController::class, 'index']);
+        Route::get('users/{user}', [UserAdminController::class, 'show']);
+        Route::put('users/{user}/role', [UserAdminController::class, 'updateRole']);
+
+        // Media
+        Route::post('/media/upload', [MediaController::class, 'upload']);
+        Route::delete('/media/{path?}', [MediaController::class, 'destroy'])->where('path', '.*');
+    });
+});
+
+Route::prefix('api/admin')->middleware(['auth', 'role:admin'])->group(function (): void {
+    Route::get('/users', [AdminUserController::class, 'index']);
+    Route::get('/users/{user}', [AdminUserController::class, 'show']);
+    Route::get('/users/{user}/history', [AdminUserController::class, 'history']);
+    Route::put('/users/{user}/lock', [AdminUserController::class, 'lock']);
+    Route::put('/users/{user}/unlock', [AdminUserController::class, 'unlock']);
+    Route::post('/users/{user}/reset-password', [AdminUserController::class, 'resetPassword']);
+    Route::put('/users/{user}/role', [AdminUserController::class, 'updateRole']);
+    Route::get('/audit-logs', [AuditLogController::class, 'index']);
 });

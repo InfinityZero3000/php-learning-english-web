@@ -5,13 +5,14 @@ namespace App\Console\Commands;
 use App\Services\Import\AbstractLexiLingoImporter;
 use App\Services\Import\CategoryImporter;
 use App\Services\Import\CourseImporter;
+use App\Services\Import\LessonContentImporter;
 use App\Services\LexiLingoVocabularySync;
 use Illuminate\Console\Command;
 
 class ImportLexiLingoDataset extends Command
 {
     protected $signature = 'lexilingo:import
-        {entity : categories|courses|vocabulary|all}
+        {entity : categories|courses|lessons|vocabulary|all}
         {--limit=50 : Page size per run}
         {--dry-run : Validate only, no database writes}
         {--reset : Ignore stored checkpoint and start from offset 0}';
@@ -22,6 +23,7 @@ class ImportLexiLingoDataset extends Command
     private array $importers = [
         'categories' => CategoryImporter::class,
         'courses' => CourseImporter::class,
+        'lessons' => LessonContentImporter::class,
         'vocabulary' => LexiLingoVocabularySync::class,
     ];
 

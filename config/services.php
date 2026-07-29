@@ -51,6 +51,9 @@ return [
         'import_key' => env('LEXILINGO_IMPORT_KEY'),
         'ai_service_secret' => env('LEXILINGO_AI_SERVICE_SECRET'),
         'timeout' => (int) env('LEXILINGO_TIMEOUT', 30),
+        'ai_retry_times' => (int) env('LEXILINGO_AI_RETRY_TIMES', 2),
+        'ai_retry_delay_ms' => (int) env('LEXILINGO_AI_RETRY_DELAY_MS', 200),
+        'max_audio_kb' => (int) env('LEXILINGO_AI_MAX_AUDIO_KB', 10240),
     ],
     'enrichment' => [
         'enabled' => filter_var(env('APP_ENRICHMENT_ENABLED', false), FILTER_VALIDATE_BOOL),

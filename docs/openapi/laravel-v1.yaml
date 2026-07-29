@@ -238,6 +238,324 @@ paths:
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "419": { $ref: "#/components/responses/CsrfError" }
         "422": { $ref: "#/components/responses/ValidationError" }
+  /api/admin/users:
+    get:
+      summary: List users (admin)
+      operationId: adminListUsers
+      security: [{ session: [] }]
+      parameters:
+        - in: query
+          name: email
+          description: Matches against name OR email.
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { type: string, enum: [active, locked] }
+        - in: query
+          name: role
+          schema: { type: string, enum: [USER, ADMIN, MODERATOR] }
+        - in: query
+          name: page
+          description: 0-indexed.
+          schema: { type: integer, minimum: 0, default: 0 }
+        - in: query
+          name: size
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: Paginated user list
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminUsersResponse" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /api/admin/users/{user}:
+    get:
+      summary: Get user detail (admin)
+      operationId: adminGetUser
+      security: [{ session: [] }]
+      parameters:
+        - in: path
+          name: user
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: User detail with learning stats
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminUserDetail" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/MessageResponse" }
+  /api/admin/users/{user}/history:
+    get:
+      summary: Get a user's vocabulary review history (admin)
+      operationId: adminGetUserHistory
+      security: [{ session: [] }]
+      parameters:
+        - in: path
+          name: user
+          required: true
+          schema: { type: integer }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: Review history, most recent first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AdminReviewHistoryItem" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/MessageResponse" }
+  /api/admin/users/{user}/lock:
+    put:
+      summary: Lock a user account (admin)
+      operationId: adminLockUser
+      security: [{ session: [], csrf: [] }]
+      parameters:
+        - in: path
+          name: user
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Updated user (idempotent if already locked)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminUser" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/MessageResponse" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422":
+          description: Blocked self-lock or locking the last active admin
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ValidationError" }
+  /api/admin/users/{user}/unlock:
+    put:
+      summary: Unlock a user account (admin)
+      operationId: adminUnlockUser
+      security: [{ session: [], csrf: [] }]
+      parameters:
+        - in: path
+          name: user
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Updated user (idempotent if already unlocked)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminUser" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/MessageResponse" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+  /api/admin/users/{user}/reset-password:
+    post:
+      summary: Generate a one-time temporary password for a user (admin)
+      operationId: adminResetUserPassword
+      security: [{ session: [], csrf: [] }]
+      parameters:
+        - in: path
+          name: user
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Temporary password, shown once and never logged
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [temporaryPassword]
+                properties:
+                  temporaryPassword: { type: string }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/MessageResponse" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+  /api/admin/users/{user}/role:
+    put:
+      summary: Change a user's role (admin)
+      operationId: adminUpdateUserRole
+      security: [{ session: [], csrf: [] }]
+      parameters:
+        - in: path
+          name: user
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { type: string, enum: [USER, ADMIN] }
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminUser" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/MessageResponse" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422":
+          description: Invalid role, or blocked last-admin-demote / self-demote
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ValidationError" }
+  /api/admin/audit-logs:
+    get:
+      summary: List audit log entries (admin)
+      operationId: adminListAuditLogs
+      security: [{ session: [] }]
+      responses:
+        "200":
+          description: Latest audit log entries, most recent first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AuditLogEntry" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /api/v1/ai/translate:
+    post:
+      summary: Translate text via the LexiLingo AI service (server-side proxy)
+      operationId: aiTranslate
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text, target_lang]
+              properties:
+                text: { type: string, minLength: 1, maxLength: 5000 }
+                target_lang: { type: string, minLength: 2, maxLength: 2 }
+                source_lang: { type: [string, "null"], minLength: 2, maxLength: 2 }
+      responses:
+        "200":
+          description: Upstream translation result, relayed as-is inside the data envelope
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: object }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/MessageResponse" }
+        "502": { $ref: "#/components/responses/UpstreamError" }
+        "504": { $ref: "#/components/responses/UpstreamTimeout" }
+  /api/v1/ai/pronunciation:
+    post:
+      summary: Score pronunciation of an audio recording (server-side proxy)
+      operationId: aiPronunciation
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [audio, reference_text]
+              properties:
+                audio: { type: string, format: binary, description: "mp3/wav/m4a/ogg, size capped by LEXILINGO_AI_MAX_AUDIO_KB" }
+                reference_text: { type: string, minLength: 1, maxLength: 500 }
+                language: { type: [string, "null"], minLength: 2, maxLength: 2 }
+      responses:
+        "200":
+          description: Upstream pronunciation-assessment result, relayed as-is inside the data envelope
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: object }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/MessageResponse" }
+        "502": { $ref: "#/components/responses/UpstreamError" }
+        "504": { $ref: "#/components/responses/UpstreamTimeout" }
+  /api/v1/ai/speech-to-text:
+    post:
+      summary: Transcribe an audio recording (server-side proxy)
+      operationId: aiSpeechToText
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [audio]
+              properties:
+                audio: { type: string, format: binary, description: "mp3/wav/m4a/ogg, size capped by LEXILINGO_AI_MAX_AUDIO_KB" }
+                language: { type: [string, "null"], minLength: 2, maxLength: 2 }
+      responses:
+        "200":
+          description: Upstream transcription result, relayed as-is inside the data envelope
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: object }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/MessageResponse" }
+        "502": { $ref: "#/components/responses/UpstreamError" }
+        "504": { $ref: "#/components/responses/UpstreamTimeout" }
+  /api/v1/ai/text-to-speech:
+    post:
+      summary: Synthesize speech audio from text (server-side proxy)
+      operationId: aiTextToSpeech
+      security: [{ session: [], csrf: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: { type: string, minLength: 1, maxLength: 1000 }
+                voice: { type: [string, "null"], maxLength: 50 }
+                language: { type: [string, "null"], minLength: 2, maxLength: 2 }
+      responses:
+        "200":
+          description: Synthesized audio bytes (binary, not JSON)
+          content:
+            audio/mpeg:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/MessageResponse" }
+        "502": { $ref: "#/components/responses/UpstreamError" }
+        "504": { $ref: "#/components/responses/UpstreamTimeout" }
 components:
   securitySchemes:
     session:
@@ -325,6 +643,83 @@ components:
         difficulty_level: { type: [string, "null"] }
         tags: { type: [array, "null"] }
         external_audio_url: { type: [string, "null"] }
+    AdminUser:
+      type: object
+      required: [id, email, name, avatarUrl, role, locked, createdAt, lastLoginAt]
+      properties:
+        id: { type: integer }
+        email: { type: string, format: email }
+        name: { type: string }
+        avatarUrl: { type: string, description: "Always empty — no avatar feature exists yet." }
+        role: { type: string, enum: [USER, ADMIN, MODERATOR] }
+        locked: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        lastLoginAt: { type: [string, "null"], format: date-time }
+    AdminUsersResponse:
+      type: object
+      required: [users, totalElements, totalPages, page, size]
+      properties:
+        users:
+          type: array
+          items: { $ref: "#/components/schemas/AdminUser" }
+        totalElements: { type: integer }
+        totalPages: { type: integer }
+        page: { type: integer, description: "0-indexed." }
+        size: { type: integer }
+    AdminUserStats:
+      type: object
+      required: [totalWords, mastered, learning, accuracy, correctAnswers, incorrectAnswers]
+      properties:
+        totalWords: { type: integer }
+        mastered: { type: integer }
+        learning: { type: integer }
+        accuracy: { type: number, description: "Percent, 0 when no reviews exist." }
+        correctAnswers: { type: integer }
+        incorrectAnswers: { type: integer }
+    AdminUserStreak:
+      type: object
+      description: "No streak feature exists yet — always zeroed/null."
+      required: [currentStreak, longestStreak, totalDaysStudied, lastStudyDate]
+      properties:
+        currentStreak: { type: integer }
+        longestStreak: { type: integer }
+        totalDaysStudied: { type: integer }
+        lastStudyDate: { type: [string, "null"] }
+    AdminUserDetail:
+      type: object
+      required: [user, stats, streak, decks]
+      properties:
+        user: { $ref: "#/components/schemas/AdminUser" }
+        stats: { $ref: "#/components/schemas/AdminUserStats" }
+        streak: { $ref: "#/components/schemas/AdminUserStreak" }
+        decks:
+          type: array
+          items: {}
+          description: "No deck feature exists yet — always empty."
+    AdminReviewHistoryItem:
+      type: object
+      required: [id, word, rating, correct, reviewedAt]
+      properties:
+        id: { type: integer }
+        word: { type: string }
+        rating: { type: integer, minimum: 1, maximum: 4 }
+        correct: { type: boolean, description: "rating >= 3" }
+        reviewedAt: { type: [string, "null"], format: date-time }
+    AuditLogEntry:
+      type: object
+      required: [id, timestamp, action, actor, actorRole, resource, detail, ip, status]
+      properties:
+        id: { type: integer }
+        timestamp: { type: string, format: date-time }
+        action:
+          type: string
+          enum: [USER_LOCKED, USER_UNLOCKED, ROLE_CHANGED, PASSWORD_RESET]
+        actor: { type: string, format: email, description: "Actor's email, snapshotted at write time." }
+        actorRole: { type: string }
+        resource: { type: string }
+        detail: { type: [string, "null"] }
+        ip: { type: [string, "null"] }
+        status: { type: string, enum: [SUCCESS, FAILED] }
   responses:
     UserResponse:
       description: User payload
@@ -361,8 +756,33 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Message" }
+    Forbidden:
+      description: Authenticated but not authorized (e.g. non-admin)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Message" }
     CsrfError:
       description: CSRF token mismatch
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Message" }
+    UpstreamError:
+      description: LexiLingo AI service rejected or failed the request; upstream body is never relayed
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [message, code]
+            properties:
+              message: { type: string }
+              code: { type: string, enum: [UPSTREAM_REJECTED, UPSTREAM_ERROR, PROXY_ERROR] }
+    UpstreamTimeout:
+      description: LexiLingo AI service was unreachable within the configured timeout/retry budget
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [message, code]
+            properties:
+              message: { type: string }
+              code: { const: UPSTREAM_TIMEOUT }

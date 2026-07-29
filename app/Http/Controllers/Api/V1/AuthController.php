@@ -54,7 +54,17 @@ class AuthController extends Controller
             ], 403);
         }
 
+        if ($user->locked_at !== null) {
+            Auth::logout();
+
+            return response()->json([
+                'message' => 'Tài khoản của bạn đã bị khóa.',
+                'code' => 'ACCOUNT_LOCKED',
+            ], 403);
+        }
+
         $request->session()->regenerate();
+        $user->forceFill(['last_login_at' => now()])->save();
 
         return ApiResponse::success(new UserResource($user->load('role')));
     }

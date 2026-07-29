@@ -111,6 +111,122 @@ khi hai Next.js app được chuyển đổi. Giao diện production cuối cùn
   list không mang `category_id`), đồng bộ `tags` sang `Topic`, và nội dung đầy
   đủ từng lesson (vẫn chỉ có outline).
 
+### Trạng thái xác minh 27/07/2026 — Issue #10 (proxy AI translate/pronunciation/STT/TTS)
+
+- 4 endpoint mới dưới `/api/v1/ai/*` (`translate`, `pronunciation`,
+  `speech-to-text`, `text-to-speech`), yêu cầu đăng nhập, dùng
+  `LexiLingoClient::internalAi()` (đã có sẵn từ trước, chưa từng có caller
+  thật) nên `X-AI-Service-Secret` không lộ ra frontend.
+- Validate `mimes:mp3,wav,m4a,ogg` + `max:LEXILINGO_AI_MAX_AUDIO_KB` cho audio,
+  `max` độ dài nội dung cho text; retry giới hạn
+  (`LEXILINGO_AI_RETRY_TIMES`/`_DELAY_MS`, mặc định 2 lần/200ms) chỉ khi
+  timeout hoặc lỗi 5xx, không retry lỗi 4xx.
+- Lỗi upstream được chuẩn hóa, không bao giờ trả nguyên body upstream:
+  timeout/connection → 504 `UPSTREAM_TIMEOUT`; upstream 4xx → 422
+  `UPSTREAM_REJECTED`; upstream 5xx → 502 `UPSTREAM_ERROR`. Log chỉ ghi
+  action/user_id/exception class/status — không log audio, text hay secret.
+- text-to-speech trả về audio nhị phân trực tiếp (không bọc JSON); 3 endpoint
+  còn lại relay nguyên JSON body của upstream trong `data` (xem giới hạn bên
+  dưới).
+- `tests/Feature/Api/V1/AiProxyTest.php`: đủ 6 kịch bản theo acceptance
+  criteria (success/validation/timeout/4xx/5xx/rate-limit) trên `translate`,
+  cộng test riêng cho audio validation, JSON passthrough, response nhị phân
+  và guard chưa đăng nhập.
+- `docs/openapi/laravel-v1.yaml` đã thêm 4 path trên, `redocly lint` pass
+  (0 lỗi, giữ nguyên 4 warning cũ không liên quan).
+- **Giới hạn đã biết**: `docs/api_docs_lexilingo.md` chỉ liệt kê method+path,
+  không có schema request/response thật (schema nằm ở Swagger của chính AI
+  Service, sandbox này không truy cập được) — field request là suy đoán hợp
+  lý theo REST convention, và response JSON được relay nguyên trạng thay vì
+  ánh xạ field cụ thể. Cần đối chiếu lại khi có Swagger/OpenAPI thật của AI
+  Service. Không triển khai `WEBSOCKET /api/v1/stt/stream`, `GET
+  /api/v1/voice/ready`, `POST /api/v1/voice/ticket` (thuộc luồng streaming
+  thời gian thực, kiến trúc khác với proxy HTTP này).
+
+### Trạng thái xác minh 28/07/2026 — Issue #30 (quản lý người dùng, phân quyền, audit log)
+
+- `users` có thêm `locked_at`/`last_login_at`; đăng nhập session ghi
+  `last_login_at` và từ chối tài khoản đã khóa (`403 ACCOUNT_LOCKED`) trước
+  khi tạo session — nếu không, khóa tài khoản sẽ không có tác dụng thật.
+- Bảng `audit_logs` (actor snapshot theo email/role tại thời điểm ghi, action,
+  resource, detail, ip, status) và model `AuditLog::record()`; ghi cho cả 4
+  action `USER_LOCKED`/`USER_UNLOCKED`/`ROLE_CHANGED`/`PASSWORD_RESET`, không
+  bao giờ ghi mật khẩu thật vào `detail`.
+- API JSON `/api/admin/users` (list có search theo tên/email, filter
+  role/status, phân trang `page` 0-based), `/api/admin/users/{id}`,
+  `/api/admin/users/{id}/history`, `PUT .../lock`, `PUT .../unlock`,
+  `POST .../reset-password`, `PUT .../role`, `GET /api/admin/audit-logs` —
+  đặt trong `routes/spa.php` (nhóm `web` middleware, dùng chung session/CSRF
+  với `api/v1/*`), **không** dùng `routes/api.php` (nhóm `api` mặc định
+  không có session/CSRF, sai với cách app này xác thực).
+- Role trả về ở API là `ADMIN`/`USER` (map từ 2 role hiện có `admin`/
+  `learner`); `MODERATOR` chỉ dùng được ở filter danh sách (trả về rỗng), gán
+  role `MODERATOR` bị từ chối 422 vì role này chưa tồn tại trong DB.
+- Bảo vệ quyền cuối cùng: không tự khóa/tự hạ quyền chính mình, không khóa
+  hoặc hạ quyền quản trị viên đang hoạt động cuối cùng. Khi porting logic hạ
+  quyền từ `Admin\UserController::updateRole` (Blade) sang API, phát hiện và
+  sửa một lỗi có sẵn: guard cũ chỉ kiểm tra tổng số admin mà không kiểm tra
+  *người bị đổi quyền* có đang là admin hay không, dẫn tới false-block khi hạ
+  quyền một learner không liên quan trong lúc hệ thống chỉ có 1 admin — đã có
+  test hồi quy cho case này.
+- Route model binding đổi sang nhận `int` + `findOrFail()` thủ công **sau**
+  `Gate::authorize()` ở mọi action nhận `{user}` — phát hiện qua test rằng
+  route binding mặc định resolve trước khi middleware `role` kiểm tra quyền,
+  khiến một learner có thể phân biệt user id tồn tại (403) hay không (404),
+  lộ thông tin tồn tại tài khoản.
+- `tests/Feature/Admin/UserManagementApiTest.php`: list/search/filter/phân
+  trang, stats/history tính từ `UserVocabulary`/`VocabularyReview` thật,
+  lock/unlock (kèm guard tự khóa và khóa admin cuối), đổi role (kèm guard và
+  test hồi quy ở trên), reset password (không lộ mật khẩu vào audit log),
+  audit log ghi/liệt kê đúng, 401/403 cho mọi route kể cả với id không tồn
+  tại (chống rò rỉ IDOR).
+- `admin-frontend`: nối `/users`, `/users/{id}`, `/audit-logs` vào API thật
+  (trước đây `/audit-logs` dùng dữ liệu mock cứng); đã kiểm tra bằng
+  TypeScript build + ESLint và một phiên trình duyệt thật (đăng nhập
+  `admin@example.com`, thao tác lock/unlock/reset-password/đổi role, xem
+  audit log xuất hiện đúng).
+- Chưa làm trong đợt này (cố ý, ghi lại để không nhầm là thiếu sót): tính
+  năng Deck (trang chi tiết user luôn trả `decks: []` — app này chưa có khái
+  niệm Deck), tính năng Streak (luôn trả 0/null — chưa có bảng/nghiệp vụ
+  streak), role `MODERATOR` thật sự (chỉ là placeholder ở frontend), action
+  audit `ADMIN_LOGIN`/`WORD_*`/`DECK_*`/`SETTINGS_CHANGED` (thuộc phạm vi
+  tính năng khác). Reset password trả mật khẩu tạm dạng plaintext một lần
+  (theo đúng hợp đồng UI đã build sẵn) thay vì gửi email reset link — có thể
+  cân nhắc đổi hướng này khi có yêu cầu bảo mật chặt hơn.
+
+### Trạng thái xác minh 29/07/2026 — Issue #28 (kiểm thử hồi quy REST API và Postman collection)
+
+- Rà soát toàn bộ route `/api/v1` và `/api/admin` (auth, catalog, learning,
+  admin taxonomy/media, admin user management, AI proxy) so với độ phủ test
+  hiện có; bổ sung test cho các gap thật sự tìm thấy: validation lỗi cho
+  register/login, 401 cho route `/api/v1/profile*`, 404 cho id không tồn tại
+  (catalog/bookmark/quiz/progress/taxonomy/media), validate answer không
+  khớp question khi submit quiz, cách ly dữ liệu giữa user ở dashboard tiến
+  độ, pagination shape (`per_page`/`last_page`) cho danh sách taxonomy, test
+  idempotent-theo-slug còn thiếu cho category, và 4 route hoàn toàn chưa có
+  test (`/`, `content/news`, `content/youtube`, `enrichment/words/{id}`).
+- `php artisan test`: **226 tests pass** (từ 218 trước đợt này, +8 test file
+  mới/mở rộng, không đụng test đã có).
+- `./vendor/bin/pint --test`: pass.
+- Postman collection + environment mới tại `postman/` — không dùng bearer
+  token mà dùng đúng cơ chế session + CSRF cookie của app (pre-request
+  script tự lấy `/api/v1/csrf-cookie` và gắn `X-XSRF-TOKEN`, giống hệt
+  `admin-frontend/src/lib/api.ts`). Đã chạy thật bằng `newman run` (không chỉ
+  đọc JSON) trên `migrate:fresh --seed` local — phát hiện và sửa 2 lỗi thiết
+  kế thật: (1) gộp login/logout vào chung 1 folder khiến chạy folder đó luôn
+  kết thúc ở trạng thái đăng xuất, đã tách thành 3 folder độc lập
+  `0a`/`0b`/`0c`; (2) request kiểm tra "non-admin bị 403" đặt trong folder
+  chỉ chạy được với session admin nên luôn tự fail — bỏ script test tự động,
+  giữ lại như request tham khảo có mô tả rõ cách chạy thủ công.
+- Gap giữa route thực tế và `docs/openapi/laravel-v1.yaml` được ghi lại tại
+  `docs/api/route-doc-gap-log.md` để bàn giao cho issue #26 — **không** tự
+  viết thêm OpenAPI path/schema trong đợt này, đúng phạm vi đã thống nhất.
+- README.md đã liên kết `postman/` làm nguồn Postman duy nhất.
+- Chưa làm trong đợt này (cố ý): tự viết OpenAPI cho các path còn thiếu
+  (việc của #26); một số route trong `4 - AI Proxy` của Postman collection
+  cần `LEXILINGO_AI_URL`/`LEXILINGO_BACKEND_URL` cấu hình thật mới chạy được
+  local, không đảm bảo chạy được ngay mặc định.
+
 ## Quy ước bàn giao
 
 - Biến môi trường production được quản lý tại `docs/PRODUCTION_ENV.md`; mọi thay

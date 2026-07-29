@@ -11,31 +11,17 @@ const navGroups = [
     ],
   },
   {
-    label: 'Content',
+    label: 'Quản lý Nội dung',
     items: [
-      { href: '/flashcards', icon: 'style', label: 'Flashcards' },
-      { href: '/decks', icon: 'collections_bookmark', label: 'Decks' },
-      { href: '/topics', icon: 'topic', label: 'Topics' },
-      { href: '/levels', icon: 'signal_cellular_alt', label: 'Levels' },
-      { href: '/courses', icon: 'auto_stories', label: 'Courses' },
+      { href: '/courses', icon: 'auto_stories', label: 'Khóa học' },
+      { href: '/vocabulary', icon: 'style', label: 'Từ vựng' },
+      { href: '/quizzes', icon: 'quiz', label: 'Bài kiểm tra' },
     ],
   },
   {
-    label: 'Users',
+    label: 'Quản lý Người dùng',
     items: [
-      { href: '/users', icon: 'group', label: 'Users' },
-      { href: '/roles', icon: 'admin_panel_settings', label: 'Roles' },
-      { href: '/user-progress', icon: 'bar_chart', label: 'User Progress' },
-      { href: '/spaced-repetition', icon: 'repeat', label: 'Spaced Repetition' },
-    ],
-  },
-  {
-    label: 'Platform',
-    items: [
-      { href: '/notifications', icon: 'notifications', label: 'Notifications' },
-      { href: '/reports', icon: 'assessment', label: 'Reports' },
-      { href: '/analytics', icon: 'analytics', label: 'Analytics' },
-      { href: '/audit-logs', icon: 'manage_history', label: 'Audit Logs' },
+      { href: '/users', icon: 'group', label: 'Người dùng' },
     ],
   },
 ];

@@ -36,7 +36,7 @@ describe("session API client", () => {
       status: 422,
       message: "Invalid",
       errors: { email: ["Required"] }
-    });
+    } as Partial<ApiError>);
   });
 
   it("initializes CSRF before resending verification", async () => {
