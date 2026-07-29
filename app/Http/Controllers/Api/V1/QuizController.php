@@ -16,20 +16,6 @@ use Illuminate\Validation\ValidationException;
 
 class QuizController extends Controller
 {
-    public function index(): JsonResponse
-    {
-        $quizzes = Quiz::query()
-            ->where('status', 'published')
-            ->whereHas('lesson', fn ($query) => $query->where('status', 'published')
-                ->whereHas('course', fn ($course) => $course->where('status', 'published')))
-            ->with('lesson')
-            ->withCount('questions')
-            ->orderBy('id')
-            ->get();
-
-        return ApiResponse::success(QuizResource::collection($quizzes));
-    }
-
     public function show(Quiz $quiz): JsonResponse
     {
         $this->ensurePublished($quiz);
