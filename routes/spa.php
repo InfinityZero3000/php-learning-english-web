@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\V1\Admin\OperationsController;
 use App\Http\Controllers\Api\V1\Admin\QuizAdminController;
 use App\Http\Controllers\Api\V1\Admin\QuizController as AdminQuizController;
 use App\Http\Controllers\Api\V1\Admin\TopicController;
+use App\Http\Controllers\Api\V1\Admin\UnitController as AdminUnitController;
 use App\Http\Controllers\Api\V1\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Api\V1\Admin\VocabularyAdminController;
 use App\Http\Controllers\Api\V1\AiProxyController;
@@ -210,6 +211,16 @@ Route::prefix('api/v1')->group(function (): void {
             Route::post('/admin/catalog/courses/{course}/publish', [AdminCatalogController::class, 'publishCourse']);
             Route::post('/admin/catalog/courses/{course}/archive', [AdminCatalogController::class, 'archiveCourse']);
             Route::delete('/admin/catalog/courses/{course}', [AdminCatalogController::class, 'deleteCourse']);
+            Route::middleware('can:manage-content')->group(function (): void {
+                Route::get('/admin/catalog/units', [AdminUnitController::class, 'index']);
+                Route::post('/admin/catalog/units', [AdminUnitController::class, 'store']);
+                Route::put('/admin/catalog/units/reorder', [AdminUnitController::class, 'reorder']);
+                Route::get('/admin/catalog/units/{unit}', [AdminUnitController::class, 'show']);
+                Route::put('/admin/catalog/units/{unit}', [AdminUnitController::class, 'update']);
+                Route::delete('/admin/catalog/units/{unit}', [AdminUnitController::class, 'destroy'])->whereNumber('unit');
+                Route::post('/admin/catalog/units/{unit}/publish', [AdminUnitController::class, 'publish']);
+                Route::post('/admin/catalog/units/{unit}/archive', [AdminUnitController::class, 'archive']);
+            });
             Route::apiResource('/admin/catalog/lessons', AdminLessonController::class)->except(['create', 'edit']);
             Route::post('/admin/catalog/lessons/{lesson}/publish', [AdminLessonController::class, 'publish']);
             Route::post('/admin/catalog/lessons/{lesson}/archive', [AdminLessonController::class, 'archive']);
