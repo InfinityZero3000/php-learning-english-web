@@ -7,7 +7,7 @@
  *  - Async message dùng role-alert hoặc aria-live-polite
  *  - Destructive action có confirm
  */
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { adminCatalog } from '@/lib/api';
@@ -174,12 +174,6 @@ describe('Deck deletion – destructive action confirm', () => {
 
     await renderPage();
     await waitFor(() => screen.getByText('Business English'));
-
-    // Hover để hiện nút delete (opacity-0 group-hover:opacity-100)
-    // Tìm tất cả button delete
-    const deleteBtns = screen.getAllByRole('button').filter(
-      (btn) => btn.querySelector('[class*="delete"]') || btn.textContent?.includes('delete')
-    );
 
     expect(confirmSpy).not.toHaveBeenCalled();
   });
