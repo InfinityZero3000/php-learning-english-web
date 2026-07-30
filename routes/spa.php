@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\V1\AiProxyController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BookmarkApiController;
 use App\Http\Controllers\Api\V1\BookmarkController;
+use App\Http\Controllers\Api\V1\CapabilityController;
 use App\Http\Controllers\Api\V1\CatalogController;
 use App\Http\Controllers\Api\V1\EmailVerificationController;
 use App\Http\Controllers\Api\V1\EnrollmentController;
@@ -64,6 +65,7 @@ Route::prefix('api/v1')->group(function (): void {
             PreventRequestForgery::class,
         ]);
     Route::get('/csrf-cookie', fn () => response()->noContent());
+    Route::get('/capabilities', [CapabilityController::class, 'index']);
     Route::get('/vocabulary', [VocabularyController::class, 'index']);
     Route::get('/vocabulary/{vocabulary}', [VocabularyController::class, 'show']);
     Route::get('/catalog/topics', [CatalogController::class, 'topics']);

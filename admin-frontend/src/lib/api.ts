@@ -121,7 +121,25 @@ export const auth = {
       body: JSON.stringify({ handoff }),
     }).then(({ data }) => data),
   logout: () => request<void>('/api/v1/auth/logout', { method: 'POST' }).finally(() => { adminSession = undefined; }),
+  capabilities: () => fetchCapabilities(),
 };
+
+export type CapabilityStatus = 'enabled' | 'unconfigured' | 'role_required';
+export type CapabilityItem = { status: CapabilityStatus; enabled: boolean };
+export type CapabilitiesMap = Record<string, CapabilityItem>;
+
+let cachedCapabilities: CapabilitiesMap | null = null;
+
+export async function fetchCapabilities(forceRefresh = false): Promise<CapabilitiesMap> {
+  if (cachedCapabilities && !forceRefresh) return cachedCapabilities;
+  try {
+    const res = await request<{ data: { capabilities: CapabilitiesMap } }>('/api/v1/capabilities');
+    cachedCapabilities = res.data.capabilities;
+    return cachedCapabilities;
+  } catch {
+    return {};
+  }
+}
 
 // Admin – User Management
 export const adminUsers = {
