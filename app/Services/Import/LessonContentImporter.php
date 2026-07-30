@@ -54,7 +54,7 @@ class LessonContentImporter extends AbstractLexiLingoImporter
                     ]);
 
                     if (! $dryRun) {
-                        $this->archiveFailure($externalId, [], ["API returned status {$response->status()}"]);
+                        $this->archiveFailure($externalId, [], ["API returned status {$response->status()}"], ImportErrorCode::ProviderRejected);
                     }
 
                     break;
@@ -73,7 +73,7 @@ class LessonContentImporter extends AbstractLexiLingoImporter
                     ]);
 
                     if (! $dryRun) {
-                        $this->archiveFailure($externalId, $payload, $errors);
+                        $this->archiveFailure($externalId, $payload, $errors, ImportErrorCode::PayloadInvalid);
                     }
 
                     break;
@@ -150,7 +150,7 @@ class LessonContentImporter extends AbstractLexiLingoImporter
                 ]);
 
                 if (! $dryRun) {
-                    $this->archiveFailure($externalId, [], [$e->getMessage()]);
+                    $this->archiveFailure($externalId, [], [$e->getMessage()], $this->classifyImportError($e));
                 }
 
                 break;

@@ -457,4 +457,111 @@ class LexiLingoImportTest extends TestCase
         $countAfter2 = CourseCategory::query()->count();
         $this->assertSame(30, $countAfter2, 'Partial overlap rerun should not create duplicates');
     }
+
+    /**
+     * One course's detail request failing (provider 5xx) must not stop the
+     * other courses in the same page from being imported, and must not
+     * block the checkpoint from advancing (which would otherwise retry the
+     * same failing course forever).
+     */
+    public function test_course_detail_failure_does_not_block_subsequent_courses(): void
+    {
+        Level::create(['name' => 'Beginner', 'slug' => 'beginner', 'sort_order' => 1]);
+        config()->set('services.lexilingo.import_max_retries', 0);
+        config()->set('services.lexilingo.import_delay_ms', 0);
+
+        $courseFixture = fn (string $id, string $title) => [
+            'id' => $id,
+            'title' => $title,
+            'description' => null,
+            'language' => 'en',
+            'level' => 'beginner',
+            'tags' => [],
+            'thumbnail_url' => null,
+            'total_lessons' => 0,
+            'total_xp' => 0,
+            'estimated_duration' => 0,
+        ];
+
+        Http::fake([
+            'backend.lexilingo.test/api/v1/integrations/lessons/*/content' => Http::response([], 404),
+            'backend.lexilingo.test/api/v1/integrations/courses/course-1' => Http::response(['data' => ['id' => 'course-1', 'units' => []]]),
+            'backend.lexilingo.test/api/v1/integrations/courses/course-2' => Http::response(['message' => 'Internal error'], 500),
+            'backend.lexilingo.test/api/v1/integrations/courses/course-3' => Http::response(['data' => ['id' => 'course-3', 'units' => []]]),
+            'backend.lexilingo.test/api/v1/integrations/courses*' => Http::response([
+                $courseFixture('course-1', 'Course One'),
+                $courseFixture('course-2', 'Course Two'),
+                $courseFixture('course-3', 'Course Three'),
+            ]),
+        ]);
+
+        $result = $this->app->make(CourseImporter::class)->import(limit: 50);
+
+        $this->assertSame(2, $result->processed);
+        $this->assertSame(1, $result->skipped);
+        $this->assertSame(3, $result->nextCursor, 'Checkpoint must advance past the whole page even though one course failed');
+
+        $this->assertDatabaseHas('courses', ['external_id' => 'course-1']);
+        $this->assertDatabaseMissing('courses', ['external_id' => 'course-2']);
+        $this->assertDatabaseHas('courses', ['external_id' => 'course-3']);
+
+        $this->assertDatabaseHas('lexilingo_import_failures', [
+            'entity' => 'courses',
+            'external_id' => 'course-2',
+            'error_code' => 'provider_rejected',
+        ]);
+    }
+
+    /**
+     * A DB-level conflict writing one category (e.g. a duplicate slug) must
+     * not roll back categories already persisted earlier in the same page.
+     */
+    public function test_category_write_conflict_does_not_roll_back_other_categories(): void
+    {
+        Http::fake([
+            'backend.lexilingo.test/api/v1/integrations/categories*' => Http::response([
+                ['id' => 'cat-1', 'name' => 'Cat One', 'slug' => 'shared-slug', 'description' => null, 'icon' => null, 'color' => null, 'course_count' => 0],
+                ['id' => 'cat-2', 'name' => 'Cat Two', 'slug' => 'shared-slug', 'description' => null, 'icon' => null, 'color' => null, 'course_count' => 0],
+                ['id' => 'cat-3', 'name' => 'Cat Three', 'slug' => 'cat-3-slug', 'description' => null, 'icon' => null, 'color' => null, 'course_count' => 0],
+            ]),
+        ]);
+
+        $result = $this->app->make(CategoryImporter::class)->import(limit: 50);
+
+        $this->assertSame(2, $result->processed);
+        $this->assertSame(1, $result->skipped);
+
+        $this->assertDatabaseHas('course_categories', ['external_id' => 'cat-1', 'slug' => 'shared-slug']);
+        $this->assertDatabaseMissing('course_categories', ['external_id' => 'cat-2']);
+        $this->assertDatabaseHas('course_categories', ['external_id' => 'cat-3']);
+
+        $this->assertDatabaseHas('lexilingo_import_failures', [
+            'entity' => 'categories',
+            'external_id' => 'cat-2',
+            'error_code' => 'write_failed',
+        ]);
+    }
+
+    public function test_archived_failures_never_contain_provider_credentials_or_raw_payload(): void
+    {
+        Http::fake([
+            'backend.lexilingo.test/api/v1/integrations/categories*' => Http::response([
+                ['id' => 'cat-1', 'name' => 'Cat One', 'slug' => 'dup-slug', 'description' => null, 'icon' => null, 'color' => null, 'course_count' => 0],
+                [
+                    'id' => 'cat-2', 'name' => 'Cat Two', 'slug' => 'dup-slug',
+                    'description' => null, 'icon' => null, 'color' => null, 'course_count' => 0,
+                    'internal_note' => 'should never be archived',
+                ],
+            ]),
+        ]);
+
+        $this->app->make(CategoryImporter::class)->import(limit: 50);
+
+        $failure = LexiLingoImportFailure::query()->where('external_id', 'cat-2')->firstOrFail();
+
+        $this->assertArrayNotHasKey('internal_note', $failure->payload);
+        foreach ($failure->errors as $error) {
+            $this->assertStringNotContainsString('partner-secret', $error);
+        }
+    }
 }
