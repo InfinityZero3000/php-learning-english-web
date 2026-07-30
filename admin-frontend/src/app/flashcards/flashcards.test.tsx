@@ -203,7 +203,7 @@ describe('WordModal – keyboard/focus accessibility (direct component test)', (
     // Test với lỗi được hiển thị inline trong form
     const AccessibleDialog = (await import('@/components/AccessibleDialog')).default;
 
-    const { rerender } = render(
+    render(
       <AccessibleDialog title="New Flashcard" onClose={vi.fn()}>
         <div role="alert" style={{ color: 'red' }}>Duplicate word</div>
         <form>
