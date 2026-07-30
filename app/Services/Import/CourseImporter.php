@@ -21,15 +21,11 @@ class CourseImporter extends AbstractLexiLingoImporter
     {
         $offset = $this->startingCursor($reset, $cursor);
 
-        $payload = $this->client->partner()
-            ->get('/api/v1/integrations/courses', [
-                'page' => intdiv($offset, $limit) + 1,
-                'page_size' => $limit,
-            ])
-            ->throw()
-            ->json();
-
-        $items = $this->items($payload);
+        [$items, $nextCursor] = $this->fetchPageSlice(
+            '/api/v1/integrations/courses',
+            $offset,
+            $limit
+        );
 
         $processed = 0;
         $skipped = 0;
@@ -84,8 +80,6 @@ class CourseImporter extends AbstractLexiLingoImporter
                 }
             }
         }
-
-        $nextCursor = $offset + count($items);
 
         if (! $dryRun) {
             $this->advanceCheckpoint($nextCursor, $reset);
