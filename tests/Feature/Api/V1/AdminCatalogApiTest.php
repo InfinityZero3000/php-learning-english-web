@@ -122,7 +122,8 @@ class AdminCatalogApiTest extends TestCase
             ->assertConflict()->assertJsonPath('code', 'INVALID_STATE');
         $this->getJson('/api/v1/admin/catalog/courses?search=Business%20English')
             ->assertOk()->assertJsonPath('data.0.id', $courseId);
-        $this->assertDatabaseHas('courses', ['id' => $courseId, 'status' => 'published']);
+        $this->assertDatabaseHas('courses', ['id' => $courseId, 'status' => 'published', 'catalog_revision' => 3]);
+        $this->assertNotNull(Course::findOrFail($courseId)->local_override_at);
     }
 
     public function test_course_filters_and_relations_round_trip(): void
@@ -170,7 +171,10 @@ class AdminCatalogApiTest extends TestCase
         $oldImage = $word->image_path;
         $this->post("/api/v1/admin/catalog/vocabularies/{$word->id}/media", ['remove_image' => true])->assertOk();
         Storage::disk('public')->assertMissing($oldImage);
-        $this->assertNull($word->fresh()->image_path);
+        $word->refresh();
+        $this->assertNull($word->image_path);
+        $this->assertSame(2, $word->catalog_revision);
+        $this->assertNotNull($word->local_override_at);
 
         Storage::disk('public')->put('shared/do-not-delete.jpg', 'shared');
         $unmanaged = Vocabulary::create(['word' => 'shared', 'meaning' => 'chung', 'image_path' => 'shared/do-not-delete.jpg']);

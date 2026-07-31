@@ -4,12 +4,13 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ProgressResource;
-use App\Models\Attempt;
 use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\LearningSession;
 use App\Models\Lesson;
 use App\Models\Progress;
+use App\Services\CourseLearningPath;
+use App\Services\LearnerProgressSummary;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -41,12 +42,13 @@ class ProgressController extends Controller
         );
     }
 
-    public function courseProgress(Request $request, Course $course): JsonResponse
+    public function courseProgress(Request $request, Course $course, CourseLearningPath $path): JsonResponse
     {
         $userId = $request->user()->id;
-        $lessons = $course->lessons()->where('status', 'published')->orderBy('sort_order')->get();
+        $lessons = $path->candidates($course);
         $completedLessonIds = Progress::where('user_id', $userId)
             ->whereIn('lesson_id', $lessons->pluck('id'))
+            ->whereNotNull('completed_at')
             ->pluck('lesson_id')
             ->toArray();
 
@@ -66,47 +68,9 @@ class ProgressController extends Controller
         ]);
     }
 
-    public function dashboard(Request $request): JsonResponse
+    public function dashboard(Request $request, LearnerProgressSummary $summary): JsonResponse
     {
-        $userId = $request->user()->id;
-
-        $completedLessons = Progress::where('user_id', $userId)->count();
-
-        $quizAttempts = Attempt::where('user_id', $userId)
-            ->whereNotNull('completed_at')
-            ->count();
-
-        $averageScore = Attempt::where('user_id', $userId)
-            ->whereNotNull('score')
-            ->avg('score') ?? 0;
-
-        $recentActivity = Progress::where('user_id', $userId)
-            ->with('lesson')
-            ->orderByDesc('completed_at')
-            ->limit(5)
-            ->get();
-
-        $recentAttempts = Attempt::where('user_id', $userId)
-            ->with('quiz.lesson')
-            ->orderByDesc('completed_at')
-            ->limit(5)
-            ->get();
-
-        return ApiResponse::success([
-            'type' => 'progress',
-            'overview' => [
-                'completed_lessons' => $completedLessons,
-                'quiz_attempts' => $quizAttempts,
-                'average_score' => round($averageScore, 2),
-            ],
-            'recent_activity' => ProgressResource::collection($recentActivity),
-            'recent_attempts' => $recentAttempts->map(fn ($attempt) => [
-                'id' => $attempt->id,
-                'quiz_id' => $attempt->quiz_id,
-                'score' => $attempt->score,
-                'completed_at' => $attempt->completed_at,
-            ]),
-        ]);
+        return ApiResponse::success($summary->build($request->user()));
     }
 
     public function markCompleted(Request $request, Lesson $lesson): JsonResponse
@@ -118,12 +82,15 @@ class ProgressController extends Controller
                 ->where('status', 'completed')->exists();
         abort_unless($eligible, 403, 'Complete the learner-owned session before marking progress.');
 
-        Progress::firstOrCreate([
+        $progress = Progress::firstOrCreate([
             'user_id' => $userId,
             'lesson_id' => $lesson->id,
         ], [
             'completed_at' => now(),
         ]);
+        if ($progress->completed_at === null) {
+            $progress->update(['completed_at' => now()]);
+        }
 
         return ApiResponse::success(['type' => 'progress', 'status' => 'completed']);
     }

@@ -80,4 +80,21 @@ class MiscApiTest extends TestCase
 
         $this->postJson("/api/v1/enrichment/words/{$vocabulary->id}")->assertForbidden();
     }
+
+    public function test_admin_enrichment_marks_vocabulary_as_a_local_override(): void
+    {
+        config()->set('services.enrichment.enabled', true);
+        $admin = Role::firstOrCreate(['slug' => 'admin'], ['name' => 'Admin']);
+        $vocabulary = Vocabulary::create([
+            'source_system' => 'lexilingo', 'external_id' => 'word-1', 'word' => 'hello', 'meaning' => 'hello',
+        ]);
+
+        $this->actingAs(User::factory()->create(['role_id' => $admin->id]))
+            ->postJson("/api/v1/enrichment/words/{$vocabulary->id}")
+            ->assertOk();
+
+        $vocabulary->refresh();
+        $this->assertSame(1, $vocabulary->catalog_revision);
+        $this->assertNotNull($vocabulary->local_override_at);
+    }
 }

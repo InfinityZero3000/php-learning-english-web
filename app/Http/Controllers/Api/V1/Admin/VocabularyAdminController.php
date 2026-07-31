@@ -71,6 +71,7 @@ class VocabularyAdminController extends Controller
         ]);
 
         $vocabulary = Vocabulary::create($validated);
+        $vocabulary->applyLocalEdit([]);
 
         Log::info('admin.vocabulary.created', [
             'user_id' => $request->user()->id,
@@ -106,7 +107,7 @@ class VocabularyAdminController extends Controller
         // Never overwrite external_id from LexiLingo
         unset($validated['external_id']);
 
-        $vocabulary->update($validated);
+        $vocabulary->applyLocalEdit($validated);
 
         Log::info('admin.vocabulary.updated', [
             'user_id' => $request->user()->id,

@@ -30,6 +30,9 @@ class AdminQuizApiTest extends TestCase
         $this->getJson("/api/v1/admin/catalog/quizzes?lesson_id={$lesson->id}&status=draft")
             ->assertOk()->assertJsonPath('data.0.questions_count', 1);
         $this->deleteJson("/api/v1/admin/catalog/quizzes/{$id}")->assertNoContent();
+        $lesson->refresh();
+        $this->assertSame(3, $lesson->catalog_revision);
+        $this->assertNotNull($lesson->local_override_at);
     }
 
     public function test_quiz_nested_validation_and_capability_are_enforced(): void

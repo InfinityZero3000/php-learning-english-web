@@ -65,6 +65,7 @@ class CourseCategoryController extends Controller
             'sort_order' => $validated['sort_order'] ?? 0,
             'is_active' => $validated['is_active'] ?? true,
         ]);
+        $category->applyLocalEdit([]);
 
         return ApiResponse::success(new CourseCategoryResource($category), 201);
     }
@@ -92,7 +93,7 @@ class CourseCategoryController extends Controller
             'is_active' => ['boolean'],
         ]);
 
-        $category->update([
+        $category->applyLocalEdit([
             'name' => $validated['name'],
             'slug' => $validated['slug'] ?? $category->slug,
             'description' => $validated['description'] ?? $category->description,

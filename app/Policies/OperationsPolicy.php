@@ -40,4 +40,9 @@ class OperationsPolicy
     {
         return $this->manageOperations($user);
     }
+
+    public function applyContentImport(User $user): bool
+    {
+        return $this->manageOperations($user);
+    }
 }

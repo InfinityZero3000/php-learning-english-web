@@ -6,11 +6,23 @@ use App\Models\Vocabulary;
 use App\Services\Import\AbstractLexiLingoImporter;
 use App\Services\Import\ImportErrorCode;
 use App\Services\Import\ImportResult;
+use App\Services\Import\TagTopicImporter;
+use App\Support\LexiLingoClient;
+use App\Support\LexiLingoSchemaValidator;
+use Illuminate\Support\Str;
 use Throwable;
 
 class LexiLingoVocabularySync extends AbstractLexiLingoImporter
 {
     private int $lastSkipped = 0;
+
+    public function __construct(
+        LexiLingoClient $client,
+        LexiLingoSchemaValidator $validator,
+        private readonly TagTopicImporter $topicImporter,
+    ) {
+        parent::__construct($client, $validator);
+    }
 
     public function entity(): string
     {
@@ -54,6 +66,7 @@ class LexiLingoVocabularySync extends AbstractLexiLingoImporter
 
                 if (! $dryRun) {
                     $this->archiveFailure((string) $item['id'], $item, $errors, ImportErrorCode::PayloadInvalid);
+                    $this->stageItem((string) $item['id'], $item, null, 'invalid', $errors);
                 }
 
                 continue;
@@ -64,20 +77,31 @@ class LexiLingoVocabularySync extends AbstractLexiLingoImporter
             // earlier in the same page.
             if (! $dryRun) {
                 try {
-                    Vocabulary::updateOrCreate(
-                        ['external_id' => (string) $item['id']],
-                        [
-                            'word' => $item['word'],
-                            'meaning' => data_get($item, 'translation.vi') ?: ($item['definition'] ?? $item['word']),
-                            'definition' => $item['definition'] ?? null,
-                            'translation' => $item['translation'] ?? null,
-                            'pronunciation' => $item['pronunciation'] ?? null,
-                            'part_of_speech' => $item['part_of_speech'] ?? null,
-                            'difficulty_level' => $item['difficulty_level'] ?? null,
-                            'tags' => $item['tags'] ?? null,
-                            'external_audio_url' => $item['audio_url'] ?? null,
-                        ],
-                    );
+                    $existing = Vocabulary::query()->where('source_system', 'lexilingo')
+                        ->where('external_id', (string) $item['id'])->first();
+                    $tags = TagTopicImporter::normalizeTags(is_array($item['tags'] ?? null) ? $item['tags'] : []);
+                    $topics = $this->topicImporter->syncTags($tags);
+                    $attributes = [
+                        'topic_id' => $topics['topic_ids'][0] ?? null,
+                        'topic_external_ids' => array_map(
+                            fn (string $tag): string => 'lexilingo-tag:'.md5(Str::slug(trim($tag))),
+                            $tags,
+                        ),
+                        'word' => $item['word'],
+                        'meaning' => data_get($item, 'translation.vi') ?: ($item['definition'] ?? $item['word']),
+                        'definition' => $item['definition'] ?? null,
+                        'translation' => $item['translation'] ?? null,
+                        'pronunciation' => $item['pronunciation'] ?? null,
+                        'part_of_speech' => $item['part_of_speech'] ?? null,
+                        'difficulty_level' => $item['difficulty_level'] ?? null,
+                        'tags' => $tags,
+                        'example' => $item['example'] ?? null,
+                        'external_audio_url' => $item['audio_url'] ?? null,
+                    ];
+                    if (! $this->stageOnly) {
+                        Vocabulary::syncFromSource('vocabulary', 'lexilingo', (string) $item['id'], $attributes);
+                    }
+                    $this->stageChange((string) $item['id'], $item, $existing, $attributes);
                 } catch (Throwable $e) {
                     $this->lastSkipped++;
                     $errorCode = $this->classifyImportError($e);

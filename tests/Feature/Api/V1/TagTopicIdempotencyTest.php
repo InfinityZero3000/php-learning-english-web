@@ -31,6 +31,7 @@ class TagTopicIdempotencyTest extends TestCase
 
         $this->assertDatabaseHas('topics', ['external_id' => 'lexilingo-tag:'.md5('business-english')]);
         $this->assertDatabaseHas('topics', ['external_id' => 'lexilingo-tag:'.md5('travel-tips')]);
+        $this->assertDatabaseHas('topics', ['source_system' => 'lexilingo', 'catalog_revision' => 1]);
     }
 
     public function test_sync_tags_is_idempotent(): void
@@ -117,7 +118,7 @@ class TagTopicIdempotencyTest extends TestCase
         $this->assertDatabaseCount('topics', 2);
     }
 
-    public function test_sync_tags_backfills_external_id_for_existing_topic(): void
+    public function test_sync_tags_reuses_local_topic_without_claiming_its_identity(): void
     {
         // Create a topic without external_id (simulating pre-migration state)
         $topic = Topic::create([
@@ -133,8 +134,10 @@ class TagTopicIdempotencyTest extends TestCase
         $this->assertEquals(0, $result['created']);
         $this->assertEquals(1, $result['existing']);
 
-        $this->assertNotNull($topic->fresh()->external_id);
-        $this->assertEquals('lexilingo-tag:'.md5('business-english'), $topic->fresh()->external_id);
+        $topic->refresh();
+        $this->assertNull($topic->external_id);
+        $this->assertSame('local', $topic->source_system);
+        $this->assertSame(0, $topic->catalog_revision);
     }
 
     public function test_idempotency_across_multiple_runs_with_same_tags(): void
