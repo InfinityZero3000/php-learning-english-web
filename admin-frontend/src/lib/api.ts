@@ -17,6 +17,18 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Privileged admin mutations answer `428` when the Google re-auth in this session is
+ * stale or bound to another subject. Send the operator through the existing handoff
+ * and let the backend allowlist decide whether `returnPath` is resumable.
+ * Returns true when the redirect was issued so callers stop handling the error.
+ */
+export function redirectToGoogleStepUp(error: unknown, returnPath: string): boolean {
+  if (!(error instanceof ApiError) || error.status !== 428) return false;
+  window.location.assign(`/api/v1/auth/oauth/google/admin?return=${encodeURIComponent(returnPath)}`);
+  return true;
+}
+
 function xsrfToken() {
   if (typeof document === 'undefined') return null;
   const token = document.cookie

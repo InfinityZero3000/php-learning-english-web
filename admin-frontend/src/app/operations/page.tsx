@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import AdminLayout from '@/components/AdminLayout';
-import { ApiError, operations, type AlertRule, type AuditEvent, type ContractStatus, type OperationsOverview, type OperationsUsage, type QuotaPolicy, type ServiceProbe } from '@/lib/api';
+import { operations, redirectToGoogleStepUp, type AlertRule, type AuditEvent, type ContractStatus, type OperationsOverview, type OperationsUsage, type QuotaPolicy, type ServiceProbe } from '@/lib/api';
 import { DataPanel, PageHeading, StatCard } from '@/components/AdminDataView';
 
 const services = ['backend', 'ai', 'trace_cag', 'stt', 'tts'];
@@ -23,7 +23,7 @@ function PageContent() {
     setPanels(next); setFailed(errors); if (next.quota) setQuotaJson(JSON.stringify(next.quota.limits, null, 2)); setLoading(false);
   }, []);
   useEffect(() => { void Promise.resolve().then(load); }, [load]);
-  function handleError(error: unknown, fallback: string) { if (error instanceof ApiError && error.status === 428) { window.location.assign('/api/v1/auth/oauth/google/admin?return=/operations'); return; } setMessage(error instanceof Error ? error.message : fallback); }
+  function handleError(error: unknown, fallback: string) { if (redirectToGoogleStepUp(error, '/operations')) return; setMessage(error instanceof Error ? error.message : fallback); }
   async function probe(service: string) { try { const value = await operations.probe(service); setProbes((current) => ({ ...current, [service]: value })); } catch (e) { handleError(e, 'Probe thất bại.'); } }
   async function saveQuota(event: React.FormEvent) { event.preventDefault(); try { const limits = JSON.parse(quotaJson) as Record<string, number>; if (Object.values(limits).some((value) => !Number.isInteger(value) || value < 0)) throw new Error('Quota phải là số nguyên không âm.'); const quota = await operations.updateQuota(limits); setPanels((current) => ({ ...current, quota })); setMessage('Đã kích hoạt quota policy.'); } catch (e) { handleError(e, 'Không thể cập nhật quota.'); } }
   async function toggle(rule: AlertRule) { try { const updated = await operations.updateRule(rule.id, !rule.enabled, rule.parameters); setPanels((current) => ({ ...current, rules: current.rules?.map((item) => item.id === rule.id ? updated : item) })); } catch (e) { handleError(e, 'Không thể cập nhật alert rule.'); } }

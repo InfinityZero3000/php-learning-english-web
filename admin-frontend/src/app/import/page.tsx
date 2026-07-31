@@ -6,7 +6,7 @@ import ImportDiffPanel from '@/components/ImportDiffPanel';
 import ImportReviewTable, { cascadeExcluded } from '@/components/ImportReviewTable';
 import ImportRunList from '@/components/ImportRunList';
 import {
-  ApiError, adminImports, auth,
+  ApiError, adminImports, auth, redirectToGoogleStepUp,
   type AdminImportAction, type AdminImportCheckpoint, type AdminImportEntity,
   type AdminImportItem, type AdminImportRun,
 } from '@/lib/api';
@@ -98,10 +98,6 @@ export function ImportWorkspace() {
     return () => { cancelled = true; clearTimeout(timer); };
   }, [runId, active]);
 
-  function stepUp(id: number) {
-    window.location.assign(`/api/v1/auth/oauth/google/admin?return=${encodeURIComponent(`/import?run=${id}`)}`);
-  }
-
   async function mutate(label: string, action: (id: number) => Promise<AdminImportRun>) {
     if (runId === null) return;
     setWorking(true);
@@ -114,7 +110,7 @@ export function ImportWorkspace() {
       setRuns((list) => list.map((item) => (item.id === next.id ? { ...item, ...next } : item)));
       setMessage(`${label}: ${next.status.replace('_', ' ')}.`);
     } catch (reason) {
-      if (reason instanceof ApiError && reason.status === 428) { stepUp(runId); return; }
+      if (redirectToGoogleStepUp(reason, `/import?run=${runId}`)) return;
       if (reason instanceof ApiError && reason.status === 409) {
         await openRun(runId);
         setMessage(`${reason.message} The draft was refreshed with the current catalog state.`);
@@ -133,7 +129,7 @@ export function ImportWorkspace() {
       await openRun(started.id);
       setMessage(`Import ${started.status.replace('_', ' ')}.`);
     } catch (reason) {
-      if (reason instanceof ApiError && reason.status === 428 && runId !== null) { stepUp(runId); return; }
+      if (runId !== null && redirectToGoogleStepUp(reason, `/import?run=${runId}`)) return;
       setMessage(reason instanceof Error ? reason.message : 'Could not start import.');
     } finally { setWorking(false); }
   }
