@@ -2,13 +2,14 @@
 
 namespace App\Http\Requests\Api\V1\Admin;
 
+use App\Models\OperationsAudit;
 use App\Support\ApiResponse;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Validation\Rule;
 
-class WriteLessonRequest extends FormRequest
+class WriteUnitRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -17,19 +18,19 @@ class WriteLessonRequest extends FormRequest
 
     public function rules(): array
     {
-        $lesson = $this->route('lesson');
+        $unit = $this->route('unit');
+        $sortOrder = ['required', 'integer', 'min:0'];
+        if (! OperationsAudit::query()->where('request_id', $this->header('X-Request-ID'))->exists()) {
+            $sortOrder[] = Rule::unique('units')->where('course_id', $this->integer('course_id'))->ignore($unit);
+        }
 
         return [
             'course_id' => ['required', 'integer', 'exists:courses,id'],
-            'unit_id' => ['nullable', 'integer', 'exists:units,id'],
             'title' => ['required', 'string', 'max:255'],
-            'slug' => ['required', 'string', 'max:255', Rule::unique('lessons')->where('course_id', $this->integer('course_id'))->ignore($lesson)],
-            'content' => ['nullable', 'string', 'max:50000'],
-            'sort_order' => ['required', 'integer', 'min:0'],
-            'estimated_minutes' => ['nullable', 'integer', 'min:1', 'max:1440'],
-            'status' => ['required', 'string', 'in:draft,published,archived'],
-            'prerequisite_ids' => ['sometimes', 'array'],
-            'prerequisite_ids.*' => ['integer', 'distinct', 'exists:lessons,id'],
+            'description' => ['nullable', 'string', 'max:10000'],
+            'sort_order' => $sortOrder,
+            'icon_url' => ['nullable', 'string', 'max:2048'],
+            'background_color' => ['nullable', 'string', 'regex:/^#(?:[A-Fa-f0-9]{3}|[A-Fa-f0-9]{6})$/'],
         ];
     }
 

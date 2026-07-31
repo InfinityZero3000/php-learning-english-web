@@ -23,6 +23,10 @@ class LessonResource extends JsonResource
             'pass_threshold' => $this->pass_threshold,
             'course' => new CourseResource($this->whenLoaded('course')),
             'unit_id' => $this->unit_id,
+            'source_system' => $this->source_system,
+            'local_override_at' => $this->local_override_at?->toISOString(),
+            'catalog_revision' => $this->catalog_revision,
+            'prerequisite_ids' => $this->whenLoaded('prerequisites', fn () => $this->prerequisites->pluck('id')->sort()->values()),
             'quizzes_count' => $this->whenCounted('quizzes'),
             'quizzes' => $this->whenLoaded('quizzes', fn () => $this->quizzes->map(fn ($quiz) => [
                 'id' => $quiz->id, 'title' => $quiz->title, 'status' => $quiz->status,
