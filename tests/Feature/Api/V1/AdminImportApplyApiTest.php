@@ -122,8 +122,11 @@ class AdminImportApplyApiTest extends TestCase
 
         $this->assertSame(1, OperationsAudit::query()->where('action', 'content_import.applied')->count());
         $audit = OperationsAudit::query()->where('action', 'content_import.applied')->first();
-        $this->assertSame(['applied' => 1, 'stale' => 0, 'failed' => 0], $audit->after_state);
-        $this->assertSame(['run_id' => $run->id, 'requested_item_ids' => [$item->id]], $audit->context);
+        // assertEquals, not assertSame: MySQL's JSON column type does not
+        // guarantee preserving key insertion order on round-trip, and
+        // assertSame's array comparison is order-sensitive.
+        $this->assertEquals(['applied' => 1, 'stale' => 0, 'failed' => 0], $audit->after_state);
+        $this->assertEquals(['run_id' => $run->id, 'requested_item_ids' => [$item->id]], $audit->context);
     }
 
     private function stageCategory(AdminImportRun $run, string $externalId, string $classification, array $incoming, ?string $existingRevision): StagedItem
