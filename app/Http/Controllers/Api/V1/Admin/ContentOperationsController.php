@@ -159,9 +159,18 @@ class ContentOperationsController extends Controller
                         return;
                     }
 
-                    $existing = CourseCategory::where('external_id', $locked->external_id)->first();
-                    $currentRevision = $existing?->updated_at?->toISOString();
-                    if ($currentRevision !== $locked->existing_revision) {
+                    // Source-scoped and locked: identity is (source_system, external_id),
+                    // so a locally authored row sharing the external id is never the target.
+                    $existing = CourseCategory::query()
+                        ->where('source_system', 'lexilingo')
+                        ->where('external_id', $locked->external_id)
+                        ->lockForUpdate()
+                        ->first();
+                    // Revision counts writes and the fingerprint catches a write that
+                    // restored an earlier value. A local edit bumps the revision, so an
+                    // edited row is reported stale instead of being overwritten.
+                    if ((int) $existing?->catalog_revision !== (int) $locked->base_revision
+                        || $existing?->source_fingerprint !== $locked->base_fingerprint) {
                         $locked->update(['status' => 'stale']);
                         $stale[] = $locked->id;
 
@@ -169,16 +178,16 @@ class ContentOperationsController extends Controller
                     }
 
                     $snapshot = $locked->incoming_snapshot ?? [];
-                    CourseCategory::updateOrCreate(
-                        ['external_id' => $locked->external_id],
-                        [
-                            'name' => $snapshot['name'] ?? null,
-                            'slug' => $snapshot['slug'] ?? null,
-                            'description' => $snapshot['description'] ?? null,
-                            'icon' => $snapshot['icon'] ?? null,
-                            'color' => $snapshot['color'] ?? null,
-                        ],
-                    );
+                    // syncFromSource claims provider ownership and records the canonical
+                    // fingerprint, so the next fetch recognises this row instead of
+                    // staging a duplicate under the same external id.
+                    CourseCategory::syncFromSource('category', 'lexilingo', $locked->external_id, [
+                        'name' => $snapshot['name'] ?? null,
+                        'slug' => $snapshot['slug'] ?? null,
+                        'description' => $snapshot['description'] ?? null,
+                        'icon' => $snapshot['icon'] ?? null,
+                        'color' => $snapshot['color'] ?? null,
+                    ]);
                     $locked->update(['status' => 'applied']);
                     $applied[] = $locked->id;
                 });

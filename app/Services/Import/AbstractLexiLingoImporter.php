@@ -206,8 +206,11 @@ abstract class AbstractLexiLingoImporter
             'incoming_snapshot' => array_intersect_key($incoming, $allowlist),
             'existing_snapshot' => $existing ? array_intersect_key($existing->getAttributes(), $allowlist) : null,
             // Captured so a later apply can detect the target row changed
-            // between staging and approval and refuse to overwrite it.
-            'existing_revision' => $existing?->updated_at?->toISOString(),
+            // between staging and approval and refuse to overwrite it. Both
+            // halves matter: catalog_revision counts writes, the fingerprint
+            // catches a write that restored an earlier value.
+            'base_revision' => $existing?->catalog_revision,
+            'base_fingerprint' => $existing?->source_fingerprint,
             'errors' => $safeErrors === [] ? null : $safeErrors,
             'status' => $status,
         ]);

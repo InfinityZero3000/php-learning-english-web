@@ -99,11 +99,16 @@ class AdminImportApplyApiTest extends TestCase
         $this->seed();
         config()->set('features.lexilingo_import', true);
         config()->set('features.lexilingo_import_apply', true);
-        $category = CourseCategory::create(['external_id' => 'cat-2', 'name' => 'Old Name', 'slug' => 'old-slug']);
+        [$category] = CourseCategory::syncFromSource('category', 'lexilingo', 'cat-2', [
+            'name' => 'Old Name', 'slug' => 'old-slug', 'description' => null, 'icon' => null, 'color' => null,
+        ]);
         $run = $this->makeRun($this->user('admin'), 'categories');
         $item = $this->stageCategory($run, 'cat-2', 'update', [
             'name' => 'New Name', 'slug' => 'new-slug',
-        ], now()->subDay()->toISOString());
+        ], $category);
+        // The row moves on after review — same second, which the old
+        // updated_at token could not distinguish.
+        $category->applyLocalEdit(['name' => 'Old Name']);
 
         $this->actingAs($this->user('super_admin'))->withHeader('X-Request-ID', (string) Str::uuid())
             ->postJson("/api/v1/admin/imports/runs/{$run->id}/apply", ['item_ids' => [$item->id]])
@@ -172,7 +177,7 @@ class AdminImportApplyApiTest extends TestCase
         $this->assertEquals(['run_id' => $run->id, 'requested_item_ids' => [$item->id]], $audit->context);
     }
 
-    private function stageCategory(AdminImportRun $run, string $externalId, string $classification, array $incoming, ?string $existingRevision): StagedItem
+    private function stageCategory(AdminImportRun $run, string $externalId, string $classification, array $incoming, ?CourseCategory $existing): StagedItem
     {
         return StagedItem::create([
             'admin_import_run_id' => $run->id,
@@ -180,8 +185,9 @@ class AdminImportApplyApiTest extends TestCase
             'external_id' => $externalId,
             'classification' => $classification,
             'incoming_snapshot' => $incoming,
-            'existing_snapshot' => null,
-            'existing_revision' => $existingRevision,
+            'existing_snapshot' => $existing?->only(['name', 'slug']),
+            'base_revision' => $existing?->catalog_revision,
+            'base_fingerprint' => $existing?->source_fingerprint,
             'status' => 'staged',
         ]);
     }
