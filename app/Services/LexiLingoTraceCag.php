@@ -41,8 +41,11 @@ class LexiLingoTraceCag
             return $this->payload($existing);
         }
 
-        $external = $this->externalPayload($user, $session, $input);
         try {
+            // Building the payload (HMAC subject, credential lookup) belongs inside
+            // the try: a missing/misconfigured secret must degrade the same as an
+            // unreachable upstream, not crash the learning flow with a 500.
+            $external = $this->externalPayload($user, $session, $input);
             $response = $this->client->traceCag()
                 ->withHeader('X-Request-ID', $requestId)
                 ->post('/api/v1/integrations/trace-cag/v1/analyze', $external)
