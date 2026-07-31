@@ -179,7 +179,7 @@ export type AdminQuizAnalytics = { type: 'quiz_analytics'; attempts: number; by_
 export type AdminFsrsAnalytics = { type: 'fsrs_analytics'; reviews: number; average_stability: number | null; average_difficulty: number | null; state_bands: Array<{ state: string; count: number }>; by_date: DateBucket[] };
 export type AdminProgressAnalytics = { type: 'progress_analytics'; completed_lessons: number; by_course: CourseAggregate[]; by_date: DateBucket[] };
 export type AdminImportCheckpoint = { entity: AdminImportEntity; cursor: number; last_synced_at: string | null; failures: number };
-export type AdminImportEntity = 'categories' | 'courses' | 'vocabulary';
+export type AdminImportEntity = 'categories' | 'courses' | 'vocabulary' | 'lessons';
 export type AdminImportRunStatus = 'pending' | 'running' | 'succeeded' | 'review-ready' | 'approved' | 'failed';
 export type AdminImportRun = {
   id: string; request_id: string; entity: AdminImportEntity; status: AdminImportRunStatus;

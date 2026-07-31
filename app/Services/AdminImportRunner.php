@@ -7,6 +7,7 @@ use App\Models\AdminImportRun;
 use App\Models\OperationsAudit;
 use App\Services\Import\CategoryImporter;
 use App\Services\Import\CourseImporter;
+use App\Services\Import\LessonContentImporter;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -26,6 +27,7 @@ class AdminImportRunner
             'categories' => app(CategoryImporter::class),
             'courses' => app(CourseImporter::class),
             'vocabulary' => app(LexiLingoVocabularySync::class),
+            'lessons' => app(LessonContentImporter::class),
             default => throw new RuntimeException('Unsupported import entity.'),
         };
         $importer->forRun($run->id);

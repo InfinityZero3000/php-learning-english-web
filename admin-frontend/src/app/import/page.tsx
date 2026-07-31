@@ -63,7 +63,7 @@ function PageContent() {
 
     <section className="rounded-3xl border-2 border-[#bdc8d2] bg-white p-6">
       <div className="grid gap-4 md:grid-cols-[1fr_160px_auto_auto] md:items-end">
-        <label className="font-bold">Entity<select value={entity} onChange={event => setEntity(event.target.value as AdminImportEntity)} className="mt-2 w-full rounded-xl border-2 border-[#bdc8d2] px-4 py-3">{(['categories', 'courses', 'vocabulary'] as const).map(item => <option key={item}>{item}</option>)}</select></label>
+        <label className="font-bold">Entity<select value={entity} onChange={event => setEntity(event.target.value as AdminImportEntity)} className="mt-2 w-full rounded-xl border-2 border-[#bdc8d2] px-4 py-3">{(['categories', 'courses', 'vocabulary', 'lessons'] as const).map(item => <option key={item}>{item}</option>)}</select></label>
         <label className="font-bold">Limit<input type="number" min="1" max="100" value={limit} onChange={event => setLimit(Math.min(100, Math.max(1, Number(event.target.value))))} className="mt-2 w-full rounded-xl border-2 border-[#bdc8d2] px-4 py-3" /></label>
         <button onClick={() => void start()} disabled={working} className="rounded-xl bg-[#006590] px-6 py-3 font-black text-white disabled:opacity-50">Start / resume</button>
         {superAdmin && <button onClick={() => confirm(`Reset ${entity} checkpoint and import again?`) && void start(true)} disabled={working} className="rounded-xl bg-[#ba1a1a] px-6 py-3 font-black text-white disabled:opacity-50">Reset & retry</button>}
@@ -122,7 +122,7 @@ function RunHistoryPanel() {
       <label className="font-bold">Entity
         <select value={entityFilter} onChange={event => { setPage(1); setEntityFilter(event.target.value as AdminImportEntity | ''); }} className="mt-1 block rounded-xl border-2 border-[#bdc8d2] px-3 py-2">
           <option value="">All</option>
-          {(['categories', 'courses', 'vocabulary'] as const).map(item => <option key={item} value={item}>{item}</option>)}
+          {(['categories', 'courses', 'vocabulary', 'lessons'] as const).map(item => <option key={item} value={item}>{item}</option>)}
         </select>
       </label>
       <label className="font-bold">Status

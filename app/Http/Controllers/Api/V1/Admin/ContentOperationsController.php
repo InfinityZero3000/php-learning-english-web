@@ -24,7 +24,7 @@ use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class ContentOperationsController extends Controller
 {
-    private const ENTITIES = ['categories', 'courses', 'vocabulary'];
+    private const ENTITIES = ['categories', 'courses', 'vocabulary', 'lessons'];
 
     public function checkpoints(Request $request): JsonResponse
     {
