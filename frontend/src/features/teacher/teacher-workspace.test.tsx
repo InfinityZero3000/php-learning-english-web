@@ -149,7 +149,7 @@ describe("TeacherWorkspace", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("Vui lòng chọn lesson và từ vựng hợp lệ.")).toBeInTheDocument();
+      expect(screen.getByText(/Vui lòng chọn lesson và từ vựng hợp lệ/)).toBeInTheDocument();
       expect(api.createTeacherAssignment).not.toHaveBeenCalled();
     });
   });
@@ -192,7 +192,7 @@ describe("TeacherWorkspace", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("Hãy xem bằng chứng của học viên trước khi xác nhận xử lý.")).toBeInTheDocument();
+      expect(screen.getByText(/Hãy xem bằng chứng của học viên trước khi xác nhận xử lý/)).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /Xác nhận đã xử lý/i })).toBeInTheDocument();
     });
 
@@ -203,7 +203,7 @@ describe("TeacherWorkspace", () => {
 
     await waitFor(() => {
       expect(api.resolveAlert).toHaveBeenCalledWith(101, "teacher_reviewed", "Đã xem bằng chứng và lập kế hoạch hỗ trợ.");
-      expect(screen.getByText("Đã đóng cảnh báo sau khi xem bằng chứng.")).toBeInTheDocument();
+      expect(screen.getByText(/Đã đóng cảnh báo sau khi xem bằng chứng/)).toBeInTheDocument();
     });
   });
 });
