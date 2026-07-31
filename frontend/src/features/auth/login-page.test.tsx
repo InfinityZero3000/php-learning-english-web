@@ -5,13 +5,11 @@ import { auth } from "@/lib/api";
 
 const replace = vi.fn();
 const refresh = vi.fn();
-const refreshUser = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace, refresh }),
   useSearchParams: () => new URLSearchParams()
 }));
-vi.mock("@/features/auth/auth-context", () => ({ useAuth: () => ({ refreshUser }) }));
 vi.mock("@/lib/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api")>();
   return { ...actual, auth: { ...actual.auth, login: vi.fn() } };
@@ -22,7 +20,6 @@ describe("learner login", () => {
 
   it("submits credentials and navigates on success", async () => {
     vi.mocked(auth.login).mockResolvedValue({ id: 1 } as never);
-    refreshUser.mockResolvedValue({ id: 1 });
     render(<LoginPage />);
 
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "learner@example.com" } });
