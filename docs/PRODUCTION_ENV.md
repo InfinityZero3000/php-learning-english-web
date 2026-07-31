@@ -80,6 +80,29 @@ Không sử dụng Mailtrap Sandbox ở production.
 | `LEXILINGO_AI_RETRY_DELAY_MS` | Không | Không | `200`; thời gian chờ giữa các lần retry |
 | `LEXILINGO_AI_MAX_AUDIO_KB` | Không | Không | `10240` (10 MB); giới hạn dung lượng file audio gửi lên cho pronunciation/STT |
 
+### Feature flag import (hai cấp, tách biệt)
+
+| Biến | Bắt buộc | Secret | Mục đích |
+|---|---:|---:|---|
+| `FEATURE_LEXILINGO_IMPORT` | Không | Không | Mặc định `false`. Bật **fetch + staging**. Khi `false`, mọi đường ghi đều bị chặn: HTTP start/reset, `RunAdminImport`, `AdminImportRunner` và cả hai lệnh CLI — job đã xếp hàng không lách được cổng này |
+| `FEATURE_LEXILINGO_IMPORT_APPLY` | Không | Không | Mặc định `false` và **phải giữ `false` ở production** cho tới khi có đủ bằng chứng release. Chỉ bật đúng thao tác `POST /api/v1/admin/imports/runs/{run}/apply` — thao tác duy nhất ghi vào catalog |
+
+Fetch và apply là hai cờ riêng: staging dữ liệu để review không bao giờ kéo theo
+quyền ghi. Bật `FEATURE_LEXILINGO_IMPORT_APPLY` phải đi kèm `php artisan config:clear`
+**và** restart queue worker, vì runtime web và runtime queue đọc config cache riêng.
+
+Ngoài cờ, apply còn bị chặn bởi phân quyền: thay thế bản ghi `upstream_update` cần
+Admin kèm Google re-auth mới trong 15 phút; thay thế `local_conflict` cần Super
+Admin kèm Google re-auth mới. Thiếu freshness trả `428`, sai quyền trả `403`.
+
+### Danh tính dùng cho release rehearsal
+
+| Biến | Bắt buộc | Secret | Mục đích |
+|---|---:|---:|---|
+| `RELEASE_LEARNER_EMAIL` | Chỉ ở staging | Không | Tài khoản learner chuyên dụng cho smoke test; không dùng tài khoản cá nhân |
+| `RELEASE_ADMIN_EMAIL` | Chỉ ở staging | Không | Tài khoản admin chuyên dụng; cũng là actor mà `ReleaseImportScenarioSeeder` gán cho run fixture |
+| `RELEASE_SUPER_ADMIN_EMAIL` | Chỉ ở staging | Không | Tài khoản super admin chuyên dụng để kiểm tra nhánh `local_conflict` |
+
 Public category/course/vocabulary request không được gửi import key. Vocabulary
 được đồng bộ vào MySQL bằng:
 

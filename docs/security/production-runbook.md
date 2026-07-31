@@ -35,6 +35,46 @@ fly deploy --config fly.toml
 
 ---
 
+## 1b. Ranh giới ghi của Staged Import
+
+Import chạy hai pha tách rời. `FEATURE_LEXILINGO_IMPORT` chỉ mở pha **fetch +
+staging**: bản ghi upstream được phân loại (`new`, `exact_duplicate`,
+`upstream_update`, `local_conflict`, `invalid`) và lưu vào `admin_import_items`
+mà **không** chạm vào catalog. Checkpoint không tiến khi staging hoặc khi lỗi.
+
+`FEATURE_LEXILINGO_IMPORT_APPLY` mở pha ghi và mặc định `false` ở production.
+Lệnh CLI không có tuỳ chọn nào bỏ qua bước duyệt; run do CLI tạo mang
+`initiator_type=cli`, `actor_id` null và vẫn cần một admin đã xác thực để duyệt.
+
+Khi apply, hệ thống re-resolve source identity dưới transaction, khoá hàng đích,
+so base revision/fingerprint/override rồi mới ghi theo thứ tự phụ thuộc
+(category → course → unit → lesson → topic → vocabulary). Catalog đổi sau lúc
+review thì trả `409`, run quay lại `review_ready` và checkpoint không tiến.
+Checkpoint chỉ tiến **sau** khi commit thành công.
+
+**Không bao giờ dùng `migrate:rollback` để hoàn tác một import đã duyệt.** Cột
+ownership là additive; rollback migration sẽ mất provenance của mọi nguồn. Muốn
+hoàn tác nội dung, restore từ backup dữ liệu (mục 2b).
+
+### Bật apply trên staging (không dùng cho production)
+
+```bash
+# Cài EXIT trap trước, để mọi nhánh thoát đều tắt lại cờ
+trap 'fly secrets set FEATURE_LEXILINGO_IMPORT_APPLY=false && \
+      fly ssh console -C "php artisan config:clear" && \
+      fly apps restart "$STAGING_APP"' EXIT
+
+fly secrets set FEATURE_LEXILINGO_IMPORT_APPLY=true
+fly ssh console -C "php artisan config:clear"
+fly apps restart "$STAGING_APP"    # queue worker đọc config cache riêng
+```
+
+Sau khi bật, phải chứng minh **cả** runtime web và runtime queue cùng thấy `true`
+bằng assertion phía ứng dụng, không suy đoán từ giá trị secret. Kết thúc phiên,
+kích hoạt trap và assert lại rằng cả hai runtime đã thấy `false`.
+
+---
+
 ## 2. Quy trình Rollback dự phòng (Khi deploy lỗi)
 
 ### Rollback Backend (Fly.io)
@@ -53,6 +93,36 @@ fly deploy --image registry.fly.io/linguist:v12
 3. Tìm bản deployment ổn định trước đó.
 4. Click vào nút menu ba chấm (`...`) bên cạnh bản deploy đó và chọn **Instant Rollback**.
 5. Xác nhận và Vercel sẽ chuyển hướng traffic về bản cũ trong vòng vài giây.
+
+---
+
+## 2b. Diễn tập Backup / Restore dữ liệu
+
+Dùng MySQL option file để credential không bao giờ lọt vào shell history hay
+process list. Không bao giờ restore vào production trong lúc diễn tập.
+
+```bash
+# 1. Backup nhất quán từ production (chỉ đọc)
+mysqldump --defaults-extra-file="$PROD_MYSQL_CNF" \
+  --single-transaction --routines --triggers "$DB_DATABASE" > "$BACKUP_FILE"
+shasum -a 256 "$BACKUP_FILE"          # ghi checksum vào file bằng chứng
+
+# 2. Chốt cứng đích restore trước khi ghi bất kỳ byte nào
+test -n "$RESTORE_DB_DATABASE"
+test "$RESTORE_DB_DATABASE" != "$DB_DATABASE"
+case "$RESTORE_DB_DATABASE" in restore_rehearsal_*) ;; *) echo 'Sai quy ước tên'; exit 1;; esac
+mysql --defaults-extra-file="$RESTORE_MYSQL_CNF" -N -e 'SELECT DATABASE()' \
+  | grep -qx "$RESTORE_DB_DATABASE" || { echo 'Option file trỏ sai DB'; exit 1; }
+
+# 3. Restore và đối chiếu
+mysql --defaults-extra-file="$RESTORE_MYSQL_CNF" "$RESTORE_DB_DATABASE" < "$BACKUP_FILE"
+```
+
+Sau restore: so row count và checksum các bảng trọng yếu, rồi chạy health check
+ứng dụng trỏ vào đích restore. Ghi vào file bằng chứng: checksum/định danh
+backup, đích restore, deployment reference của backend + learner + admin, và thứ
+tự rollback (**tắt đường ghi trước, rollback deploy sau**) cùng quyết định có
+khôi phục dữ liệu catalog hay không.
 
 ---
 
