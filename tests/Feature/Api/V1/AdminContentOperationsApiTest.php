@@ -57,7 +57,10 @@ class AdminContentOperationsApiTest extends TestCase
         // Issue #44: terminal success status renamed to 'review-ready' now that
         // staged items exist for the admin to browse after a run completes.
         $this->assertDatabaseHas('admin_import_runs', ['id' => $runId, 'status' => 'review-ready']);
-        $this->assertDatabaseHas('lexilingo_import_checkpoints', ['entity' => 'categories', 'cursor' => 1]);
+        // Categories are staged, not written, so the fetch window stays put until
+        // apply lands them — otherwise cancelling the run would skip these rows.
+        $this->assertDatabaseHas('staged_items', ['external_id' => 'cat-1', 'status' => 'staged']);
+        $this->assertDatabaseMissing('lexilingo_import_checkpoints', ['entity' => 'categories', 'cursor' => 1]);
 
         $this->withHeader('X-Request-ID', $requestId)
             ->postJson('/api/v1/admin/imports', ['entity' => 'categories', 'limit' => 50])
@@ -102,7 +105,11 @@ class AdminContentOperationsApiTest extends TestCase
             ->postJson('/api/v1/admin/imports/reset', ['entity' => 'categories', 'limit' => 10])
             ->assertStatus(202)->assertJsonPath('data.starting_cursor', 0);
 
-        $this->assertDatabaseHas('lexilingo_import_checkpoints', ['entity' => 'categories', 'cursor' => 1]);
+        // Reset re-reads from offset 0 and stages what it finds. The stored
+        // checkpoint is only replaced once those staged rows are applied, so an
+        // abandoned reset cannot rewind the catalog's real position.
+        $this->assertDatabaseHas('staged_items', ['external_id' => 'cat-reset', 'status' => 'staged']);
+        $this->assertDatabaseHas('lexilingo_import_checkpoints', ['entity' => 'categories', 'cursor' => 500]);
     }
 
     public function test_notifications_never_serialize_learner_identity_or_evidence(): void

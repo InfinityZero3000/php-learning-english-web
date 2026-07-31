@@ -28,7 +28,7 @@ class AdminGoogleAuthController extends Controller
         ], now()->addMinutes(5));
 
         return redirect()->away(
-            rtrim((string) config('app.frontend_url'), '/')."/api/v1/auth/oauth/google/admin/start?challenge={$challenge}"
+            rtrim((string) config('app.admin_frontend_url'), '/')."/api/v1/auth/oauth/google/admin/start?challenge={$challenge}"
         );
     }
 

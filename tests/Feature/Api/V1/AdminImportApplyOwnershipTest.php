@@ -91,7 +91,8 @@ class AdminImportApplyOwnershipTest extends TestCase
             'admin_import_run_id' => $run->id, 'entity' => 'categories', 'external_id' => $externalId,
             'classification' => $existing ? 'update' : 'new', 'incoming_snapshot' => $snapshot,
             'existing_snapshot' => $existing?->only(['name', 'slug']),
-            'existing_revision' => $existing?->updated_at?->toISOString(),
+            'base_revision' => $existing?->catalog_revision,
+            'base_fingerprint' => $existing?->source_fingerprint,
             'status' => 'staged',
         ]);
     }

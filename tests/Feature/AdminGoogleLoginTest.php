@@ -122,6 +122,7 @@ class AdminGoogleLoginTest extends TestCase
     {
         $this->seed();
         config()->set('app.frontend_url', 'http://learner.test');
+        config()->set('app.admin_frontend_url', 'http://admin.test');
         $admin = User::factory()->create([
             'role_id' => Role::query()->where('slug', 'admin')->value('id'),
         ]);
@@ -133,6 +134,51 @@ class AdminGoogleLoginTest extends TestCase
         $unsafe = $this->get('/api/v1/auth/oauth/google/admin?return='.urlencode('/import?run=42&next=https://evil.test'));
         parse_str((string) parse_url($unsafe->headers->get('Location'), PHP_URL_QUERY), $unsafeQuery);
         $this->assertSame('/dashboard', Cache::get("admin-google-challenge:{$unsafeQuery['challenge']}")['return']);
+    }
+
+    /**
+     * The whole point of the two-domain split is that the admin app never
+     * shares an origin with the public learner site. entry() once built this
+     * URL from app.frontend_url (a leftover from before the split), which
+     * bounced admin login through the learner domain's proxy for no reason.
+     */
+    public function test_google_entry_redirects_through_the_admin_domain_not_the_learner_domain(): void
+    {
+        $this->seed();
+        config()->set('app.frontend_url', 'http://learner.test');
+        config()->set('app.admin_frontend_url', 'http://admin.test');
+        $admin = User::factory()->create([
+            'role_id' => Role::query()->where('slug', 'admin')->value('id'),
+        ]);
+
+        $response = $this->actingAs($admin)->get('/api/v1/auth/oauth/google/admin');
+
+        $location = (string) $response->headers->get('Location');
+        $this->assertStringStartsWith('http://admin.test/api/v1/auth/oauth/google/admin/start?challenge=', $location);
+    }
+
+    /**
+     * GOOGLE_REDIRECT_URI in production points at the api/v1 OAuth callback
+     * (OAuthController::callback), not /auth/google/callback. If that
+     * endpoint doesn't also check google_admin_oauth_mode, an admin's Google
+     * login gets treated as a learner login and bounces to the learner
+     * frontend instead of the admin one.
+     */
+    public function test_api_v1_google_callback_also_routes_admin_mode_to_the_admin_domain(): void
+    {
+        $this->seed();
+        config()->set('admin_access.admin_emails', []);
+        config()->set('admin_access.super_admin_emails', ['owner@example.com']);
+        config()->set('app.frontend_url', 'http://learner.test');
+        config()->set('app.admin_frontend_url', 'http://admin.test');
+        $this->mockGoogleUser('google-subject-4', 'owner@example.com', true);
+        $challenge = $this->challenge();
+
+        $this->withSession([
+            'google_admin_oauth_mode' => 'login',
+            'google_admin_challenge' => $challenge,
+        ])->get('/api/v1/auth/oauth/google/callback')
+            ->assertRedirectContains('http://admin.test/login?handoff=');
     }
 
     private function challenge(): string

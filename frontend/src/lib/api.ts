@@ -222,8 +222,26 @@ export const api = {
   startListening: (video: YouTubeVideo) => apiRequest<ListeningSession>("/api/v1/media/listening-sessions", { method: "POST", body: JSON.stringify({ external_id: video.id, title: video.title, channel: video.channel, thumbnail_url: video.thumbnail_url, duration_seconds: video.duration_seconds }) }),
   updateListening: (id: number, positionSeconds: number, durationSeconds: number) => apiRequest<ListeningSession>(`/api/v1/media/listening-sessions/${id}`, { method: "PUT", body: JSON.stringify({ position_seconds: Math.round(positionSeconds), duration_seconds: Math.round(durationSeconds) }) }),
   shadowCaption: (id: number, audio: Blob, referenceText: string) => uploadVoice<PronunciationAssessment>(`/api/v1/media/listening-sessions/${id}/pronunciation`, audio, { reference_text: referenceText }).then(({ data }) => data),
-  completeListening: (id: number) => apiRequest<ListeningSession>(`/api/v1/media/listening-sessions/${id}/complete`, { method: "POST" })
+  completeListening: (id: number) => apiRequest<ListeningSession>(`/api/v1/media/listening-sessions/${id}/complete`, { method: "POST" }),
+  capabilities: () => fetchCapabilities()
 };
+
+export type CapabilityStatus = "enabled" | "unconfigured" | "role_required";
+export type CapabilityItem = { status: CapabilityStatus; enabled: boolean };
+export type CapabilitiesMap = Record<string, CapabilityItem>;
+
+let cachedCapabilities: CapabilitiesMap | null = null;
+
+export async function fetchCapabilities(forceRefresh = false): Promise<CapabilitiesMap> {
+  if (cachedCapabilities && !forceRefresh) return cachedCapabilities;
+  try {
+    const res = await apiRequest<{ capabilities: CapabilitiesMap }>("/api/v1/capabilities");
+    cachedCapabilities = res.capabilities;
+    return cachedCapabilities;
+  } catch {
+    return {};
+  }
+}
 
 export type Translation = { translated_text: string; source_lang: string; target_lang: string };
 export type Transcription = { transcript: string; confidence: number | null };
