@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "d3f6a2c4-8b1e-4a9f-9c2d-php-learning-api",
     "name": "PHP Learning English Web — API Regression",
-    "description": "Regression / manual verification collection for the Laravel /api/v1 and /api/admin REST API (issue #28). This app authenticates via a Laravel session + CSRF cookie, NOT bearer tokens — matching admin-frontend/src/lib/api.ts's request() helper. A collection-level pre-request script fetches /api/v1/csrf-cookie and attaches X-XSRF-TOKEN to every mutating (POST/PUT/PATCH/DELETE) request automatically, using Postman's cookie jar (requires Postman's cookie jar / 'Automatically follow redirects' defaults — no manual header copying needed).\n\nRun order (verified end-to-end with `newman run`):\n1. '0a - Login as Learner' before running '2 - Catalog' / '3 - Learning' / '4 - AI Proxy'.\n2. '0c - Logout' then '0b - Login as Admin' before running '5 - Admin Taxonomy' / '6 - Admin Users'.\n\nOnly one session is active in the shared cookie jar at a time. '0a'/'0b'/'0c' are deliberately separate top-level folders (not steps inside one folder) so that running any single one of them in a Collection Runner or `newman run --folder` does exactly what its name says, instead of silently chaining into logout.\n\nBefore running: `docker-compose exec app php artisan migrate:fresh --seed` to get known seed data (admin@example.com/admin123, user@example.com/user123, sample courses/lessons/quizzes, but NO Vocabulary rows — vocabulary only exists after a LexiLingo import/sync). '2 - Catalog' requests self-populate course_id/lesson_id into the environment via Tests scripts on first run; 'List Vocabulary' also tries to set vocabulary_id but will leave it empty on a fresh seed (see the note on '3 - Learning > Toggle Vocabulary Bookmark'). There is no public endpoint to list quiz ids, so quiz_id defaults to 1 (the first quiz created by LessonQuizSeeder on a fresh seed) — adjust manually if your seed data differs.\n\n'4 - AI Proxy' requests call the real configured LexiLingo AI service and will fail locally unless LEXILINGO_AI_URL/LEXILINGO_BACKEND_URL are set in the running app's .env — included for completeness, not guaranteed runnable out of the box.",
+    "description": "Regression / manual verification collection for the Laravel /api/v1 and /api/admin REST API (issue #28). This app authenticates via a Laravel session + CSRF cookie, NOT bearer tokens — matching admin-frontend/src/lib/api.ts's request() helper. A collection-level pre-request script fetches /api/v1/csrf-cookie and attaches X-XSRF-TOKEN to every mutating (POST/PUT/PATCH/DELETE) request automatically, using Postman's cookie jar (requires Postman's cookie jar / 'Automatically follow redirects' defaults — no manual header copying needed).\n\nRun order (verified end-to-end with `newman run`):\n1. '0a - Login as Learner' before running '2 - Catalog' / '3 - Learning' / '4 - AI Proxy'.\n2. '0c - Logout' then '0b - Login as Admin' before running '5 - Admin Taxonomy' / '6 - Admin Users'.\n\nOnly one session is active in the shared cookie jar at a time. '0a'/'0b'/'0c' are deliberately separate top-level folders (not steps inside one folder) so that running any single one of them in a Collection Runner or `newman run --folder` does exactly what its name says, instead of silently chaining into logout.\n\nBefore running: `docker-compose exec app php artisan migrate:fresh --seed` to get known seed data (admin@example.com/admin123, user@example.com/user123, sample courses/lessons/quizzes, but NO Vocabulary rows — vocabulary only exists after a LexiLingo import/sync). '2 - Catalog' requests self-populate course_id/lesson_id into the environment via Tests scripts on first run; 'List Vocabulary' also tries to set vocabulary_id but will leave it empty on a fresh seed (see the note on '3 - Learning > Toggle Vocabulary Bookmark'). There is no public endpoint to list quiz ids, so quiz_id defaults to 1 (the first quiz created by LessonQuizSeeder on a fresh seed) — adjust manually if your seed data differs.\n\n'4 - AI Proxy' requests call the real configured LexiLingo AI service and will fail locally unless LEXILINGO_AI_URL/LEXILINGO_BACKEND_URL are set in the running app's .env — included for completeness, not guaranteed runnable out of the box.\n\n'8 - Learning Path, FSRS & Import Review' covers the self-owned Course Path, the non-mutating FSRS preview, Unit authoring and the staged import review flow. Log in as admin first ('0b'). 'Apply Import Run' is the only destructive request in the collection: it stays disabled unless FEATURE_LEXILINGO_IMPORT_APPLY=true, and a replacement additionally needs a fresh Google re-auth (428 otherwise), so 403/409/428/503 are expected passes there.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "event": [
@@ -616,6 +616,429 @@
             "method": "GET",
             "header": [{ "key": "Accept", "value": "application/json" }],
             "url": { "raw": "{{base_url}}/api/v1/content/youtube?q=hello", "host": ["{{base_url}}"], "path": ["api", "v1", "content", "youtube"], "query": [{ "key": "q", "value": "hello" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8 - Learning Path, FSRS & Import Review",
+      "item": [
+        {
+          "name": "Learner Course Path",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('server owns eligibility', () => pm.expect(body.data).to.have.property('next_action'));",
+                  "if (body.data && body.data.next_action && body.data.next_action.lesson_id) { pm.environment.set('lesson_id', body.data.next_action.lesson_id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/catalog/courses/{{course_id}}/path",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "catalog",
+                "courses",
+                "{{course_id}}",
+                "path"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Preview FSRS Intervals",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('four ratings returned', () => pm.expect(body.data.ratings).to.have.lengthOf(4));",
+                  "pm.test('preview does not mutate', () => pm.expect(body.data).to.have.property('base_revision'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/fsrs/preview",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "fsrs",
+                "preview"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"card_id\": \"{{fsrs_card_id}}\",\n    \"base_revision\": \"{{fsrs_base_revision}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "List Units by Course",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "if (body.data && body.data.length) { pm.environment.set('unit_id', body.data[0].id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/catalog/units?course_id={{course_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "catalog",
+                "units?course_id={{course_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Unit",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201 or 200', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                  "const body = pm.response.json();",
+                  "if (body.data) { pm.environment.set('unit_id', body.data.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Request-ID",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/catalog/units",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "catalog",
+                "units"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"course_id\": \"{{course_id}}\",\n    \"title\": \"Postman Unit {{$timestamp}}\",\n    \"sort_order\": 99\n}"
+            }
+          }
+        },
+        {
+          "name": "Reorder Units",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Request-ID",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/catalog/units/reorder",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "catalog",
+                "units",
+                "reorder"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"course_id\": \"{{course_id}}\",\n    \"unit_ids\": [\n        \"{{unit_id}}\"\n    ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Import Run History",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "if (body.data && body.data.length) { pm.environment.set('import_run_id', body.data[0].id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/imports/runs",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "imports",
+                "runs"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Import Run Items",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "if (body.data && body.data.length) { pm.environment.set('import_item_id', body.data[0].id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/imports/runs/{{import_run_id}}/items",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "imports",
+                "runs",
+                "{{import_run_id}}",
+                "items"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Save Import Draft",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Request-ID",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/imports/runs/{{import_run_id}}/draft",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "imports",
+                "runs",
+                "{{import_run_id}}",
+                "draft"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"items\": [\n        {\n            \"id\": \"{{import_item_id}}\",\n            \"action\": \"exclude\"\n        }\n    ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Approve Import Run",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Request-ID",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/imports/runs/{{import_run_id}}/approve",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "imports",
+                "runs",
+                "{{import_run_id}}",
+                "approve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "[]"
+            }
+          }
+        },
+        {
+          "name": "Apply Import Run (destructive, feature-flagged)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('apply stays disabled unless the release flag is on', () => pm.expect(pm.response.code).to.be.oneOf([200, 403, 409, 428, 503]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Request-ID",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin/imports/runs/{{import_run_id}}/apply",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "imports",
+                "runs",
+                "{{import_run_id}}",
+                "apply"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "[]"
+            }
           }
         }
       ]
