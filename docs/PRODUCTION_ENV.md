@@ -72,13 +72,25 @@ Không sử dụng Mailtrap Sandbox ở production.
 | Biến | Bắt buộc | Secret | Mục đích |
 |---|---:|---:|---|
 | `LEXILINGO_BACKEND_URL` | Khi sync dataset | Không | HTTPS origin của Backend Service, không thêm `/api/v1` |
-| `LEXILINGO_AI_URL` | Khi dùng AI/STT/TTS | Không | HTTPS origin của AI Service |
+| `LEXILINGO_AI_URL` | Khi dùng AI/STT/TTS/TraceCAG | Không | HTTPS origin của AI Service |
+| `LEXILINGO_PARTNER_API_KEY` | Khi sync category/course/vocabulary | Có | Gửi bằng `X-LexiLingo-API-Key`, dùng cho `LexiLingoClient::partner()` |
 | `LEXILINGO_IMPORT_KEY` | Khi sync lesson content protected | Có | Key chỉ có quyền `content:read`; không dùng admin token 30 phút |
 | `LEXILINGO_AI_SERVICE_SECRET` | Khi gọi internal AI | Có | Gửi bằng `X-AI-Service-Secret` |
+| `LEXILINGO_TRACE_CAG_SERVICE_TOKEN` | Khi bật `FEATURE_AI` | Có | Gửi bằng `X-LexiLingo-Service-Token` tới `POST /api/v1/integrations/trace-cag/v1/analyze`. Phải khớp `TRACE_CAG_SERVICE_TOKEN_HASH` (SHA-256 của token này) phía AI Service, cùng với `TRACE_CAG_EXTERNAL_ENABLED=true` — hai biến đó **không nằm trong repo này**, đặt trực tiếp trên AI Service |
+| `LEXILINGO_SUBJECT_HMAC_SECRET` | Khi bật `FEATURE_AI` | Có | Tối thiểu 32 ký tự; ký subject ẩn danh (HMAC-SHA256 của `user_id`) gửi cho TraceCAG thay vì lộ `user_id` thật. Thiếu biến này TraceCAG luôn trả kết quả `degraded` (fallback nội bộ), không lỗi 500 |
 | `LEXILINGO_TIMEOUT` | Không | Không | `30`; code giới hạn trong khoảng 1–60 giây |
+| `LEXILINGO_CONNECT_TIMEOUT` | Không | Không | `5`; timeout kết nối riêng, giới hạn 1–30 giây. `traceCag()` còn có thêm hard timeout 15s ở tầng gọi |
 | `LEXILINGO_AI_RETRY_TIMES` | Không | Không | `2`; số lần thử lại khi timeout/5xx trên proxy AI (`/api/v1/ai/*`, `/api/v1/stt/*`, `/api/v1/tts/*`), không retry lỗi 4xx |
 | `LEXILINGO_AI_RETRY_DELAY_MS` | Không | Không | `200`; thời gian chờ giữa các lần retry |
 | `LEXILINGO_AI_MAX_AUDIO_KB` | Không | Không | `10240` (10 MB); giới hạn dung lượng file audio gửi lên cho pronunciation/STT |
+
+### Feature flag AI/TraceCAG
+
+| Biến | Bắt buộc | Secret | Mục đích |
+|---|---:|---:|---|
+| `FEATURE_AI` | Không | Không | Mặc định `false`. Bật `POST /api/v1/ai/translate`, `/pronunciation`, `/speech-to-text`, `/text-to-speech` và `/ai/trace-cag`. Tắt thì mọi endpoint này trả `503 FEATURE_DISABLED` ngay, không gọi AI Service |
+
+`/ai/trace-cag` (chấm/gợi ý bài tập có cấu trúc — `TraceCagController` → `LexiLingoTraceCag` → `POST /api/v1/integrations/trace-cag/v1/analyze`) đã có sẵn: idempotent theo `X-Request-ID`, timeout 15s, và **tự động fallback** sang kết quả xác định (`degraded: true`) khi AI Service lỗi hoặc credential thiếu — không bao giờ chặn luồng học của learner. Bật `FEATURE_AI` mà thiếu `LEXILINGO_TRACE_CAG_SERVICE_TOKEN`/`LEXILINGO_SUBJECT_HMAC_SECRET` thì endpoint vẫn trả `200` nhưng luôn `degraded`.
 
 ### Feature flag import (hai cấp, tách biệt)
 

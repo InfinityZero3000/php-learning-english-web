@@ -157,6 +157,30 @@ class AdminGoogleLoginTest extends TestCase
         $this->assertStringStartsWith('http://admin.test/api/v1/auth/oauth/google/admin/start?challenge=', $location);
     }
 
+    /**
+     * GOOGLE_REDIRECT_URI in production points at the api/v1 OAuth callback
+     * (OAuthController::callback), not /auth/google/callback. If that
+     * endpoint doesn't also check google_admin_oauth_mode, an admin's Google
+     * login gets treated as a learner login and bounces to the learner
+     * frontend instead of the admin one.
+     */
+    public function test_api_v1_google_callback_also_routes_admin_mode_to_the_admin_domain(): void
+    {
+        $this->seed();
+        config()->set('admin_access.admin_emails', []);
+        config()->set('admin_access.super_admin_emails', ['owner@example.com']);
+        config()->set('app.frontend_url', 'http://learner.test');
+        config()->set('app.admin_frontend_url', 'http://admin.test');
+        $this->mockGoogleUser('google-subject-4', 'owner@example.com', true);
+        $challenge = $this->challenge();
+
+        $this->withSession([
+            'google_admin_oauth_mode' => 'login',
+            'google_admin_challenge' => $challenge,
+        ])->get('/api/v1/auth/oauth/google/callback')
+            ->assertRedirectContains('http://admin.test/login?handoff=');
+    }
+
     private function challenge(): string
     {
         $challenge = (string) Str::uuid();
