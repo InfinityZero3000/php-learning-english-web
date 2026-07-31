@@ -254,6 +254,7 @@ class AdminGoogleLoginTest extends TestCase
         ]);
         $socialUser->user = ['email_verified' => $verified];
         $provider = Mockery::mock();
+        $provider->shouldReceive('redirectUrl')->once()->with('http://admin.test/api/v1/auth/oauth/google/admin/callback')->andReturnSelf();
         $provider->shouldReceive('user')->once()->andReturn($socialUser);
         Socialite::shouldReceive('driver')->with('google')->once()->andReturn($provider);
     }

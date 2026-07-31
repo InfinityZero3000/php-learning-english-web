@@ -44,7 +44,7 @@ class AdminGoogleAuthController extends Controller
         $request->session()->put('google_admin_challenge', $challenge);
 
         return Socialite::driver('google')
-            ->redirectUrl(rtrim((string) config('app.admin_frontend_url'), '/').'/api/v1/auth/oauth/google/admin/callback')
+            ->redirectUrl($this->adminCallbackUrl())
             ->with(['prompt' => 'select_account', 'max_age' => 0])
             ->redirect();
     }
@@ -52,7 +52,13 @@ class AdminGoogleAuthController extends Controller
     public function callback(Request $request, AdminGoogleAccess $access): RedirectResponse
     {
         try {
-            $google = Socialite::driver('google')->user();
+            // Google's token exchange re-checks redirect_uri against the one used for
+            // the authorization request above; a mismatch here fails with
+            // redirect_uri_mismatch even though the console URI is registered and the
+            // authorize step already succeeded, since this is a separate Socialite
+            // instance for a separate HTTP request that otherwise defaults back to
+            // config('services.google.redirect') — the learner flow's fixed URI.
+            $google = Socialite::driver('google')->redirectUrl($this->adminCallbackUrl())->user();
             $email = strtolower(trim((string) $google->getEmail()));
             $subject = trim((string) $google->getId());
             $verified = filter_var(data_get($google->user, 'email_verified'), FILTER_VALIDATE_BOOL);
@@ -168,6 +174,16 @@ class AdminGoogleAuthController extends Controller
     private function loginRedirect(string $error): RedirectResponse
     {
         return redirect()->away(rtrim((string) config('app.admin_frontend_url'), '/')."/login?error={$error}");
+    }
+
+    /**
+     * Must be identical on both the authorize (redirect()) and token-exchange
+     * (callback()) Socialite calls, or Google's token endpoint rejects the
+     * exchange with redirect_uri_mismatch even though the console URI matches.
+     */
+    private function adminCallbackUrl(): string
+    {
+        return rtrim((string) config('app.admin_frontend_url'), '/').'/api/v1/auth/oauth/google/admin/callback';
     }
 
     private function safeReturn(string $return): string
