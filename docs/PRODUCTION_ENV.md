@@ -213,6 +213,15 @@ Chỉ cấu hình khi bật social login:
 | `FACEBOOK_CLIENT_ID` | Không | Facebook App ID |
 | `FACEBOOK_CLIENT_SECRET` | Có | Facebook App Secret |
 | `FACEBOOK_REDIRECT_URI` | Không | `${FRONTEND_URL}/api/v1/auth/oauth/facebook/callback` |
+| `ADMIN_GOOGLE_EMAILS` | Không | Danh sách email (phân tách bằng dấu phẩy) được whitelist vào role `admin` khi đăng nhập qua `google.admin` middleware |
+| `SUPER_ADMIN_GOOGLE_EMAILS` | Không | Như trên, whitelist vào role `super_admin` |
+
+Toàn bộ route `/api/v1/admin/catalog/*`, `/admin/users`, `/admin/operations/*`
+và `/admin/imports/*` nằm sau middleware `google.admin`: chỉ chấp nhận session
+đã đăng nhập Google thật với email nằm trong hai biến trên. Không có cách giả
+lập hợp lệ bằng chỉ `email/password` hay Postman/curl thuần — xem mục "Tài
+khoản demo" trong [`../README.md`](../README.md) để biết giới hạn khi test
+local.
 
 Authorized redirect URI trong Google/Facebook Console phải khớp tuyệt đối với
 biến redirect tương ứng và đi qua domain frontend để giữ session cookie host-only.

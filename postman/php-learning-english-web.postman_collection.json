@@ -65,7 +65,7 @@
     },
     {
       "name": "0b - Login as Admin",
-      "description": "Self-contained: run this single folder to authenticate as the seeded admin. Log out first (0c) if a learner session is currently active.",
+      "description": "Reference only, not runnable via `newman run`: /api/v1/admin/catalog/*, /admin/users, /admin/operations/* and /admin/imports/* all sit behind the `google.admin` middleware, which requires a real Google OAuth session for an email listed in ADMIN_GOOGLE_EMAILS/SUPER_ADMIN_GOOGLE_EMAILS (see docs/PRODUCTION_ENV.md). Plain email/password login only ever grants a `learner`-role session locally; there is no valid way to fake admin/super_admin access through this request. To actually exercise the admin API, configure Google OAuth credentials, sign in through the admin frontend in a browser, then reuse that browser session's cookies manually if you need to hit the API outside the UI.",
       "item": [
         {
           "name": "Login as Admin",
@@ -425,7 +425,7 @@
     },
     {
       "name": "5 - Admin Taxonomy",
-      "description": "Requires an admin session — run '0c - Logout' then '0b - Login as Admin' first.",
+      "description": "Requires a real Google-admin session (see the '0b - Login as Admin' folder description) — cannot be provisioned via plain email/password login or newman, only through a real Google OAuth sign-in in the admin frontend.",
       "item": [
         {
           "name": "List Topics",
@@ -501,7 +501,7 @@
     },
     {
       "name": "6 - Admin Users",
-      "description": "Requires an admin session — run '0c - Logout' then '0b - Login as Admin' first.",
+      "description": "Requires a real Google-admin session (see the '0b - Login as Admin' folder description) — cannot be provisioned via plain email/password login or newman, only through a real Google OAuth sign-in in the admin frontend.",
       "item": [
         {
           "name": "List Users",
@@ -622,6 +622,7 @@
     },
     {
       "name": "8 - Learning Path, FSRS & Import Review",
+      "description": "Learner Course Path and Preview FSRS Intervals only need '0a - Login as Learner' (plain auth). List/Create/Reorder Units and every Import Run/Apply request need a real Google-admin session — see the '0b - Login as Admin' folder description; they are not runnable via newman without one.",
       "item": [
         {
           "name": "Learner Course Path",
