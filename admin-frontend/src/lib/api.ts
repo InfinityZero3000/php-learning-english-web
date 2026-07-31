@@ -180,10 +180,31 @@ export type AdminFsrsAnalytics = { type: 'fsrs_analytics'; reviews: number; aver
 export type AdminProgressAnalytics = { type: 'progress_analytics'; completed_lessons: number; by_course: CourseAggregate[]; by_date: DateBucket[] };
 export type AdminImportCheckpoint = { entity: AdminImportEntity; cursor: number; last_synced_at: string | null; failures: number };
 export type AdminImportEntity = 'categories' | 'courses' | 'vocabulary';
+export type AdminImportStatus = 'fetching' | 'validating' | 'review_ready' | 'approved' | 'applying' | 'completed' | 'validation_failed' | 'apply_failed' | 'cancelled';
 export type AdminImportRun = {
-  id: string; request_id: string; entity: AdminImportEntity; status: 'pending' | 'running' | 'succeeded' | 'failed';
+  id: number; request_id: string; entity: AdminImportEntity; status: AdminImportStatus;
   requested_limit: number; reset: boolean; starting_cursor: number; processed: number | null; skipped: number | null;
   result_cursor: number | null; error_code: string | null; error_message: string | null; created_at: string; updated_at: string;
+  items_count?: number; counts?: Partial<Record<AdminImportClassification, number>>;
+};
+export type AdminImportClassification = 'new' | 'exact_duplicate' | 'upstream_update' | 'local_conflict' | 'invalid';
+export type AdminImportAction = 'add' | 'skip' | 'replace' | 'keep_local' | 'exclude';
+export type AdminImportDependency = { entity: string; external_id: string };
+export type AdminImportItem = {
+  id: number; parent_item_id: number | null; entity: string; source_system: string; external_id: string;
+  natural_key: string | null; candidate_payload: Record<string, unknown> | null; base_snapshot: Record<string, unknown> | null;
+  classification: AdminImportClassification; selected_action: AdminImportAction | null;
+  dependencies: AdminImportDependency[] | null; validation_errors: string[] | null;
+  target_id: number | null; base_revision: number | null; reviewed_at: string | null; applied_at: string | null;
+};
+
+/** Actions the server accepts per classification; mirrors AdminImportApproval::ACTIONS. */
+export const IMPORT_ACTIONS: Record<AdminImportClassification, AdminImportAction[]> = {
+  new: ['add', 'exclude'],
+  exact_duplicate: ['skip', 'exclude'],
+  upstream_update: ['replace', 'keep_local', 'exclude'],
+  local_conflict: ['keep_local', 'replace', 'exclude'],
+  invalid: ['exclude'],
 };
 export type AdminNotification = { id: number; type: string; severity: string; state: string; summary: string; created_at: string | null; resolved_at: string | null; read: boolean };
 export type AdminPreferences = { notifications: { operational: boolean }; ui: { compact_sidebar?: boolean } };
@@ -244,7 +265,15 @@ export const adminLearning = {
 
 export const adminImports = {
   checkpoints: () => request<{ data: AdminImportCheckpoint[] }>('/api/v1/admin/imports').then(({ data }) => data),
-  run: (id: string) => request<{ data: AdminImportRun }>(`/api/v1/admin/imports/runs/${id}`).then(({ data }) => data),
+  history: () => request<{ data: AdminImportRun[] }>('/api/v1/admin/imports/runs').then(({ data }) => data),
+  run: (id: number) => request<{ data: AdminImportRun }>(`/api/v1/admin/imports/runs/${id}`).then(({ data }) => data),
+  items: (id: number) => request<{ data: AdminImportItem[] }>(`/api/v1/admin/imports/runs/${id}/items`).then(({ data }) => data),
+  saveDraft: (id: number, items: Array<{ id: number; action: AdminImportAction }>) =>
+    mutation<{ data: AdminImportRun }>(`/api/v1/admin/imports/runs/${id}/draft`, 'PUT', { items }).then(({ data }) => data),
+  approve: (id: number) => mutation<{ data: AdminImportRun }>(`/api/v1/admin/imports/runs/${id}/approve`, 'POST').then(({ data }) => data),
+  apply: (id: number) => mutation<{ data: AdminImportRun }>(`/api/v1/admin/imports/runs/${id}/apply`, 'POST').then(({ data }) => data),
+  cancel: (id: number) => mutation<{ data: AdminImportRun }>(`/api/v1/admin/imports/runs/${id}/cancel`, 'POST').then(({ data }) => data),
+  retry: (id: number) => mutation<{ data: AdminImportRun }>(`/api/v1/admin/imports/runs/${id}/retry`, 'POST').then(({ data }) => data),
   start: (entity: AdminImportEntity, limit: number) => mutation<{ data: AdminImportRun }>('/api/v1/admin/imports', 'POST', { entity, limit }).then(({ data }) => data),
   resume: (entity: AdminImportEntity, limit: number) => mutation<{ data: AdminImportRun }>('/api/v1/admin/imports', 'POST', { entity, limit }).then(({ data }) => data),
   reset: (entity: AdminImportEntity, limit = 100) => mutation<{ data: AdminImportRun }>('/api/v1/admin/imports/reset', 'POST', { entity, limit }).then(({ data }) => data),
