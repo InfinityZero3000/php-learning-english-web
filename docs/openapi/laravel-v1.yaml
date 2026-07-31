@@ -1065,6 +1065,14 @@ paths:
       responses:
         "302": { description: Redirect to the identity provider or the configured frontend }
         "429": { $ref: "#/components/responses/RateLimited" }
+  /api/v1/auth/oauth/google/admin/callback:
+    get:
+      summary: Read auth oauth google admin callback
+      operationId: authOauthGoogleAdminCallback
+      security: []
+      responses:
+        "302": { description: Redirect to the identity provider or the configured frontend }
+        "429": { $ref: "#/components/responses/RateLimited" }
   /api/v1/auth/oauth/{provider}/callback:
     get:
       summary: Read auth oauth provider callback

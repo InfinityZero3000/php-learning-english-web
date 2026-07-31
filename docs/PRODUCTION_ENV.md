@@ -229,6 +229,19 @@ https://linguist-nova.vercel.app/api/v1/auth/oauth/google/callback
 https://linguist-nova.vercel.app/api/v1/auth/oauth/facebook/callback
 ```
 
+`GOOGLE_REDIRECT_URI` chỉ phục vụ luồng learner. Luồng admin
+(`/api/v1/auth/oauth/google/admin`) tự override bằng
+`Socialite::redirectUrl()` để quay lại đúng domain admin — **phải thêm thêm
+một Authorized redirect URI riêng** trong cùng Google OAuth Client, khớp
+`${ADMIN_FRONTEND_URL}/api/v1/auth/oauth/google/admin/callback`:
+
+```text
+https://admin-linguist-nova.vercel.app/api/v1/auth/oauth/google/admin/callback
+```
+
+Thiếu URI này thì Google sẽ từ chối request (`redirect_uri_mismatch`) thay vì
+đăng nhập được — không còn rơi về domain learner như trước khi sửa.
+
 Không tải hoặc commit file
 `client_secret_*.json`; pattern này đã được chặn trong `.gitignore`.
 

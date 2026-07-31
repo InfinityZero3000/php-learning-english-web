@@ -6,7 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ApiError, auth } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { AuthMessage, AuthShell } from "./auth-shell";
+import { AuthMessage } from "./auth-shell";
+import { AuthLayout } from "./auth-layout";
 
 export function LoginPage() {
   const router = useRouter();
@@ -52,7 +53,7 @@ export function LoginPage() {
   }
 
   return (
-    <AuthShell title="Đăng nhập Linguist" description="Tiếp tục hành trình học tiếng Anh của bạn.">
+    <AuthLayout title="Đăng nhập Linguist" description="Tiếp tục hành trình học tiếng Anh của bạn.">
           <AuthMessage error={error || providerError} success={verified ? "Email đã được xác minh. Bạn có thể đăng nhập." : ""} />
           <form onSubmit={submit} className="space-y-4">
             <div>
@@ -83,6 +84,6 @@ export function LoginPage() {
           </form>
           <div className="mt-4 flex justify-between text-sm"><Link href="/register" className="font-bold text-primary hover:underline">Tạo tài khoản</Link><Link href="/forgot-password" className="font-bold text-primary hover:underline">Quên mật khẩu?</Link></div>
           {googleEnabled || facebookEnabled ? <><div className="my-5 flex items-center gap-3 text-xs font-bold uppercase tracking-wider text-muted-foreground"><span className="h-px flex-1 bg-border" />hoặc<span className="h-px flex-1 bg-border" /></div><div className="space-y-3">{googleEnabled ? <Button asChildCompat="a" variant="outline" className="w-full"><a href="/auth/google">Tiếp tục với Google</a></Button> : null}{facebookEnabled ? <Button asChildCompat="a" variant="outline" className="w-full"><a href="/auth/facebook">Tiếp tục với Facebook</a></Button> : null}</div></> : null}
-    </AuthShell>
+    </AuthLayout>
   );
 }

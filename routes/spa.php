@@ -83,6 +83,7 @@ Route::prefix('api/v1')->group(function (): void {
     Route::get('/auth/oauth/{provider}', [OAuthController::class, 'redirect'])->middleware('throttle:10,1');
     Route::get('/auth/oauth/google/admin', [AdminGoogleAuthController::class, 'entry'])->middleware('throttle:10,1');
     Route::get('/auth/oauth/google/admin/start', [AdminGoogleAuthController::class, 'redirect'])->middleware('throttle:10,1');
+    Route::get('/auth/oauth/google/admin/callback', [AdminGoogleAuthController::class, 'callback'])->middleware('throttle:10,1');
     Route::get('/auth/oauth/{provider}/callback', [OAuthController::class, 'callback'])->middleware('throttle:10,1');
     Route::post('/auth/oauth/google/admin/handoff', [AdminGoogleAuthController::class, 'handoff'])->middleware('throttle:10,1');
     Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
