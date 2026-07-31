@@ -43,7 +43,10 @@ class AdminGoogleAuthController extends Controller
         $request->session()->put('google_admin_oauth_mode', 'login');
         $request->session()->put('google_admin_challenge', $challenge);
 
-        return Socialite::driver('google')->with(['prompt' => 'select_account', 'max_age' => 0])->redirect();
+        return Socialite::driver('google')
+            ->redirectUrl(rtrim((string) config('app.admin_frontend_url'), '/').'/api/v1/auth/oauth/google/admin/callback')
+            ->with(['prompt' => 'select_account', 'max_age' => 0])
+            ->redirect();
     }
 
     public function callback(Request $request, AdminGoogleAccess $access): RedirectResponse

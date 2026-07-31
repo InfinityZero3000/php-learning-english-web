@@ -181,6 +181,57 @@ class AdminGoogleLoginTest extends TestCase
             ->assertRedirectContains('http://admin.test/login?handoff=');
     }
 
+    /**
+     * Socialite::redirect() uses the single global GOOGLE_REDIRECT_URI unless
+     * told otherwise, and that URI points at the learner domain (production
+     * value: `${FRONTEND_URL}/api/v1/auth/oauth/google/callback`). Without an
+     * explicit redirectUrl() override here, Google always sends admins back
+     * to the learner app, whose host-only session cookie never saw the admin
+     * domain's `google_admin_oauth_mode`/`google_admin_challenge` flags — so
+     * the callback ran as a plain learner login, hit the role_conflict guard,
+     * and bounced the admin to the learner login page instead of the admin
+     * dashboard.
+     */
+    public function test_admin_redirect_step_sends_google_back_to_the_admin_domains_own_callback(): void
+    {
+        $this->seed();
+        config()->set('app.admin_frontend_url', 'http://admin.test');
+        $challenge = $this->challenge();
+
+        $provider = Mockery::mock();
+        $provider->shouldReceive('redirectUrl')
+            ->once()
+            ->with('http://admin.test/api/v1/auth/oauth/google/admin/callback')
+            ->andReturnSelf();
+        $provider->shouldReceive('with')->once()->andReturnSelf();
+        $provider->shouldReceive('redirect')->once()->andReturn(redirect('https://accounts.google.test/mock'));
+        Socialite::shouldReceive('driver')->with('google')->once()->andReturn($provider);
+
+        $this->get('/api/v1/auth/oauth/google/admin/start?challenge='.$challenge)
+            ->assertRedirect('https://accounts.google.test/mock');
+    }
+
+    /**
+     * With redirectUrl() pointing Google at the admin domain, the handoff
+     * completes without ever crossing into OAuthController's shared learner
+     * callback — the dedicated route reaches AdminGoogleAuthController
+     * directly, on the session that was actually set.
+     */
+    public function test_dedicated_admin_callback_route_completes_the_handoff_without_crossing_domains(): void
+    {
+        $this->seed();
+        config()->set('admin_access.admin_emails', []);
+        config()->set('admin_access.super_admin_emails', ['owner@example.com']);
+        config()->set('app.admin_frontend_url', 'http://admin.test');
+        $this->mockGoogleUser('google-subject-5', 'owner@example.com', true);
+        $challenge = $this->challenge();
+
+        $callback = $this->withSession(['google_admin_challenge' => $challenge])
+            ->get('/api/v1/auth/oauth/google/admin/callback');
+
+        $callback->assertRedirectContains('http://admin.test/login?handoff=');
+    }
+
     private function challenge(): string
     {
         $challenge = (string) Str::uuid();
