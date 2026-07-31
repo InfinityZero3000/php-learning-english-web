@@ -48,12 +48,14 @@ class CategoryImporter extends AbstractLexiLingoImporter
 
                     if (! $dryRun) {
                         $this->archiveFailure($item['id'] ?? null, $item, $errors);
+                        $this->stageItem($item['id'] ?? null, $item, null, 'invalid', $errors);
                     }
 
                     continue;
                 }
 
                 if (! $dryRun) {
+                    $existing = CourseCategory::where('external_id', (string) $item['id'])->first();
                     CourseCategory::updateOrCreate(
                         ['external_id' => (string) $item['id']],
                         [
@@ -64,6 +66,7 @@ class CategoryImporter extends AbstractLexiLingoImporter
                             'color' => $item['color'] ?? null,
                         ]
                     );
+                    $this->stageItem((string) $item['id'], $item, $existing, $existing ? 'update' : 'new');
                 }
 
                 $processed++;
