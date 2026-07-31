@@ -114,6 +114,15 @@ abstract class AbstractLexiLingoImporter
 
     protected function advanceCheckpoint(int $cursor, bool $replace = false): void
     {
+        // The checkpoint records how far the catalog has actually been brought
+        // up to date. A staged run has written nothing, so moving the fetch
+        // window here would step past rows nobody has approved: cancel the run
+        // and they are skipped for good, recoverable only with --reset. Apply
+        // advances it instead, once the rows really land.
+        if ($this->stageOnly) {
+            return;
+        }
+
         $checkpoint = $this->checkpoint();
         $checkpoint->cursor = $replace ? $cursor : max((int) $checkpoint->cursor, $cursor);
         $checkpoint->last_synced_at = now();

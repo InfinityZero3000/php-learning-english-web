@@ -136,8 +136,10 @@ fly ssh console -C "php artisan lexilingo:import all --dry-run"
 `--reset` bỏ qua checkpoint đã lưu và chạy lại từ offset 0. Import idempotent
 theo `external_id`, an toàn khi chạy lại cùng payload. Hai bảng vận hành:
 
-- `lexilingo_import_checkpoints`: vị trí (`cursor`) đã đồng bộ theo từng
-  entity (`categories`/`courses`/`vocabulary`), dùng để resume.
+- `lexilingo_import_checkpoints`: vị trí (`cursor`) catalog **thật sự** đã đồng
+  bộ tới theo từng entity, dùng để resume. Entity ghi trực tiếp tiến cursor ngay
+  lúc fetch; entity staged (`categories`) chỉ tiến khi apply thành công và run
+  không còn item chờ duyệt, nên một run bị huỷ không làm mất trang dữ liệu.
 - `lexilingo_import_failures`: payload gốc + lỗi validate của các bản ghi bị
   từ chối (không làm fail cả trang) — kiểm tra bảng này khi nghi ngờ dữ liệu
   import thiếu.

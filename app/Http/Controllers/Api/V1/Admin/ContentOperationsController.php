@@ -181,13 +181,22 @@ class ContentOperationsController extends Controller
                     // syncFromSource claims provider ownership and records the canonical
                     // fingerprint, so the next fetch recognises this row instead of
                     // staging a duplicate under the same external id.
-                    CourseCategory::syncFromSource('category', 'lexilingo', $locked->external_id, [
+                    [, $written] = CourseCategory::syncFromSource('category', 'lexilingo', $locked->external_id, [
                         'name' => $snapshot['name'] ?? null,
                         'slug' => $snapshot['slug'] ?? null,
                         'description' => $snapshot['description'] ?? null,
                         'icon' => $snapshot['icon'] ?? null,
                         'color' => $snapshot['color'] ?? null,
                     ]);
+                    // syncFromSource declines a row carrying a local override. The
+                    // revision check above normally catches that first; if it ever
+                    // gets here, report stale rather than claiming a write happened.
+                    if (! $written) {
+                        $locked->update(['status' => 'stale']);
+                        $stale[] = $locked->id;
+
+                        return;
+                    }
                     $locked->update(['status' => 'applied']);
                     $applied[] = $locked->id;
                 });
@@ -210,6 +219,20 @@ class ContentOperationsController extends Controller
 
         if (count($applied) + count($stale) + count($failed) > 0) {
             $adminImportRun->update(['status' => 'approved']);
+        }
+
+        // The fetch window may only move past this page once nothing in it is
+        // still awaiting approval. ponytail: a stale item resolves the run
+        // without landing its row, so a reset is how you re-fetch it.
+        $stillPending = $adminImportRun->stagedItems()->where('status', 'staged')->exists();
+        if ($applied !== [] && ! $stillPending) {
+            $checkpoint = LexiLingoImportCheckpoint::query()->lockForUpdate()
+                ->firstOrNew(['entity' => $adminImportRun->entity]);
+            $checkpoint->cursor = $adminImportRun->reset
+                ? (int) $adminImportRun->result_cursor
+                : max((int) $checkpoint->cursor, (int) $adminImportRun->result_cursor);
+            $checkpoint->last_synced_at = now();
+            $checkpoint->save();
         }
 
         return ApiResponse::success(['applied' => $applied, 'stale' => $stale, 'failed' => $failed]);
