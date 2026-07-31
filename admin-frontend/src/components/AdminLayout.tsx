@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
-import { ApiError, auth, type User } from '@/lib/api';
+import { ApiError, auth, fetchCapabilities, type User } from '@/lib/api';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -21,7 +21,7 @@ export default function AdminLayout({ children, title, requiredRole }: AdminLayo
 
   useEffect(() => {
     let cancelled = false;
-    auth.adminMe().then((user: User) => {
+    Promise.all([auth.adminMe(), fetchCapabilities()]).then(([user]: [User, unknown]) => {
       if (cancelled) return;
       if (!['admin', 'super_admin'].includes(user.role ?? '')) {
         setMessage('This area is restricted to administrators.');
