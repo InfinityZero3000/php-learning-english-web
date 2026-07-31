@@ -43,6 +43,12 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('assign-teachers', [OperationsPolicy::class, 'assignTeachers']);
         Gate::define('start-content-sync', [OperationsPolicy::class, 'startContentSync']);
         Gate::define('retry-content-sync', [OperationsPolicy::class, 'retryContentSync']);
+        Gate::define('review-imports', [OperationsPolicy::class, 'reviewImports']);
+        Gate::define('approve-imports', [OperationsPolicy::class, 'approveImports']);
+        Gate::define('apply-imports', [OperationsPolicy::class, 'applyImports']);
+        Gate::define('replace-import-upstream', [OperationsPolicy::class, 'replaceImportUpstream']);
+        Gate::define('replace-import-conflict', [OperationsPolicy::class, 'replaceImportConflict']);
+        Gate::define('cancel-imports', [OperationsPolicy::class, 'cancelImports']);
         Gate::define('view-learning-evidence', [LearningPolicy::class, 'viewEvidence']);
         Gate::define('upload-media', fn (User $user) => $user->hasRole('admin', 'super_admin'));
         Gate::define('delete-media', fn (User $user) => $user->hasRole('admin', 'super_admin'));

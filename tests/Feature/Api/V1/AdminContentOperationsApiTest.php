@@ -87,6 +87,7 @@ class AdminContentOperationsApiTest extends TestCase
         $super = $this->user('super_admin');
         $this->actingAs($super);
         session()->put('google_admin_reauthenticated_at', now()->subMinutes(16)->timestamp);
+        session()->put('google_admin_reauthenticated.at', now()->subMinutes(16)->timestamp);
         $this->withHeader('X-Request-ID', (string) Str::uuid())
             ->postJson('/api/v1/admin/imports/reset', ['entity' => 'categories', 'limit' => 1])
             ->assertStatus(428);
@@ -112,6 +113,10 @@ class AdminContentOperationsApiTest extends TestCase
         $this->assertDatabaseHas('lexilingo_import_checkpoints', ['entity' => 'categories', 'cursor' => 500]);
         $this->assertDatabaseHas('admin_import_items', ['external_id' => 'cat-reset', 'classification' => 'new']);
         $this->assertDatabaseMissing('course_categories', ['external_id' => 'cat-reset']);
+        $this->assertDatabaseHas('operations_audits', [
+            'action' => 'content_import.reset',
+            'target_type' => 'admin_import_run',
+        ]);
     }
 
     public function test_item_validation_failure_is_staged_for_review_without_advancing_checkpoint(): void

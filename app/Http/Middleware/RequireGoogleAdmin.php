@@ -33,7 +33,9 @@ class RequireGoogleAdmin
                     $locked->forceFill(['role_id' => Role::query()->where('slug', 'learner')->value('id')])->save();
                 });
             }
-            $request->session()->forget(['google_admin', 'google_admin_reauthenticated_at']);
+            $request->session()->forget([
+                'google_admin', 'google_admin_reauthenticated_at', 'google_admin_reauthenticated',
+            ]);
             Auth::logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();

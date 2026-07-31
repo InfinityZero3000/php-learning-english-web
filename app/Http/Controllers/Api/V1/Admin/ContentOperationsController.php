@@ -9,10 +9,12 @@ use App\Models\AdminImportRun;
 use App\Models\AdminPreference;
 use App\Models\LexiLingoImportCheckpoint;
 use App\Models\LexiLingoImportFailure;
+use App\Models\OperationsAudit;
 use App\Models\SupervisionAlert;
+use App\Services\AdminImportApproval;
 use App\Support\ApiResponse;
 use App\Support\LexiLingoClient;
-use App\Support\RecentPassword;
+use App\Support\RecentGoogleAdmin;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\JsonResponse;
@@ -46,7 +48,92 @@ class ContentOperationsController extends Controller
     {
         $this->content($request);
 
-        return ApiResponse::success($this->runData($adminImportRun));
+        return ApiResponse::success([
+            ...$this->runData($adminImportRun),
+            'counts' => $adminImportRun->items()->selectRaw('classification, count(*) as total')
+                ->groupBy('classification')->pluck('total', 'classification'),
+        ]);
+    }
+
+    public function history(Request $request): JsonResponse
+    {
+        abort_unless($request->user()->can('review-imports'), 403);
+        $runs = AdminImportRun::query()->withCount('items')->latest('id')->limit(50)->get()
+            ->map(fn (AdminImportRun $run): array => [...$this->runData($run), 'items_count' => $run->items_count]);
+
+        return ApiResponse::success($runs);
+    }
+
+    public function items(Request $request, AdminImportRun $adminImportRun): JsonResponse
+    {
+        abort_unless($request->user()->can('review-imports'), 403);
+
+        return ApiResponse::success($adminImportRun->items()->orderBy('id')->get()->map(
+            fn ($item): array => $item->only([
+                'id', 'parent_item_id', 'entity', 'source_system', 'external_id',
+                'natural_key', 'candidate_payload', 'base_snapshot', 'classification',
+                'selected_action', 'dependencies', 'validation_errors', 'target_id',
+                'base_revision', 'reviewed_at', 'applied_at',
+            ]),
+        ));
+    }
+
+    public function draft(
+        Request $request,
+        AdminImportRun $adminImportRun,
+        AdminImportApproval $approval,
+    ): JsonResponse {
+        abort_unless($request->user()->can('review-imports'), 403);
+        $data = $request->validate([
+            'items' => ['required', 'array', 'max:500'],
+            'items.*.id' => ['required', 'integer'],
+            'items.*.action' => ['required', 'in:add,skip,replace,keep_local,exclude'],
+        ]);
+        $items = collect($data['items'])->sortBy('id')->values()->all();
+        $run = DB::transaction(function () use ($request, $adminImportRun, $approval, $items): AdminImportRun {
+            if ($this->replay($request, 'content_import.draft_saved', $adminImportRun, $items)) {
+                return $adminImportRun->fresh();
+            }
+            $run = $approval->saveDraft($adminImportRun, $request->user(), $items);
+            $this->audit($request, 'content_import.draft_saved', $run, [
+                'items' => collect($items)->pluck('action', 'id')->all(),
+            ], $items);
+
+            return $run;
+        });
+
+        return ApiResponse::success($this->runData($run));
+    }
+
+    public function approve(
+        Request $request,
+        AdminImportRun $adminImportRun,
+        AdminImportApproval $approval,
+    ): JsonResponse {
+        abort_unless($request->user()->can('approve-imports'), 403);
+        $run = DB::transaction(function () use ($request, $adminImportRun, $approval): AdminImportRun {
+            if ($this->replay($request, 'content_import.approved', $adminImportRun)) {
+                return $adminImportRun->fresh();
+            }
+            $run = $approval->approve($adminImportRun, $request->user());
+            $this->audit($request, 'content_import.approved', $run, ['status' => 'approved']);
+
+            return $run;
+        });
+
+        return ApiResponse::success($this->runData($run));
+    }
+
+    public function apply(
+        Request $request,
+        AdminImportRun $adminImportRun,
+        AdminImportApproval $approval,
+    ): JsonResponse {
+        if ($this->replay($request, 'content_import.applied', $adminImportRun)) {
+            return ApiResponse::success($this->runData($adminImportRun->fresh()));
+        }
+
+        return ApiResponse::success($this->runData($approval->apply($adminImportRun, $request)));
     }
 
     public function start(Request $request): JsonResponse
@@ -57,13 +144,50 @@ class ContentOperationsController extends Controller
         return $this->reserve($request, false);
     }
 
-    public function reset(Request $request, RecentPassword $recentPassword): JsonResponse
+    public function reset(Request $request, RecentGoogleAdmin $recentGoogle): JsonResponse
     {
         abort_unless($request->user()->can('retry-content-sync'), 403);
         abort_unless(config('features.lexilingo_import'), 503, 'LexiLingo import is disabled.');
-        $recentPassword->require($request);
+        $recentGoogle->require($request);
 
         return $this->reserve($request, true);
+    }
+
+    public function retry(
+        Request $request,
+        AdminImportRun $adminImportRun,
+        RecentGoogleAdmin $recentGoogle,
+    ): JsonResponse {
+        abort_unless($request->user()->can('retry-content-sync'), 403);
+        abort_unless(in_array($adminImportRun->status, ['validation_failed', 'apply_failed', 'cancelled'], true), 409);
+        $recentGoogle->require($request);
+        $request->merge([
+            'entity' => $adminImportRun->entity,
+            'limit' => $adminImportRun->requested_limit,
+        ]);
+
+        return $this->reserve($request, $adminImportRun->reset, $adminImportRun);
+    }
+
+    public function cancel(Request $request, AdminImportRun $adminImportRun): JsonResponse
+    {
+        abort_unless($request->user()->can('cancel-imports'), 403);
+        $run = DB::transaction(function () use ($request, $adminImportRun): AdminImportRun {
+            if ($this->replay($request, 'content_import.cancelled', $adminImportRun)) {
+                return $adminImportRun->fresh();
+            }
+            AdminImportLock::query()->lockForUpdate()->findOrFail($adminImportRun->entity);
+            $run = AdminImportRun::query()->lockForUpdate()->findOrFail($adminImportRun->id);
+            abort_unless(in_array($run->status, ['fetching', 'validating', 'review_ready', 'approved'], true), 409);
+            $run->update(['status' => 'cancelled']);
+            AdminImportLock::query()->whereKey($run->entity)->where('current_run_id', $run->id)
+                ->update(['current_run_id' => null, 'locked_at' => null]);
+            $this->audit($request, 'content_import.cancelled', $run, ['status' => 'cancelled']);
+
+            return $run;
+        });
+
+        return ApiResponse::success($this->runData($run));
     }
 
     public function feed(Request $request, LexiLingoClient $client): JsonResponse
@@ -149,8 +273,11 @@ class ContentOperationsController extends Controller
         return ApiResponse::success($preference->only(['notifications', 'ui']));
     }
 
-    private function reserve(Request $request, bool $reset): JsonResponse
-    {
+    private function reserve(
+        Request $request,
+        bool $reset,
+        ?AdminImportRun $retryOf = null,
+    ): JsonResponse {
         $data = $request->validate([
             'entity' => ['required', 'in:'.implode(',', self::ENTITIES)],
             'limit' => ['required', 'integer', 'min:1', 'max:100'],
@@ -158,7 +285,9 @@ class ContentOperationsController extends Controller
         $requestId = $request->header('X-Request-ID');
         validator(['request_id' => $requestId], ['request_id' => ['required', 'uuid']])->validate();
         $limit = config('queue.default') === 'sync' ? min(10, (int) $data['limit']) : (int) $data['limit'];
-        $fingerprint = hash('sha256', json_encode([$data['entity'], $limit, $reset], JSON_THROW_ON_ERROR));
+        $fingerprint = hash('sha256', json_encode([
+            $data['entity'], $limit, $reset, $retryOf?->id,
+        ], JSON_THROW_ON_ERROR));
 
         $run = DB::transaction(function () use ($request, $data, $requestId, $limit, $reset, $fingerprint): AdminImportRun {
             if ($existing = AdminImportRun::query()->where('request_id', $requestId)->first()) {
@@ -198,6 +327,20 @@ class ContentOperationsController extends Controller
 
         if ($run->wasRecentlyCreated) {
             RunAdminImport::dispatch($run->id);
+            if ($reset || $retryOf) {
+                OperationsAudit::create([
+                    'actor_id' => $request->user()->id,
+                    'action' => $retryOf ? 'content_import.retried' : 'content_import.reset',
+                    'target_type' => 'admin_import_run',
+                    'target_id' => (string) $run->id,
+                    'context' => array_filter([
+                        'source_run_id' => $retryOf?->id,
+                        'new_run_id' => $run->id,
+                        'reset' => $reset,
+                    ], fn ($value): bool => $value !== null),
+                    'occurred_at' => now('UTC'),
+                ]);
+            }
         }
 
         return ApiResponse::success($this->runData($run->fresh()), status: 202);
@@ -215,5 +358,52 @@ class ContentOperationsController extends Controller
     private function content(Request $request): void
     {
         abort_unless($request->user()->can('manage-content'), 403);
+    }
+
+    private function replay(
+        Request $request,
+        string $action,
+        AdminImportRun $run,
+        array $payload = [],
+    ): ?OperationsAudit {
+        $requestId = $request->header('X-Request-ID');
+        validator(['request_id' => $requestId], ['request_id' => ['required', 'uuid']])->validate();
+        $audit = OperationsAudit::query()->where('request_id', $requestId)->lockForUpdate()->first();
+        if ($audit && ($audit->action !== $action
+            || $audit->target_type !== 'admin_import_run'
+            || $audit->target_id !== (string) $run->id
+            || data_get($audit->context, 'fingerprint') !== $this->fingerprint($run, $action, $payload))) {
+            throw new ConflictHttpException('X-Request-ID was already used for another operation.');
+        }
+
+        return $audit;
+    }
+
+    private function audit(
+        Request $request,
+        string $action,
+        AdminImportRun $run,
+        array $after,
+        array $payload = [],
+    ): void {
+        OperationsAudit::create([
+            'actor_id' => $request->user()->id,
+            'action' => $action,
+            'target_type' => 'admin_import_run',
+            'target_id' => (string) $run->id,
+            'request_id' => $request->header('X-Request-ID'),
+            'context' => ['fingerprint' => $this->fingerprint($run, $action, $payload)],
+            'after_state' => $after,
+            'occurred_at' => now('UTC'),
+        ]);
+    }
+
+    private function fingerprint(AdminImportRun $run, string $action, array $payload): string
+    {
+        return hash('sha256', json_encode([
+            'run' => $run->id,
+            'action' => $action,
+            'payload' => $payload,
+        ], JSON_THROW_ON_ERROR));
     }
 }

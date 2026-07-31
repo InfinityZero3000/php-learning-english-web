@@ -40,4 +40,34 @@ class OperationsPolicy
     {
         return $this->manageOperations($user);
     }
+
+    public function reviewImports(User $user): bool
+    {
+        return $this->manageContent($user);
+    }
+
+    public function approveImports(User $user): bool
+    {
+        return $this->manageContent($user);
+    }
+
+    public function applyImports(User $user): bool
+    {
+        return $this->manageContent($user);
+    }
+
+    public function replaceImportUpstream(User $user): bool
+    {
+        return $this->manageContent($user);
+    }
+
+    public function replaceImportConflict(User $user): bool
+    {
+        return $this->manageOperations($user);
+    }
+
+    public function cancelImports(User $user): bool
+    {
+        return $this->manageContent($user);
+    }
 }

@@ -252,9 +252,16 @@ Route::prefix('api/v1')->group(function (): void {
             Route::get('/admin/learning/progress', [AdminLearningController::class, 'progress']);
             Route::get('/admin/learning/reports.csv', [AdminLearningController::class, 'report']);
             Route::get('/admin/imports', [AdminContentOperationsController::class, 'checkpoints']);
+            Route::get('/admin/imports/runs', [AdminContentOperationsController::class, 'history']);
             Route::post('/admin/imports', [AdminContentOperationsController::class, 'start']);
             Route::post('/admin/imports/reset', [AdminContentOperationsController::class, 'reset']);
             Route::get('/admin/imports/runs/{adminImportRun}', [AdminContentOperationsController::class, 'run']);
+            Route::get('/admin/imports/runs/{adminImportRun}/items', [AdminContentOperationsController::class, 'items']);
+            Route::put('/admin/imports/runs/{adminImportRun}/draft', [AdminContentOperationsController::class, 'draft']);
+            Route::post('/admin/imports/runs/{adminImportRun}/approve', [AdminContentOperationsController::class, 'approve']);
+            Route::post('/admin/imports/runs/{adminImportRun}/apply', [AdminContentOperationsController::class, 'apply']);
+            Route::post('/admin/imports/runs/{adminImportRun}/cancel', [AdminContentOperationsController::class, 'cancel']);
+            Route::post('/admin/imports/runs/{adminImportRun}/retry', [AdminContentOperationsController::class, 'retry']);
             Route::get('/admin/content-feed', [AdminContentOperationsController::class, 'feed']);
             Route::get('/admin/notifications', [AdminContentOperationsController::class, 'notifications']);
             Route::post('/admin/notifications/{supervisionAlert}/read', [AdminContentOperationsController::class, 'readNotification']);
