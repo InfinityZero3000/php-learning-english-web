@@ -56,16 +56,21 @@ class CategoryImporter extends AbstractLexiLingoImporter
 
                 if (! $dryRun) {
                     $existing = CourseCategory::where('external_id', (string) $item['id'])->first();
-                    CourseCategory::updateOrCreate(
-                        ['external_id' => (string) $item['id']],
-                        [
-                            'name' => $item['name'],
-                            'slug' => $item['slug'],
-                            'description' => $item['description'] ?? null,
-                            'icon' => $item['icon'] ?? null,
-                            'color' => $item['color'] ?? null,
-                        ]
-                    );
+                    // Issue #45: categories go through staged review/approval,
+                    // so the actual write is skipped here when stageOnly() is
+                    // set — see ContentOperationsController::apply().
+                    if (! $this->stageOnly) {
+                        CourseCategory::updateOrCreate(
+                            ['external_id' => (string) $item['id']],
+                            [
+                                'name' => $item['name'],
+                                'slug' => $item['slug'],
+                                'description' => $item['description'] ?? null,
+                                'icon' => $item['icon'] ?? null,
+                                'color' => $item['color'] ?? null,
+                            ]
+                        );
+                    }
                     $this->stageItem((string) $item['id'], $item, $existing, $existing ? 'update' : 'new');
                 }
 

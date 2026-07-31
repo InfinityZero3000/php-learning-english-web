@@ -63,7 +63,7 @@ function PageContent() {
 
     <section className="rounded-3xl border-2 border-[#bdc8d2] bg-white p-6">
       <div className="grid gap-4 md:grid-cols-[1fr_160px_auto_auto] md:items-end">
-        <label className="font-bold">Entity<select value={entity} onChange={event => setEntity(event.target.value as AdminImportEntity)} className="mt-2 w-full rounded-xl border-2 border-[#bdc8d2] px-4 py-3">{(['categories', 'courses', 'vocabulary'] as const).map(item => <option key={item}>{item}</option>)}</select></label>
+        <label className="font-bold">Entity<select value={entity} onChange={event => setEntity(event.target.value as AdminImportEntity)} className="mt-2 w-full rounded-xl border-2 border-[#bdc8d2] px-4 py-3">{(['categories', 'courses', 'vocabulary', 'lessons'] as const).map(item => <option key={item}>{item}</option>)}</select></label>
         <label className="font-bold">Limit<input type="number" min="1" max="100" value={limit} onChange={event => setLimit(Math.min(100, Math.max(1, Number(event.target.value))))} className="mt-2 w-full rounded-xl border-2 border-[#bdc8d2] px-4 py-3" /></label>
         <button onClick={() => void start()} disabled={working} className="rounded-xl bg-[#006590] px-6 py-3 font-black text-white disabled:opacity-50">Start / resume</button>
         {superAdmin && <button onClick={() => confirm(`Reset ${entity} checkpoint and import again?`) && void start(true)} disabled={working} className="rounded-xl bg-[#ba1a1a] px-6 py-3 font-black text-white disabled:opacity-50">Reset & retry</button>}
@@ -76,7 +76,7 @@ function PageContent() {
 
     {runs.length > 0 && <section className="overflow-x-auto rounded-3xl border-2 border-[#bdc8d2] bg-white p-5"><h3 className="text-lg font-black">Runs started in this session</h3><table className="mt-4 w-full text-left"><thead><tr>{['Entity', 'Status', 'Processed', 'Skipped', 'Cursor', 'Error'].map(label => <th key={label} className="px-3 py-2 text-xs uppercase">{label}</th>)}</tr></thead><tbody>{runs.map(run => <LiveRunRow key={run.id} initial={run} />)}</tbody></table></section>}
 
-    <RunHistoryPanel />
+    <RunHistoryPanel superAdmin={superAdmin} />
   </div>;
 }
 
@@ -90,7 +90,7 @@ function LiveRunRow({ initial }: { initial: AdminImportRun }) {
 
 const HISTORY_PER_PAGE = 10;
 
-function RunHistoryPanel() {
+function RunHistoryPanel({ superAdmin }: { superAdmin: boolean }) {
   const [items, setItems] = useState<AdminImportRun[]>();
   const [meta, setMeta] = useState<PageMeta>();
   const [error, setError] = useState('');
@@ -122,7 +122,7 @@ function RunHistoryPanel() {
       <label className="font-bold">Entity
         <select value={entityFilter} onChange={event => { setPage(1); setEntityFilter(event.target.value as AdminImportEntity | ''); }} className="mt-1 block rounded-xl border-2 border-[#bdc8d2] px-3 py-2">
           <option value="">All</option>
-          {(['categories', 'courses', 'vocabulary'] as const).map(item => <option key={item} value={item}>{item}</option>)}
+          {(['categories', 'courses', 'vocabulary', 'lessons'] as const).map(item => <option key={item} value={item}>{item}</option>)}
         </select>
       </label>
       <label className="font-bold">Status
@@ -164,7 +164,7 @@ function RunHistoryPanel() {
         </div>
       </>}
 
-    {diffRun && <StagedItemDiffDialog run={diffRun} onClose={() => setDiffRun(null)} />}
+    {diffRun && <StagedItemDiffDialog run={diffRun} superAdmin={superAdmin} onClose={() => setDiffRun(null)} onApplied={load} />}
   </DataPanel>;
 }
 
@@ -175,17 +175,26 @@ const CLASSIFICATION_TABS: Array<{ value: StagedItemClassification | ''; label: 
   { value: 'invalid', label: 'Invalid' },
 ];
 
-/** Read-only staged-item diff viewer. No apply/approve action — see issue #45. */
-function StagedItemDiffDialog({ run, onClose }: { run: AdminImportRun; onClose: () => void }) {
+/**
+ * Staged-item diff viewer. Read-only for everyone except a super admin
+ * reviewing a 'categories' run, who additionally gets an "Apply selected"
+ * action (issue #45) — no other entity or role can apply from here.
+ */
+function StagedItemDiffDialog({ run, superAdmin, onClose, onApplied }: { run: AdminImportRun; superAdmin: boolean; onClose: () => void; onApplied: () => void }) {
   const [items, setItems] = useState<StagedItem[]>();
   const [error, setError] = useState('');
   const [classification, setClassification] = useState<StagedItemClassification | ''>('');
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [applying, setApplying] = useState(false);
+  const [applyMessage, setApplyMessage] = useState('');
+  const canApply = superAdmin && run.entity === 'categories';
 
   const load = useCallback(async () => {
     setError('');
     try {
       const result = await adminImports.items(run.id, { classification: classification || undefined, perPage: 50 });
       setItems(result.data);
+      setSelected(new Set());
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not load staged items.');
     }
@@ -193,27 +202,67 @@ function StagedItemDiffDialog({ run, onClose }: { run: AdminImportRun; onClose: 
 
   useEffect(() => { void Promise.resolve().then(load); }, [load]);
 
-  return <AccessibleDialog title={`Staged items · ${run.entity}`} description={`Run ${run.request_id.slice(0, 8)}… (read-only review)`} onClose={onClose} className="max-w-3xl">
-    <div className="mt-4 flex flex-wrap gap-2">
-      {CLASSIFICATION_TABS.map(tab => <button key={tab.value} onClick={() => setClassification(tab.value)} className={`rounded-full px-3 py-1 text-xs font-black uppercase ${classification === tab.value ? 'bg-[#006590] text-white' : 'bg-[#e8f4ff] text-[#006590]'}`}>{tab.label}</button>)}
+  const applyableItems = items?.filter(item => item.status === 'staged' && (item.classification === 'new' || item.classification === 'update')) ?? [];
+
+  function toggle(id: number) {
+    setSelected(current => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function apply() {
+    if (selected.size === 0) return;
+    setApplying(true);
+    setApplyMessage('');
+    try {
+      const result = await adminImports.apply(run.id, Array.from(selected));
+      setApplyMessage(`Applied ${result.applied.length}, stale ${result.stale.length}, failed ${result.failed.length}.`);
+      onApplied();
+      await load();
+    } catch (reason) {
+      setApplyMessage(reason instanceof Error ? reason.message : 'Could not apply the selected items.');
+    } finally { setApplying(false); }
+  }
+
+  return <AccessibleDialog title={`Staged items · ${run.entity}`} description={canApply ? `Run ${run.request_id.slice(0, 8)}… — select items to apply` : `Run ${run.request_id.slice(0, 8)}… (read-only review)`} onClose={onClose} className="max-w-3xl">
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap gap-2">
+        {CLASSIFICATION_TABS.map(tab => <button key={tab.value} onClick={() => setClassification(tab.value)} className={`rounded-full px-3 py-1 text-xs font-black uppercase ${classification === tab.value ? 'bg-[#006590] text-white' : 'bg-[#e8f4ff] text-[#006590]'}`}>{tab.label}</button>)}
+      </div>
+      {canApply && applyableItems.length > 0 && <label className="text-sm font-bold"><input type="checkbox" className="mr-2" checked={selected.size === applyableItems.length} onChange={event => setSelected(event.target.checked ? new Set(applyableItems.map(item => item.id)) : new Set())} />Select all applyable</label>}
     </div>
+
+    {applyMessage && <p role="status" className="mt-3 rounded-xl bg-[#ffdf92] p-3 font-bold text-[#594400]">{applyMessage}</p>}
 
     <div className="mt-5">
       {error && !items ? <StateNotice state="error" message={error} retry={load} />
         : !items ? <StateNotice state="loading" />
         : items.length === 0 ? <StateNotice state="empty" message="No staged items for this filter." />
-        : <ul className="space-y-4">{items.map(item => <li key={item.id} className="rounded-2xl border-2 border-[#bdc8d2] p-4">
-            <div className="flex items-center justify-between gap-3">
-              <span className="font-bold">{item.external_id ?? '—'}</span>
-              <span className="rounded-full bg-[#e8f4ff] px-3 py-1 text-xs font-black uppercase text-[#006590]">{item.classification}</span>
-            </div>
-            {item.errors && item.errors.length > 0 && <ul className="mt-2 list-disc pl-5 text-sm text-[#93000a]">{item.errors.map((message, index) => <li key={index}>{message}</li>)}</ul>}
-            <div className="mt-3 grid gap-4 md:grid-cols-2">
-              <SnapshotColumn title="Existing" snapshot={item.existing_snapshot} other={item.incoming_snapshot} />
-              <SnapshotColumn title="Incoming" snapshot={item.incoming_snapshot} other={item.existing_snapshot} />
-            </div>
-          </li>)}</ul>}
+        : <ul className="space-y-4">{items.map(item => {
+            const applyable = item.status === 'staged' && (item.classification === 'new' || item.classification === 'update');
+            return <li key={item.id} className="rounded-2xl border-2 border-[#bdc8d2] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  {canApply && applyable && <input type="checkbox" checked={selected.has(item.id)} onChange={() => toggle(item.id)} aria-label={`Select ${item.external_id ?? 'item'}`} />}
+                  <span className="font-bold">{item.external_id ?? '—'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-[#e8f4ff] px-3 py-1 text-xs font-black uppercase text-[#006590]">{item.classification}</span>
+                  {item.status !== 'staged' && <span className="rounded-full bg-[#ffdf92] px-3 py-1 text-xs font-black uppercase text-[#594400]">{item.status}</span>}
+                </div>
+              </div>
+              {item.errors && item.errors.length > 0 && <ul className="mt-2 list-disc pl-5 text-sm text-[#93000a]">{item.errors.map((message, index) => <li key={index}>{message}</li>)}</ul>}
+              <div className="mt-3 grid gap-4 md:grid-cols-2">
+                <SnapshotColumn title="Existing" snapshot={item.existing_snapshot} other={item.incoming_snapshot} />
+                <SnapshotColumn title="Incoming" snapshot={item.incoming_snapshot} other={item.existing_snapshot} />
+              </div>
+            </li>;
+          })}</ul>}
     </div>
+
+    {canApply && applyableItems.length > 0 && <div className="mt-5 flex justify-end"><button onClick={() => void apply()} disabled={applying || selected.size === 0} className="rounded-xl bg-[#006590] px-6 py-3 font-black text-white disabled:opacity-50">Apply selected ({selected.size})</button></div>}
   </AccessibleDialog>;
 }
 

@@ -179,7 +179,7 @@ export type AdminQuizAnalytics = { type: 'quiz_analytics'; attempts: number; by_
 export type AdminFsrsAnalytics = { type: 'fsrs_analytics'; reviews: number; average_stability: number | null; average_difficulty: number | null; state_bands: Array<{ state: string; count: number }>; by_date: DateBucket[] };
 export type AdminProgressAnalytics = { type: 'progress_analytics'; completed_lessons: number; by_course: CourseAggregate[]; by_date: DateBucket[] };
 export type AdminImportCheckpoint = { entity: AdminImportEntity; cursor: number; last_synced_at: string | null; failures: number };
-export type AdminImportEntity = 'categories' | 'courses' | 'vocabulary';
+export type AdminImportEntity = 'categories' | 'courses' | 'vocabulary' | 'lessons';
 export type AdminImportRunStatus = 'pending' | 'running' | 'succeeded' | 'review-ready' | 'approved' | 'failed';
 export type AdminImportRun = {
   id: string; request_id: string; entity: AdminImportEntity; status: AdminImportRunStatus;
@@ -195,7 +195,7 @@ export type StagedItem = {
   incoming_snapshot: Record<string, unknown> | null;
   existing_snapshot: Record<string, unknown> | null;
   errors: string[] | null;
-  status: 'staged'; created_at: string; updated_at: string;
+  status: 'staged' | 'applied' | 'stale' | 'failed'; created_at: string; updated_at: string;
 };
 export type AdminNotification = { id: number; type: string; severity: string; state: string; summary: string; created_at: string | null; resolved_at: string | null; read: boolean };
 export type AdminPreferences = { notifications: { operational: boolean }; ui: { compact_sidebar?: boolean } };
@@ -261,6 +261,8 @@ export const adminImports = {
   run: (id: string) => request<{ data: AdminImportRun }>(`/api/v1/admin/imports/runs/${id}`).then(({ data }) => data),
   items: (runId: string, params: { classification?: StagedItemClassification; page?: number; perPage?: number } = {}) =>
     request<{ data: StagedItem[]; meta: PageMeta }>(`/api/v1/admin/imports/runs/${runId}/items?${query({ classification: params.classification, page: params.page, per_page: params.perPage })}`),
+  apply: (runId: string, itemIds: number[]) =>
+    mutation<{ data: { applied: number[]; stale: number[]; failed: number[] } }>(`/api/v1/admin/imports/runs/${runId}/apply`, 'POST', { item_ids: itemIds }).then(({ data }) => data),
   start: (entity: AdminImportEntity, limit: number) => mutation<{ data: AdminImportRun }>('/api/v1/admin/imports', 'POST', { entity, limit }).then(({ data }) => data),
   resume: (entity: AdminImportEntity, limit: number) => mutation<{ data: AdminImportRun }>('/api/v1/admin/imports', 'POST', { entity, limit }).then(({ data }) => data),
   reset: (entity: AdminImportEntity, limit = 100) => mutation<{ data: AdminImportRun }>('/api/v1/admin/imports/reset', 'POST', { entity, limit }).then(({ data }) => data),

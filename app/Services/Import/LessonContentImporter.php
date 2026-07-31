@@ -18,6 +18,12 @@ class LessonContentImporter extends AbstractLexiLingoImporter
         return 'lessons';
     }
 
+    // TODO(#45 follow-up): this importer still writes lesson/quiz/question/
+    // answer rows directly (stageOnly() is never checked here) — only the
+    // top-level lesson is staged for visibility. Gating lessons behind
+    // approval, and staging the nested quiz/question/answer aggregate, is
+    // deferred alongside courses.
+
     public function import(int $limit, bool $dryRun = false, bool $reset = false, ?int $cursor = null): ImportResult
     {
         $offset = $this->startingCursor($reset, $cursor);
@@ -55,6 +61,7 @@ class LessonContentImporter extends AbstractLexiLingoImporter
 
                     if (! $dryRun) {
                         $this->archiveFailure($externalId, [], ["API returned status {$response->status()}"]);
+                        $this->stageItem($externalId, [], null, 'invalid', ["API returned status {$response->status()}"]);
                     }
 
                     break;
@@ -74,6 +81,7 @@ class LessonContentImporter extends AbstractLexiLingoImporter
 
                     if (! $dryRun) {
                         $this->archiveFailure($externalId, $payload, $errors);
+                        $this->stageItem($externalId, $payload, null, 'invalid', $errors);
                     }
 
                     break;
@@ -87,6 +95,12 @@ class LessonContentImporter extends AbstractLexiLingoImporter
 
                 // Parse payload data
                 $data = $payload['data'];
+
+                // A LessonContentImporter row always starts from an
+                // existing local Lesson (see the query above), so this is
+                // always an 'update' — never staged for apply yet, see
+                // TODO(#45 follow-up) below.
+                $this->stageItem($externalId, $data, $lesson, 'update');
 
                 DB::transaction(function () use ($lesson, $data) {
                     $lesson->update([
@@ -151,6 +165,7 @@ class LessonContentImporter extends AbstractLexiLingoImporter
 
                 if (! $dryRun) {
                     $this->archiveFailure($externalId, [], [$e->getMessage()]);
+                    $this->stageItem($externalId, [], null, 'invalid', [$e->getMessage()]);
                 }
 
                 break;
