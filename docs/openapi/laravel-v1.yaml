@@ -24,6 +24,26 @@ paths:
                 properties:
                   status: { const: ok }
                   version: { const: v1 }
+  /api/v1/capabilities:
+    get:
+      summary: Read system capability flags for the current user session
+      operationId: getCapabilities
+      security: []
+      responses:
+        "200":
+          description: Capabilities map
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [capabilities]
+                    properties:
+                      capabilities:
+                        type: object
   /api/v1/csrf-cookie:
     get:
       summary: Initialize the CSRF cookie
