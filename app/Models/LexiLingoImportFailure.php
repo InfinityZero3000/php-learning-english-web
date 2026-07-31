@@ -8,7 +8,7 @@ class LexiLingoImportFailure extends Model
 {
     protected $table = 'lexilingo_import_failures';
 
-    protected $fillable = ['entity', 'external_id', 'payload', 'errors'];
+    protected $fillable = ['entity', 'external_id', 'error_code', 'payload', 'errors'];
 
     protected function casts(): array
     {

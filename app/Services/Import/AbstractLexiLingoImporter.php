@@ -9,9 +9,13 @@ use App\Support\CatalogFingerprint;
 use App\Support\LexiLingoClient;
 use App\Support\LexiLingoSchemaValidator;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\QueryException;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
+use Throwable;
 
 abstract class AbstractLexiLingoImporter
 {
@@ -130,7 +134,7 @@ abstract class AbstractLexiLingoImporter
         $checkpoint->save();
     }
 
-    protected function archiveFailure(?string $externalId, array $payload, array $errors): void
+    protected function archiveFailure(?string $externalId, array $payload, array $errors, ImportErrorCode $errorCode): void
     {
         $safePayload = array_intersect_key($payload, array_flip([
             'id', 'slug', 'name', 'title', 'word', 'language', 'level', 'part_of_speech',
@@ -142,8 +146,23 @@ abstract class AbstractLexiLingoImporter
 
         LexiLingoImportFailure::updateOrCreate(
             ['entity' => $this->entity(), 'external_id' => $externalId],
-            ['payload' => $safePayload, 'errors' => $safeErrors],
+            ['error_code' => $errorCode->value, 'payload' => $safePayload, 'errors' => $safeErrors],
         );
+    }
+
+    /**
+     * Map an exception raised while fetching or persisting a single item to
+     * one of the finite error codes surfaced in run results/audit, instead
+     * of the raw (potentially internal) exception message.
+     */
+    protected function classifyImportError(Throwable $e): ImportErrorCode
+    {
+        return match (true) {
+            $e instanceof ConnectionException => ImportErrorCode::ProviderTimeout,
+            $e instanceof RequestException => ImportErrorCode::ProviderRejected,
+            $e instanceof QueryException => ImportErrorCode::WriteFailed,
+            default => ImportErrorCode::WriteFailed,
+        };
     }
 
     /**
