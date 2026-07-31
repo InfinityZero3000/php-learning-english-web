@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "pnpm@9.15.4",
   "scripts": {
-    "dev": "NODE_OPTIONS='--max-old-space-size=512' next dev --hostname 0.0.0.0",
+    "dev": "next dev --hostname 0.0.0.0",
     "build": "next build",
     "start": "next start --hostname 0.0.0.0",
     "lint": "eslint .",
@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@next/eslint-plugin-next": "16.2.6",
+    "@radix-ui/react-dismissable-layer": "^1.1.19",
     "@radix-ui/react-popover": "^1.1.15",
     "@radix-ui/react-toast": "^1.2.15",
     "@tabler/icons-react": "^3.44.0",
