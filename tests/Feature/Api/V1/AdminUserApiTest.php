@@ -32,22 +32,22 @@ class AdminUserApiTest extends TestCase
 
         $this->actingAs($superAdmin)->withHeader('X-Request-ID', (string) Str::uuid())
             ->putJson("/api/v1/admin/users/{$teacher->id}/role", [
-                'role' => 'teacher', 'password' => 'password',
+                'role' => 'teacher',
             ])->assertOk()->assertJsonPath('data.role', 'teacher');
         $this->withHeader('X-Request-ID', $scopeRequestId)
             ->postJson('/api/v1/admin/operations/teacher-assignments', [
-                'teacher_id' => $teacher->id, 'learner_id' => $learner->id, 'password' => 'password',
+                'teacher_id' => $teacher->id, 'learner_id' => $learner->id,
             ])->assertCreated()->assertJsonPath('data.learner.id', $learner->id);
         $this->withHeader('X-Request-ID', $scopeRequestId)
             ->postJson('/api/v1/admin/operations/teacher-assignments', [
-                'teacher_id' => $teacher->id, 'learner_id' => $learner->id, 'password' => 'password',
+                'teacher_id' => $teacher->id, 'learner_id' => $learner->id,
             ])->assertOk()->assertJsonPath('data.learner.id', $learner->id);
         $this->assertDatabaseHas('teacher_assignments', [
             'teacher_id' => $teacher->id, 'learner_id' => $learner->id,
         ]);
         $this->withHeader('X-Request-ID', (string) Str::uuid())
             ->putJson("/api/v1/admin/users/{$learner->id}/role", [
-                'role' => 'admin', 'password' => 'password',
+                'role' => 'admin',
             ])->assertOk();
         $this->assertDatabaseMissing('teacher_assignments', [
             'teacher_id' => $teacher->id, 'learner_id' => $learner->id,
@@ -55,10 +55,45 @@ class AdminUserApiTest extends TestCase
         $this->assertDatabaseCount('operations_audits', 3);
     }
 
+    public function test_role_and_scope_mutations_authorize_before_requiring_fresh_google_verification(): void
+    {
+        $this->seed();
+        $target = $this->user('learner');
+        $teacher = $this->user('teacher');
+
+        $this->actingAs($this->user('admin'));
+        session()->forget('google_admin_reauthenticated');
+        $this->withHeader('X-Request-ID', (string) Str::uuid())
+            ->putJson("/api/v1/admin/users/{$target->id}/role", ['role' => 'teacher'])
+            ->assertForbidden();
+        $this->withHeader('X-Request-ID', (string) Str::uuid())
+            ->postJson('/api/v1/admin/operations/teacher-assignments', [
+                'teacher_id' => $teacher->id, 'learner_id' => $target->id,
+            ])->assertForbidden();
+
+        $super = $this->user('super_admin');
+        $this->actingAs($super);
+        session()->put('google_admin_reauthenticated.at', now()->subMinutes(16)->timestamp);
+        $this->withHeader('X-Request-ID', (string) Str::uuid())
+            ->putJson("/api/v1/admin/users/{$target->id}/role", ['role' => 'teacher'])
+            ->assertStatus(428)->assertJsonPath('message', 'Recent Google verification is required.');
+
+        $this->actingAs($super);
+        session()->put('google_admin_reauthenticated.subject', 'another-google-subject');
+        $this->withHeader('X-Request-ID', (string) Str::uuid())
+            ->postJson('/api/v1/admin/operations/teacher-assignments', [
+                'teacher_id' => $teacher->id, 'learner_id' => $target->id,
+            ])->assertStatus(428);
+
+        $this->actingAs($super)->withHeader('X-Request-ID', (string) Str::uuid())
+            ->putJson("/api/v1/admin/users/{$target->id}/role", ['role' => 'teacher'])
+            ->assertOk()->assertJsonPath('data.role', 'teacher');
+        $this->assertDatabaseMissing('teacher_assignments', ['learner_id' => $target->id]);
+    }
+
     private function user(string $role): User
     {
         return User::factory()->create([
-            'password' => 'password',
             'role_id' => Role::where('slug', $role)->value('id'),
         ]);
     }

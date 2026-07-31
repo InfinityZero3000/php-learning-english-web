@@ -21,12 +21,15 @@ class WriteLessonRequest extends FormRequest
 
         return [
             'course_id' => ['required', 'integer', 'exists:courses,id'],
+            'unit_id' => ['nullable', 'integer', 'exists:units,id'],
             'title' => ['required', 'string', 'max:255'],
             'slug' => ['required', 'string', 'max:255', Rule::unique('lessons')->where('course_id', $this->integer('course_id'))->ignore($lesson)],
             'content' => ['nullable', 'string', 'max:50000'],
             'sort_order' => ['required', 'integer', 'min:0'],
             'estimated_minutes' => ['nullable', 'integer', 'min:1', 'max:1440'],
             'status' => ['required', 'string', 'in:draft,published,archived'],
+            'prerequisite_ids' => ['sometimes', 'array'],
+            'prerequisite_ids.*' => ['integer', 'distinct', 'exists:lessons,id'],
         ];
     }
 

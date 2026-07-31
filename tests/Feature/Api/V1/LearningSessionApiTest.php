@@ -8,6 +8,7 @@ use App\Models\Enrollment;
 use App\Models\LearningEvent;
 use App\Models\LearningSession;
 use App\Models\Lesson;
+use App\Models\Progress;
 use App\Models\User;
 use App\Models\UserVocabulary;
 use App\Models\Vocabulary;
@@ -45,11 +46,13 @@ class LearningSessionApiTest extends TestCase
             'event_type' => 'answer', 'occurred_at' => now(), 'is_correct' => true,
             'metadata' => ['vocabulary_id' => $word->id],
         ]);
+        Progress::create(['user_id' => $user->id, 'lesson_id' => $lesson->id]);
         $this->withHeader('X-Request-ID', (string) Str::uuid())
             ->postJson("/api/v1/learning/sessions/{$sessionId}/complete")
             ->assertOk()
             ->assertJsonPath('data.status', 'completed');
         $this->assertDatabaseHas('progress', ['user_id' => $user->id, 'lesson_id' => $lesson->id]);
+        $this->assertNotNull(Progress::where('user_id', $user->id)->where('lesson_id', $lesson->id)->value('completed_at'));
         $this->assertDatabaseHas('enrollments', ['id' => $enrollmentId, 'status' => 'completed']);
     }
 

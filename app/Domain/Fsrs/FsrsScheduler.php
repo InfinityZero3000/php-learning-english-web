@@ -10,6 +10,17 @@ final class FsrsScheduler
 {
     private const MIN_STABILITY = 0.001;
 
+    /** @return array<int, FsrsResult> */
+    public function preview(FsrsCard $source, DateTimeImmutable $now): array
+    {
+        $results = [];
+        foreach (range(1, 4) as $rating) {
+            $results[$rating] = $this->review(clone $source, $rating, $now);
+        }
+
+        return $results;
+    }
+
     public function review(FsrsCard $source, int $rating, DateTimeImmutable $now): FsrsResult
     {
         if ($rating < 1 || $rating > 4) {

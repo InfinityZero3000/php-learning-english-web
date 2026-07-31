@@ -11,6 +11,7 @@ use App\Models\Course;
 use App\Models\CourseCategory;
 use App\Models\Lesson;
 use App\Models\Topic;
+use App\Services\CourseLearningPath;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -93,6 +94,11 @@ class CatalogController extends Controller
         $course->loadCount('lessons', 'units');
 
         return ApiResponse::success(new CourseResource($course));
+    }
+
+    public function coursePath(Request $request, Course $course, CourseLearningPath $paths): JsonResponse
+    {
+        return ApiResponse::success($paths->path($request->user(), $course));
     }
 
     public function lessons(Request $request): JsonResponse

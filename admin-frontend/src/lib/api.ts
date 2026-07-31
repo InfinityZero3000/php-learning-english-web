@@ -17,6 +17,18 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Privileged admin mutations answer `428` when the Google re-auth in this session is
+ * stale or bound to another subject. Send the operator through the existing handoff
+ * and let the backend allowlist decide whether `returnPath` is resumable.
+ * Returns true when the redirect was issued so callers stop handling the error.
+ */
+export function redirectToGoogleStepUp(error: unknown, returnPath: string): boolean {
+  if (!(error instanceof ApiError) || error.status !== 428) return false;
+  window.location.assign(`/api/v1/auth/oauth/google/admin?return=${encodeURIComponent(returnPath)}`);
+  return true;
+}
+
 function xsrfToken() {
   if (typeof document === 'undefined') return null;
   const token = document.cookie
@@ -121,7 +133,25 @@ export const auth = {
       body: JSON.stringify({ handoff }),
     }).then(({ data }) => data),
   logout: () => request<void>('/api/v1/auth/logout', { method: 'POST' }).finally(() => { adminSession = undefined; }),
+  capabilities: () => fetchCapabilities(),
 };
+
+export type CapabilityStatus = 'enabled' | 'unconfigured' | 'role_required';
+export type CapabilityItem = { status: CapabilityStatus; enabled: boolean };
+export type CapabilitiesMap = Record<string, CapabilityItem>;
+
+let cachedCapabilities: CapabilitiesMap | null = null;
+
+export async function fetchCapabilities(forceRefresh = false): Promise<CapabilitiesMap> {
+  if (cachedCapabilities && !forceRefresh) return cachedCapabilities;
+  try {
+    const res = await request<{ data: { capabilities: CapabilitiesMap } }>('/api/v1/capabilities');
+    cachedCapabilities = res.data.capabilities;
+    return cachedCapabilities;
+  } catch {
+    return {};
+  }
+}
 
 // Admin – User Management
 export const adminUsers = {
@@ -179,11 +209,23 @@ export type AdminQuizAnalytics = { type: 'quiz_analytics'; attempts: number; by_
 export type AdminFsrsAnalytics = { type: 'fsrs_analytics'; reviews: number; average_stability: number | null; average_difficulty: number | null; state_bands: Array<{ state: string; count: number }>; by_date: DateBucket[] };
 export type AdminProgressAnalytics = { type: 'progress_analytics'; completed_lessons: number; by_course: CourseAggregate[]; by_date: DateBucket[] };
 export type AdminImportCheckpoint = { entity: AdminImportEntity; cursor: number; last_synced_at: string | null; failures: number };
-export type AdminImportEntity = 'categories' | 'courses' | 'vocabulary';
+export type AdminImportEntity = 'categories' | 'courses' | 'vocabulary' | 'lessons';
+export type AdminImportRunStatus = 'pending' | 'running' | 'succeeded' | 'review-ready' | 'approved' | 'failed';
 export type AdminImportRun = {
-  id: string; request_id: string; entity: AdminImportEntity; status: 'pending' | 'running' | 'succeeded' | 'failed';
+  id: string; request_id: string; entity: AdminImportEntity; status: AdminImportRunStatus;
   requested_limit: number; reset: boolean; starting_cursor: number; processed: number | null; skipped: number | null;
   result_cursor: number | null; error_code: string | null; error_message: string | null; created_at: string; updated_at: string;
+  staged_new_count?: number; staged_update_count?: number; staged_invalid_count?: number;
+};
+
+export type StagedItemClassification = 'new' | 'update' | 'invalid' | 'conflict' | 'unchanged';
+export type StagedItem = {
+  id: number; admin_import_run_id: number; entity: AdminImportEntity; external_id: string | null;
+  classification: StagedItemClassification;
+  incoming_snapshot: Record<string, unknown> | null;
+  existing_snapshot: Record<string, unknown> | null;
+  errors: string[] | null;
+  status: 'staged' | 'applied' | 'stale' | 'failed'; created_at: string; updated_at: string;
 };
 export type AdminNotification = { id: number; type: string; severity: string; state: string; summary: string; created_at: string | null; resolved_at: string | null; read: boolean };
 export type AdminPreferences = { notifications: { operational: boolean }; ui: { compact_sidebar?: boolean } };
@@ -244,7 +286,13 @@ export const adminLearning = {
 
 export const adminImports = {
   checkpoints: () => request<{ data: AdminImportCheckpoint[] }>('/api/v1/admin/imports').then(({ data }) => data),
+  runs: (params: { entity?: AdminImportEntity; status?: string; from?: string; to?: string; page?: number; perPage?: number } = {}) =>
+    request<{ data: AdminImportRun[]; meta: PageMeta }>(`/api/v1/admin/imports/runs?${query({ entity: params.entity, status: params.status, from: params.from, to: params.to, page: params.page, per_page: params.perPage })}`),
   run: (id: string) => request<{ data: AdminImportRun }>(`/api/v1/admin/imports/runs/${id}`).then(({ data }) => data),
+  items: (runId: string, params: { classification?: StagedItemClassification; page?: number; perPage?: number } = {}) =>
+    request<{ data: StagedItem[]; meta: PageMeta }>(`/api/v1/admin/imports/runs/${runId}/items?${query({ classification: params.classification, page: params.page, per_page: params.perPage })}`),
+  apply: (runId: string, itemIds: number[]) =>
+    mutation<{ data: { applied: number[]; stale: number[]; failed: number[] } }>(`/api/v1/admin/imports/runs/${runId}/apply`, 'POST', { item_ids: itemIds }).then(({ data }) => data),
   start: (entity: AdminImportEntity, limit: number) => mutation<{ data: AdminImportRun }>('/api/v1/admin/imports', 'POST', { entity, limit }).then(({ data }) => data),
   resume: (entity: AdminImportEntity, limit: number) => mutation<{ data: AdminImportRun }>('/api/v1/admin/imports', 'POST', { entity, limit }).then(({ data }) => data),
   reset: (entity: AdminImportEntity, limit = 100) => mutation<{ data: AdminImportRun }>('/api/v1/admin/imports/reset', 'POST', { entity, limit }).then(({ data }) => data),
@@ -281,8 +329,8 @@ export const adminCourses = {
 export type AdminCourse = { id: number; title: string; slug: string; description?: string; status: 'draft' | 'published' | 'archived'; language?: string; estimated_duration?: number; units_count?: number; lessons_count?: number; level?: AdminLevel | null; topics?: AdminTopic[] };
 export type CourseWrite = Pick<AdminCourse, 'title' | 'slug' | 'status'> & Partial<Pick<AdminCourse, 'description' | 'language' | 'estimated_duration'>> & { level_id?: number | null; topic_ids?: number[] };
 
-export type AdminLesson = { id: number; course: Pick<AdminCourse, 'id' | 'title'>; title: string; slug: string; content?: string | null; sort_order: number; estimated_minutes?: number | null; status: AdminCourse['status']; vocabularies_count: number; quizzes_count: number; quizzes?: Array<{ id: number; title: string; status: string; passing_score: number }> };
-export type LessonWrite = { course_id: number; title: string; slug: string; content?: string | null; sort_order: number; estimated_minutes?: number | null; status: AdminCourse['status'] };
+export type AdminLesson = { id: number; course: Pick<AdminCourse, 'id' | 'title'>; unit_id?: number | null; title: string; slug: string; content?: string | null; sort_order: number; estimated_minutes?: number | null; status: AdminCourse['status']; prerequisite_ids?: number[]; source_system?: string; local_override_at?: string | null; catalog_revision?: number; vocabularies_count: number; quizzes_count: number; quizzes?: Array<{ id: number; title: string; status: string; passing_score: number }> };
+export type LessonWrite = { course_id: number; unit_id?: number | null; title: string; slug: string; content?: string | null; sort_order: number; estimated_minutes?: number | null; status: AdminCourse['status']; prerequisite_ids?: number[] };
 export const adminLessons = {
   list: (params: { search?: string; courseId?: number; status?: string; page?: number; perPage?: number } = {}) => request<{ data: AdminLesson[]; meta: PageMeta }>(`/api/v1/admin/catalog/lessons?${query({ search: params.search, course_id: params.courseId, status: params.status, page: params.page, per_page: params.perPage })}`),
   get: (id: number) => request<{ data: AdminLesson }>(`/api/v1/admin/catalog/lessons/${id}`).then(({ data }) => data),
@@ -291,6 +339,32 @@ export const adminLessons = {
   publish: (id: number) => mutation<{ data: AdminLesson }>(`/api/v1/admin/catalog/lessons/${id}/publish`, 'POST').then(({ data }) => data),
   archive: (id: number) => mutation<{ data: AdminLesson }>(`/api/v1/admin/catalog/lessons/${id}/archive`, 'POST').then(({ data }) => data),
   delete: (id: number) => mutation<void>(`/api/v1/admin/catalog/lessons/${id}`, 'DELETE'),
+};
+
+export type AdminUnit = {
+  id: number;
+  course_id: number;
+  title: string;
+  description?: string | null;
+  sort_order: number;
+  icon_url?: string | null;
+  background_color?: string | null;
+  status: AdminCourse['status'];
+  source_system: string;
+  local_override_at?: string | null;
+  catalog_revision: number;
+  lessons: Array<Pick<AdminLesson, 'id' | 'title' | 'slug' | 'sort_order' | 'status' | 'unit_id'>>;
+};
+export type UnitWrite = Pick<AdminUnit, 'course_id' | 'title' | 'sort_order'> & Partial<Pick<AdminUnit, 'description' | 'icon_url' | 'background_color'>>;
+export const adminUnits = {
+  list: (courseId: number) => request<{ data: AdminUnit[] }>(`/api/v1/admin/catalog/units?${query({ course_id: courseId })}`).then(({ data }) => data),
+  get: (id: number) => request<{ data: AdminUnit }>(`/api/v1/admin/catalog/units/${id}`).then(({ data }) => data),
+  create: (data: UnitWrite) => mutation<{ data: AdminUnit }>('/api/v1/admin/catalog/units', 'POST', data).then(({ data }) => data),
+  update: (id: number, data: UnitWrite) => mutation<{ data: AdminUnit }>(`/api/v1/admin/catalog/units/${id}`, 'PUT', data).then(({ data }) => data),
+  reorder: (courseId: number, unitIds: number[]) => mutation<{ data: AdminUnit[] }>('/api/v1/admin/catalog/units/reorder', 'PUT', { course_id: courseId, unit_ids: unitIds }).then(({ data }) => data),
+  publish: (id: number) => mutation<{ data: AdminUnit }>(`/api/v1/admin/catalog/units/${id}/publish`, 'POST').then(({ data }) => data),
+  archive: (id: number) => mutation<{ data: AdminUnit }>(`/api/v1/admin/catalog/units/${id}/archive`, 'POST').then(({ data }) => data),
+  delete: (id: number) => mutation<void>(`/api/v1/admin/catalog/units/${id}`, 'DELETE'),
 };
 
 export type QuizAnswerWrite = { id?: number; content: string; is_correct: boolean };

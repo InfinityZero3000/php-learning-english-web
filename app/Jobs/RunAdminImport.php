@@ -20,6 +20,10 @@ class RunAdminImport implements ShouldQueue
 
     public function handle(AdminImportRunner $runner): void
     {
+        if (! config('features.lexilingo_import')) {
+            throw new \RuntimeException('LexiLingo import is disabled.');
+        }
+
         $runner->run(AdminImportRun::query()->findOrFail($this->runId));
     }
 

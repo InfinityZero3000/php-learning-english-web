@@ -16,12 +16,14 @@ use App\Http\Controllers\Api\V1\Admin\OperationsController;
 use App\Http\Controllers\Api\V1\Admin\QuizAdminController;
 use App\Http\Controllers\Api\V1\Admin\QuizController as AdminQuizController;
 use App\Http\Controllers\Api\V1\Admin\TopicController;
+use App\Http\Controllers\Api\V1\Admin\UnitController as AdminUnitController;
 use App\Http\Controllers\Api\V1\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Api\V1\Admin\VocabularyAdminController;
 use App\Http\Controllers\Api\V1\AiProxyController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BookmarkApiController;
 use App\Http\Controllers\Api\V1\BookmarkController;
+use App\Http\Controllers\Api\V1\CapabilityController;
 use App\Http\Controllers\Api\V1\CatalogController;
 use App\Http\Controllers\Api\V1\EmailVerificationController;
 use App\Http\Controllers\Api\V1\EnrollmentController;
@@ -64,6 +66,7 @@ Route::prefix('api/v1')->group(function (): void {
             PreventRequestForgery::class,
         ]);
     Route::get('/csrf-cookie', fn () => response()->noContent());
+    Route::get('/capabilities', [CapabilityController::class, 'index']);
     Route::get('/vocabulary', [VocabularyController::class, 'index']);
     Route::get('/vocabulary/{vocabulary}', [VocabularyController::class, 'show']);
     Route::get('/catalog/topics', [CatalogController::class, 'topics']);
@@ -103,6 +106,7 @@ Route::prefix('api/v1')->group(function (): void {
     });
 
     Route::middleware('auth')->group(function (): void {
+        Route::get('/catalog/courses/{course}/path', [CatalogController::class, 'coursePath']);
         Route::get('/bookmarks', [BookmarkApiController::class, 'index']);
         Route::post('/bookmarks/vocabulary/{vocabulary}/toggle', [BookmarkApiController::class, 'toggleVocabulary']);
         Route::post('/bookmarks/lesson/{lesson}/toggle', [BookmarkApiController::class, 'toggleLesson']);
@@ -125,6 +129,7 @@ Route::prefix('api/v1')->group(function (): void {
         Route::delete('/profile', [ProfileController::class, 'destroy']);
         Route::get('/fsrs/due', [FsrsController::class, 'due']);
         Route::get('/fsrs/stats', [FsrsController::class, 'stats']);
+        Route::post('/fsrs/preview', [FsrsController::class, 'preview']);
         Route::post('/fsrs/review', [FsrsController::class, 'review']);
         Route::get('/notifications', [LearnerToolsController::class, 'notifications']);
         Route::post('/notifications/read-all', [LearnerToolsController::class, 'readAllNotifications']);
@@ -210,6 +215,16 @@ Route::prefix('api/v1')->group(function (): void {
             Route::post('/admin/catalog/courses/{course}/publish', [AdminCatalogController::class, 'publishCourse']);
             Route::post('/admin/catalog/courses/{course}/archive', [AdminCatalogController::class, 'archiveCourse']);
             Route::delete('/admin/catalog/courses/{course}', [AdminCatalogController::class, 'deleteCourse']);
+            Route::middleware('can:manage-content')->group(function (): void {
+                Route::get('/admin/catalog/units', [AdminUnitController::class, 'index']);
+                Route::post('/admin/catalog/units', [AdminUnitController::class, 'store']);
+                Route::put('/admin/catalog/units/reorder', [AdminUnitController::class, 'reorder']);
+                Route::get('/admin/catalog/units/{unit}', [AdminUnitController::class, 'show']);
+                Route::put('/admin/catalog/units/{unit}', [AdminUnitController::class, 'update']);
+                Route::delete('/admin/catalog/units/{unit}', [AdminUnitController::class, 'destroy'])->whereNumber('unit');
+                Route::post('/admin/catalog/units/{unit}/publish', [AdminUnitController::class, 'publish']);
+                Route::post('/admin/catalog/units/{unit}/archive', [AdminUnitController::class, 'archive']);
+            });
             Route::apiResource('/admin/catalog/lessons', AdminLessonController::class)->except(['create', 'edit']);
             Route::post('/admin/catalog/lessons/{lesson}/publish', [AdminLessonController::class, 'publish']);
             Route::post('/admin/catalog/lessons/{lesson}/archive', [AdminLessonController::class, 'archive']);
@@ -241,7 +256,10 @@ Route::prefix('api/v1')->group(function (): void {
             Route::get('/admin/imports', [AdminContentOperationsController::class, 'checkpoints']);
             Route::post('/admin/imports', [AdminContentOperationsController::class, 'start']);
             Route::post('/admin/imports/reset', [AdminContentOperationsController::class, 'reset']);
+            Route::get('/admin/imports/runs', [AdminContentOperationsController::class, 'runs']);
             Route::get('/admin/imports/runs/{adminImportRun}', [AdminContentOperationsController::class, 'run']);
+            Route::get('/admin/imports/runs/{adminImportRun}/items', [AdminContentOperationsController::class, 'items']);
+            Route::post('/admin/imports/runs/{adminImportRun}/apply', [AdminContentOperationsController::class, 'apply']);
             Route::get('/admin/content-feed', [AdminContentOperationsController::class, 'feed']);
             Route::get('/admin/notifications', [AdminContentOperationsController::class, 'notifications']);
             Route::post('/admin/notifications/{supervisionAlert}/read', [AdminContentOperationsController::class, 'readNotification']);

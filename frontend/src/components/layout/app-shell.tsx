@@ -13,7 +13,7 @@ import { navigationIcons } from "@/components/icons/app-icons";
 import { Button } from "@/components/ui/button";
 import { CatLoader } from "@/components/ui/cat-loader";
 import { NotificationWidget } from "@/components/layout/notifications";
-import { ApiError, auth } from "@/lib/api";
+import { ApiError, auth, fetchCapabilities, type CapabilitiesMap } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { isProtectedPath, loginHref } from "@/features/auth/route-policy";
 import type { AppUser } from "@/types/api";
@@ -21,11 +21,11 @@ import type { AppUser } from "@/types/api";
 const nav = [
   { href: "/", label: "Today", icon: navigationIcons.home },
   { href: "/courses", label: "Courses", icon: navigationIcons.flashcards },
-  { href: "/listening", label: "Listening", icon: navigationIcons.quiz },
+  { href: "/listening", label: "Listening", icon: navigationIcons.quiz, featureKey: "youtube_listening" },
   { href: "/assignments", label: "Assignments", icon: navigationIcons.quiz },
   { href: "/flashcards", label: "Flashcards", icon: navigationIcons.flashcards },
   { href: "/quiz", label: "Quiz", icon: navigationIcons.quiz },
-  { href: "/import", label: "Import", icon: navigationIcons.words },
+  { href: "/import", label: "Import", icon: navigationIcons.words, featureKey: "lexilingo_import" },
   { href: "/vocabulary", label: "Words", icon: navigationIcons.words },
   { href: "/progress", label: "Progress", icon: navigationIcons.progress },
 ];
@@ -49,6 +49,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<AppUser | null>(null);
+  const [capabilities, setCapabilities] = useState<CapabilitiesMap>({});
   const [authChecked, setAuthChecked] = useState(false);
   const [authError, setAuthError] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -57,11 +58,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const pageTitle = useMemo(() => titles[pathname] || "FSRSpring", [pathname]);
   const visibleNav = useMemo(() => [
-    ...nav,
+    ...nav.filter((item) => {
+      if (!item.featureKey) return true;
+      const cap = capabilities[item.featureKey];
+      return !cap || cap.status !== "unconfigured";
+    }),
     ...(user?.role === "teacher" || user?.role === "super_admin"
       ? [{ href: "/teacher", label: "Teacher", icon: navigationIcons.progress }]
       : [])
-  ], [user]);
+  ], [user, capabilities]);
 
   useEffect(() => {
     let cancelled = false;
@@ -73,21 +78,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setAuthChecked(false);
     setAuthError(false);
 
-    auth.me()
-      .then((data) => {
-        if (!cancelled) setUser(data);
-      })
-      .catch((error) => {
-        if (cancelled) return;
+    Promise.all([
+      auth.me().catch((error) => {
+        if (cancelled) return null;
         if (error instanceof ApiError && error.status === 401) {
           if (protectedRoute) router.replace(loginHref(pathname));
         } else {
           setAuthError(protectedRoute);
         }
-      })
-      .finally(() => {
-        if (!cancelled) setAuthChecked(true);
-      });
+        return null;
+      }),
+      fetchCapabilities().catch(() => ({} as CapabilitiesMap))
+    ]).then(([userData, capData]) => {
+      if (!cancelled) {
+        if (userData) setUser(userData);
+        if (capData) setCapabilities(capData);
+      }
+    }).finally(() => {
+      if (!cancelled) setAuthChecked(true);
+    });
+
     return () => {
       cancelled = true;
     };

@@ -79,6 +79,7 @@ class CourseAdminController extends Controller
         $validated['status'] = $validated['status'] ?? 'draft';
 
         $course = Course::create($validated);
+        $course->applyLocalEdit([]);
 
         Log::info('admin.course.created', [
             'user_id' => $request->user()->id,
@@ -117,7 +118,7 @@ class CourseAdminController extends Controller
         // Never overwrite external_id from LexiLingo
         unset($validated['external_id']);
 
-        $course->update($validated);
+        $course->applyLocalEdit($validated);
 
         Log::info('admin.course.updated', [
             'user_id' => $request->user()->id,

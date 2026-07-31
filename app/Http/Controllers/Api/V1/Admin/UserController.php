@@ -8,7 +8,7 @@ use App\Models\Role;
 use App\Models\TeacherAssignment;
 use App\Models\User;
 use App\Support\ApiResponse;
-use App\Support\RecentPassword;
+use App\Support\RecentGoogleAdmin;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -51,12 +51,13 @@ class UserController extends Controller
             ->map(fn (Role $role) => ['type' => 'role', ...$role->toArray()]));
     }
 
-    public function updateRole(Request $request, User $user, RecentPassword $recentPassword): JsonResponse
+    public function updateRole(Request $request, User $user, RecentGoogleAdmin $recentGoogle): JsonResponse
     {
-        $recentPassword->require($request);
+        abort_unless($request->user()->can('manage-roles'), 403);
         $data = $request->validate(['role' => ['required', 'string', 'exists:roles,slug']]);
         $role = Role::query()->where('slug', $data['role'])->firstOrFail();
         Gate::authorize('updateRole', [$user, $role]);
+        $recentGoogle->require($request);
         $fingerprint = $this->fingerprint([$user->id, $role->slug]);
         if ($audit = $this->replay($request, 'user.role_updated', $fingerprint)) {
             return ApiResponse::success($this->user(User::with('role:id,name,slug')->findOrFail($audit->target_id)));
@@ -98,10 +99,10 @@ class UserController extends Controller
             ->map(fn (TeacherAssignment $assignment) => ['type' => 'teacher_assignment', ...$assignment->toArray()]));
     }
 
-    public function assignTeacher(Request $request, RecentPassword $recentPassword): JsonResponse
+    public function assignTeacher(Request $request, RecentGoogleAdmin $recentGoogle): JsonResponse
     {
         abort_unless($request->user()->can('assign-teachers'), 403);
-        $recentPassword->require($request);
+        $recentGoogle->require($request);
         $data = $request->validate([
             'teacher_id' => ['required', 'integer', 'exists:users,id'],
             'learner_id' => ['required', 'integer', 'exists:users,id', 'different:teacher_id'],
@@ -137,10 +138,10 @@ class UserController extends Controller
         ], status: $assignment->wasRecentlyCreated ? 201 : 200);
     }
 
-    public function unassignTeacher(Request $request, int $teacherAssignment, RecentPassword $recentPassword): JsonResponse
+    public function unassignTeacher(Request $request, int $teacherAssignment, RecentGoogleAdmin $recentGoogle): JsonResponse
     {
         abort_unless($request->user()->can('assign-teachers'), 403);
-        $recentPassword->require($request);
+        $recentGoogle->require($request);
         $fingerprint = $this->fingerprint([$teacherAssignment, 'delete']);
         if ($this->replay($request, 'teacher_scope.removed', $fingerprint)) {
             return response()->json(null, 204);
@@ -163,10 +164,10 @@ class UserController extends Controller
     public function updateTeacherAssignment(
         Request $request,
         TeacherAssignment $teacherAssignment,
-        RecentPassword $recentPassword,
+        RecentGoogleAdmin $recentGoogle,
     ): JsonResponse {
         abort_unless($request->user()->can('assign-teachers'), 403);
-        $recentPassword->require($request);
+        $recentGoogle->require($request);
         $data = $request->validate([
             'teacher_id' => ['required', 'integer', 'exists:users,id'],
             'learner_id' => ['required', 'integer', 'exists:users,id', 'different:teacher_id'],

@@ -20,8 +20,7 @@ class AdminGoogleAuthController extends Controller
 {
     public function entry(Request $request): RedirectResponse
     {
-        $return = $request->string('return')->toString();
-        $return = in_array($return, ['/operations', '/roles', '/users'], true) ? $return : '/dashboard';
+        $return = $this->safeReturn($request->string('return')->toString());
         $challenge = (string) Str::uuid();
         Cache::put("admin-google-challenge:{$challenge}", [
             'return' => $return,
@@ -29,7 +28,7 @@ class AdminGoogleAuthController extends Controller
         ], now()->addMinutes(5));
 
         return redirect()->away(
-            rtrim((string) config('app.frontend_url'), '/')."/api/v1/auth/oauth/google/admin/start?challenge={$challenge}"
+            rtrim((string) config('app.admin_frontend_url'), '/')."/api/v1/auth/oauth/google/admin/start?challenge={$challenge}"
         );
     }
 
@@ -139,6 +138,12 @@ class AdminGoogleAuthController extends Controller
             'email' => strtolower($user->email),
         ]);
         $request->session()->put('google_admin_reauthenticated_at', now()->timestamp);
+        $request->session()->put('google_admin_reauthenticated', [
+            'user_id' => $user->id,
+            'subject' => $user->google_id,
+            'session_id' => $request->session()->getId(),
+            'at' => now()->timestamp,
+        ]);
 
         return response()->json(['data' => [
             'user' => ['id' => $user->id, 'name' => $user->name, 'email' => $user->email, 'role' => $user->role->slug],
@@ -149,7 +154,10 @@ class AdminGoogleAuthController extends Controller
     private function clearAdminState(Request $request): void
     {
         Auth::logout();
-        $request->session()->forget(['google_admin', 'google_admin_reauthenticated_at', 'google_admin_oauth_mode']);
+        $request->session()->forget([
+            'google_admin', 'google_admin_reauthenticated_at',
+            'google_admin_reauthenticated', 'google_admin_oauth_mode',
+        ]);
         $request->session()->invalidate();
         $request->session()->regenerateToken();
     }
@@ -157,5 +165,20 @@ class AdminGoogleAuthController extends Controller
     private function loginRedirect(string $error): RedirectResponse
     {
         return redirect()->away(rtrim((string) config('app.admin_frontend_url'), '/')."/login?error={$error}");
+    }
+
+    private function safeReturn(string $return): string
+    {
+        if (in_array($return, ['/operations', '/roles', '/users', '/import'], true)) {
+            return $return;
+        }
+
+        parse_str((string) parse_url($return, PHP_URL_QUERY), $query);
+
+        return parse_url($return, PHP_URL_PATH) === '/import'
+            && ctype_digit((string) ($query['run'] ?? ''))
+            && count($query) === 1
+                ? '/import?run='.$query['run']
+                : '/dashboard';
     }
 }

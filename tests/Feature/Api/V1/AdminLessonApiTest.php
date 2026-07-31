@@ -29,6 +29,8 @@ class AdminLessonApiTest extends TestCase
         $this->postJson("/api/v1/admin/catalog/lessons/{$id}/archive")->assertOk()->assertJsonPath('data.status', 'archived');
         $this->putJson("/api/v1/admin/catalog/lessons/{$id}", [...$payload, 'title' => 'Updated', 'status' => 'draft'])
             ->assertOk()->assertJsonPath('data.status', 'archived');
+        $this->assertDatabaseHas('lessons', ['id' => $id, 'catalog_revision' => 4]);
+        $this->assertNotNull(Lesson::findOrFail($id)->local_override_at);
         $this->getJson('/api/v1/admin/catalog/lessons/999999')->assertNotFound()->assertJsonPath('code', 'NOT_FOUND');
     }
 
