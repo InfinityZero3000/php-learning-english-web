@@ -7,8 +7,10 @@ use App\Jobs\RunAdminImport;
 use App\Models\AdminImportLock;
 use App\Models\AdminImportRun;
 use App\Models\AdminPreference;
+use App\Models\CourseCategory;
 use App\Models\LexiLingoImportCheckpoint;
 use App\Models\LexiLingoImportFailure;
+use App\Models\OperationsAudit;
 use App\Models\StagedItem;
 use App\Models\SupervisionAlert;
 use App\Support\ApiResponse;
@@ -21,6 +23,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
+use Throwable;
 
 class ContentOperationsController extends Controller
 {
@@ -111,6 +114,93 @@ class ContentOperationsController extends Controller
             ])),
             meta: ['page' => $page->currentPage(), 'per_page' => $page->perPage(), 'total' => $page->total()],
         );
+    }
+
+    /**
+     * Apply selected staged categories: super-admin only, requires a
+     * recent Google step-up, checks each item's target row hasn't changed
+     * since it was staged, and is idempotent by state (only 'staged' items
+     * are ever written; replaying the same call is a no-op for anything
+     * already resolved). Only 'categories' is supported today — see
+     * TODO(#45 follow-up) on CourseImporter/LessonContentImporter for why
+     * courses/vocabulary/lessons aren't wired here yet.
+     */
+    public function apply(Request $request, AdminImportRun $adminImportRun, RecentPassword $recentPassword): JsonResponse
+    {
+        abort_unless($request->user()->can('apply-content-import'), 403);
+        $recentPassword->require($request);
+        abort_unless($adminImportRun->entity === 'categories', 422, 'Apply is only available for categories right now.');
+
+        $data = $request->validate([
+            'item_ids' => ['sometimes', 'array'],
+            'item_ids.*' => ['integer'],
+        ]);
+        validator(['request_id' => $request->header('X-Request-ID')], ['request_id' => ['required', 'uuid']])->validate();
+
+        $itemsQuery = $adminImportRun->stagedItems()
+            ->where('status', 'staged')
+            ->whereIn('classification', ['new', 'update']);
+        if (! empty($data['item_ids'])) {
+            $itemsQuery->whereIn('id', $data['item_ids']);
+        }
+
+        $applied = [];
+        $stale = [];
+        $failed = [];
+
+        foreach ($itemsQuery->get() as $item) {
+            try {
+                DB::transaction(function () use ($item, &$applied, &$stale): void {
+                    $locked = StagedItem::query()->whereKey($item->id)->lockForUpdate()->first();
+                    if (! $locked || $locked->status !== 'staged') {
+                        return;
+                    }
+
+                    $existing = CourseCategory::where('external_id', $locked->external_id)->first();
+                    $currentRevision = $existing?->updated_at?->toISOString();
+                    if ($currentRevision !== $locked->existing_revision) {
+                        $locked->update(['status' => 'stale']);
+                        $stale[] = $locked->id;
+
+                        return;
+                    }
+
+                    $snapshot = $locked->incoming_snapshot ?? [];
+                    CourseCategory::updateOrCreate(
+                        ['external_id' => $locked->external_id],
+                        [
+                            'name' => $snapshot['name'] ?? null,
+                            'slug' => $snapshot['slug'] ?? null,
+                            'description' => $snapshot['description'] ?? null,
+                            'icon' => $snapshot['icon'] ?? null,
+                            'color' => $snapshot['color'] ?? null,
+                        ],
+                    );
+                    $locked->update(['status' => 'applied']);
+                    $applied[] = $locked->id;
+                });
+            } catch (Throwable) {
+                $item->update(['status' => 'failed']);
+                $failed[] = $item->id;
+            }
+        }
+
+        OperationsAudit::create([
+            'actor_id' => $request->user()->id,
+            'action' => 'content_import.applied',
+            'target_type' => 'admin_import_run',
+            'target_id' => (string) $adminImportRun->id,
+            'request_id' => $request->header('X-Request-ID'),
+            'context' => ['run_id' => $adminImportRun->id, 'requested_item_ids' => $data['item_ids'] ?? null],
+            'after_state' => ['applied' => count($applied), 'stale' => count($stale), 'failed' => count($failed)],
+            'occurred_at' => now('UTC'),
+        ]);
+
+        if (count($applied) + count($stale) + count($failed) > 0) {
+            $adminImportRun->update(['status' => 'approved']);
+        }
+
+        return ApiResponse::success(['applied' => $applied, 'stale' => $stale, 'failed' => $failed]);
     }
 
     public function start(Request $request): JsonResponse
