@@ -2,17 +2,22 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\RunAdminImport;
+use App\Models\AdminImportRun;
+use App\Models\Course;
 use App\Models\CourseCategory;
 use App\Models\Lesson;
 use App\Models\Level;
 use App\Models\LexiLingoImportFailure;
 use App\Models\Unit;
+use App\Services\AdminImportRunner;
 use App\Services\Import\CategoryImporter;
 use App\Services\Import\CourseImporter;
 use App\Services\LexiLingoVocabularySync;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use RuntimeException;
 use Tests\TestCase;
 
 class LexiLingoImportTest extends TestCase
@@ -49,10 +54,38 @@ class LexiLingoImportTest extends TestCase
 
         $this->assertDatabaseCount('course_categories', 1);
         $this->assertDatabaseHas('course_categories', [
+            'source_system' => 'lexilingo',
             'external_id' => 'cat-1',
             'name' => 'Business English',
             'slug' => 'business-english',
+            'catalog_revision' => 1,
         ]);
+    }
+
+    public function test_changed_upstream_category_updates_until_a_local_override_exists(): void
+    {
+        $payload = fn (string $name): array => [[
+            'id' => 'cat-owned', 'name' => $name, 'slug' => 'owned',
+            'description' => null, 'icon' => null, 'color' => null, 'course_count' => 0,
+        ]];
+        Http::fake(['backend.lexilingo.test/*' => Http::sequence()
+            ->push($payload('Remote one'))
+            ->push($payload('Remote two'))
+            ->push($payload('Remote three'))]);
+        $importer = $this->app->make(CategoryImporter::class);
+        $importer->import(10, reset: true);
+
+        $importer->import(10, reset: true);
+        $category = CourseCategory::query()->where('external_id', 'cat-owned')->firstOrFail();
+        $this->assertSame('Remote two', $category->name);
+        $this->assertSame(2, $category->catalog_revision);
+
+        $category->applyLocalEdit(['name' => 'Local wins']);
+        $importer->import(10, reset: true);
+
+        $category->refresh();
+        $this->assertSame('Local wins', $category->name);
+        $this->assertSame(3, $category->catalog_revision);
     }
 
     public function test_invalid_category_is_archived_and_valid_sibling_still_imports(): void
@@ -133,11 +166,49 @@ class LexiLingoImportTest extends TestCase
 
         $this->assertSame(1, $result->processed);
         $this->assertDatabaseHas('courses', ['external_id' => 'course-1', 'title' => 'English Basics']);
-        $this->assertDatabaseHas('units', ['external_id' => 'unit-1', 'title' => 'Unit One']);
+        $this->assertDatabaseHas('units', ['source_system' => 'lexilingo', 'external_id' => 'unit-1', 'title' => 'Unit One']);
         $this->assertDatabaseHas('lessons', ['external_id' => 'lesson-1', 'title' => 'Lesson One']);
         $this->assertDatabaseHas('lessons', ['external_id' => 'lesson-2', 'title' => 'Lesson Two']);
         $this->assertSame(1, Unit::query()->count());
         $this->assertSame(2, Lesson::query()->count());
+    }
+
+    public function test_course_reimport_does_not_demote_published_legacy_outline(): void
+    {
+        $level = Level::create(['name' => 'Beginner', 'slug' => 'beginner', 'sort_order' => 1]);
+        $course = Course::create([
+            'level_id' => $level->id, 'source_system' => 'lexilingo', 'external_id' => 'course-published',
+            'title' => 'Published', 'slug' => 'published-legacy', 'status' => 'published', 'language' => 'en',
+        ]);
+        $unit = Unit::create([
+            'course_id' => $course->id, 'source_system' => 'lexilingo', 'external_id' => 'unit-published',
+            'title' => 'Published unit', 'sort_order' => 1, 'status' => 'published',
+        ]);
+        $lesson = Lesson::create([
+            'course_id' => $course->id, 'unit_id' => $unit->id, 'source_system' => 'lexilingo',
+            'external_id' => 'lesson-published', 'title' => 'Published lesson', 'slug' => 'published-lesson',
+            'sort_order' => 1, 'status' => 'published', 'lesson_type' => 'vocabulary', 'xp_reward' => 10,
+        ]);
+        Http::fake([
+            'backend.lexilingo.test/api/v1/integrations/courses/course-published' => Http::response(['data' => ['units' => [[
+                'id' => 'unit-published', 'title' => 'Published unit', 'description' => null, 'order_index' => 1,
+                'background_color' => null, 'icon_url' => null, 'lessons' => [[
+                    'id' => 'lesson-published', 'title' => 'Published lesson', 'order_index' => 1,
+                    'lesson_type' => 'vocabulary', 'xp_reward' => 10,
+                ]],
+            ]]]]),
+            'backend.lexilingo.test/api/v1/integrations/courses*' => Http::response([[
+                'id' => 'course-published', 'title' => 'Published', 'description' => null, 'language' => 'en',
+                'level' => 'beginner', 'tags' => [], 'thumbnail_url' => null, 'total_lessons' => 1,
+                'total_xp' => 10, 'estimated_duration' => 10,
+            ]]),
+        ]);
+
+        $this->app->make(CourseImporter::class)->import(10, reset: true);
+
+        $this->assertSame('published', $course->fresh()->status);
+        $this->assertSame('published', $unit->fresh()->status);
+        $this->assertSame('published', $lesson->fresh()->status);
     }
 
     public function test_course_transaction_rolls_back_only_the_failing_course(): void
@@ -456,5 +527,32 @@ class LexiLingoImportTest extends TestCase
         $this->assertSame(20, $r3->processed);
         $countAfter2 = CourseCategory::query()->count();
         $this->assertSame(30, $countAfter2, 'Partial overlap rerun should not create duplicates');
+    }
+
+    public function test_disabled_feature_blocks_both_cli_entry_points_before_network_access(): void
+    {
+        config()->set('features.lexilingo_import', false);
+        Http::fake();
+
+        $this->artisan('lexilingo:import categories --limit=1')->assertFailed();
+        $this->artisan('lexilingo:sync-vocabulary --limit=1')->assertFailed();
+
+        Http::assertNothingSent();
+    }
+
+    public function test_disabled_feature_blocks_queued_job_and_runner(): void
+    {
+        config()->set('features.lexilingo_import', false);
+        $runner = $this->app->make(AdminImportRunner::class);
+
+        try {
+            (new RunAdminImport(999))->handle($runner);
+            $this->fail('Disabled queued import was accepted.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('LexiLingo import is disabled.', $exception->getMessage());
+        }
+
+        $this->expectException(RuntimeException::class);
+        $runner->run(new AdminImportRun);
     }
 }

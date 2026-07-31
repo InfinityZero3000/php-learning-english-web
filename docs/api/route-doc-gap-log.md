@@ -2,10 +2,20 @@
 
 Date: 2026-07-29
 
-> File này là snapshot tại commit được ghi bên dưới và đã lỗi thời so với route
-> runtime hiện tại. Không dùng danh sách này làm backlog đầy đủ. Xem
-> [`../CURRENT_STATUS.md`](../CURRENT_STATUS.md) và tạo lại inventory từ
-> `php artisan route:list` trước khi cập nhật OpenAPI.
+> **Closed 2026-07-31.** Gap này không còn được theo dõi thủ công.
+> `tests/Feature/ApiContractParityTest.php` so khớp *cả hai chiều* giữa mọi route
+> runtime có URI bắt đầu bằng `api/v1/` (bỏ `HEAD`/`OPTIONS`) và các operation
+> khai báo trong `docs/openapi/laravel-v1.yaml`, đối chiếu theo HTTP method + path
+> đã chuẩn hoá tên tham số. Route mới mà thiếu tài liệu — hoặc operation tài liệu
+> mà không có route — đều làm fail suite, nên không cần dựng lại inventory bằng tay.
+>
+> Đợt đóng gap này đã: xoá các operation ảo (`/admin/catalog/{resource}` generic,
+> `sync-runs`, retry-sync, secret-rotation, `PUT`/`DELETE /admin/users/{user}`);
+> bổ sung mọi route đang chạy, gồm Course Path, Unit authoring, FSRS preview và
+> import staging/approval. Ngoại lệ duy nhất là allowlist alias `/api/v1/admin/lessons*`
+> trong chính file test, mỗi mục kèm ghi chú operation canonical thay thế.
+>
+> Phần bên dưới giữ nguyên làm bối cảnh lịch sử; danh sách "missing" đã lỗi thời.
 
 ## Purpose
 

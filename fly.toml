@@ -1,3 +1,7 @@
+# Production Laravel app. Pinned so a stray `fly deploy` from this repo cannot
+# target another app in the account (php-learning-english-web is suspended).
+# CI passes --app explicitly from vars.FLY_APP, which overrides this.
+app = "linguist"
 primary_region = "sin"
 
 [build]

@@ -11,7 +11,7 @@ use App\Models\QuotaPolicy;
 use App\Models\SupervisionAlert;
 use App\Models\User;
 use App\Support\ApiResponse;
-use App\Support\RecentPassword;
+use App\Support\RecentGoogleAdmin;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -79,10 +79,10 @@ class OperationsController extends Controller
             : ['type' => 'quota_policy', 'id' => null, 'version' => 0, 'limits' => [], 'is_active' => false]);
     }
 
-    public function createQuota(Request $request, RecentPassword $recentPassword): JsonResponse
+    public function createQuota(Request $request, RecentGoogleAdmin $recentGoogle): JsonResponse
     {
         $this->authorizeOperations($request);
-        $recentPassword->require($request);
+        $recentGoogle->require($request);
         $data = $request->validate([
             'limits' => ['required', 'array', 'min:1'],
             'limits.*' => ['required', 'integer', 'min:0', 'max:1000000'],
@@ -118,10 +118,10 @@ class OperationsController extends Controller
             ->map(fn (AlertRule $rule) => ['type' => 'alert_rule', ...$rule->toArray()]));
     }
 
-    public function updateRule(Request $request, AlertRule $alertRule, RecentPassword $recentPassword): JsonResponse
+    public function updateRule(Request $request, AlertRule $alertRule, RecentGoogleAdmin $recentGoogle): JsonResponse
     {
         $this->authorizeOperations($request);
-        $recentPassword->require($request);
+        $recentGoogle->require($request);
         $data = $request->validate([
             'enabled' => ['required', 'boolean'],
             'parameters' => ['required', 'array'],

@@ -91,6 +91,28 @@ class TraceCagApiTest extends TestCase
             ->assertStatus(503)->assertJsonPath('code', 'FEATURE_DISABLED');
     }
 
+    /**
+     * A missing/misconfigured credential must degrade the same as an
+     * upstream failure, not crash the learning flow with a 500.
+     */
+    public function test_trace_cag_missing_credential_degrades_instead_of_crashing(): void
+    {
+        config()->set('services.lexilingo.subject_hmac_secret', null);
+        [$user, $session, $word] = $this->context();
+
+        $this->actingAs($user)->withHeader('X-Request-ID', (string) Str::uuid())
+            ->postJson('/api/v1/ai/trace-cag', [
+                'session_id' => $session->id,
+                'activity_id' => "vocabulary:{$word->id}",
+                'input_type' => 'answer',
+                'text' => 'hello',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.assistance.degraded', true);
+
+        $this->assertDatabaseHas('learning_assistance_results', ['source' => 'local_fallback', 'status' => 'degraded']);
+    }
+
     private function context(): array
     {
         $user = User::factory()->create();

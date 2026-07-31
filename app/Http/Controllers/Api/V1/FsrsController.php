@@ -2,13 +2,19 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Domain\Fsrs\FsrsCard;
+use App\Domain\Fsrs\FsrsScheduler;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\PreviewFsrsRequest;
 use App\Http\Requests\Api\V1\ReviewVocabularyRequest;
 use App\Models\UserVocabulary;
 use App\Services\VocabularyReviewService;
 use App\Support\ApiResponse;
+use Carbon\CarbonImmutable;
+use DateTimeImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class FsrsController extends Controller
 {
@@ -46,6 +52,46 @@ class FsrsController extends Controller
     public function review(ReviewVocabularyRequest $request, VocabularyReviewService $reviews): JsonResponse
     {
         return ApiResponse::success($reviews->review($request->user(), $request->validated()));
+    }
+
+    public function preview(PreviewFsrsRequest $request, FsrsScheduler $scheduler): JsonResponse
+    {
+        $input = $request->validated();
+        $state = UserVocabulary::query()
+            ->whereKey($input['card_id'])
+            ->where('user_id', $request->user()->id)
+            ->firstOrFail();
+        if ((int) $state->revision !== (int) $input['base_revision']) {
+            throw new ConflictHttpException('Review state changed; refresh before rating again.');
+        }
+
+        $now = CarbonImmutable::now('UTC');
+        $date = new DateTimeImmutable($now->format('c'));
+        $card = new FsrsCard(
+            state: $state->state,
+            step: $state->step,
+            stability: $state->stability,
+            difficulty: $state->difficulty,
+            due: new DateTimeImmutable(($state->due_at ?? $now)->clone()->utc()->format('c')),
+            lastReview: $state->last_reviewed_at
+                ? new DateTimeImmutable($state->last_reviewed_at->clone()->utc()->format('c'))
+                : null,
+        );
+        $labels = [1 => 'again', 2 => 'hard', 3 => 'good', 4 => 'easy'];
+        $ratings = collect($scheduler->preview($card, $date))
+            ->map(fn ($result, int $rating): array => [
+                'rating' => $labels[$rating],
+                'due_at' => CarbonImmutable::instance($result->card->due)->toISOString(),
+                'interval_seconds' => max(1, $result->card->due->getTimestamp() - $date->getTimestamp()),
+            ])->values();
+
+        return ApiResponse::success([
+            'type' => 'fsrs_preview',
+            'card_id' => $state->id,
+            'base_revision' => (int) $state->revision,
+            'generated_at' => $now->toISOString(),
+            'ratings' => $ratings,
+        ]);
     }
 
     private function statePayload(UserVocabulary $state): array

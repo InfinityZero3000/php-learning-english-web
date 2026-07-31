@@ -101,7 +101,10 @@ class AdminCrudApiTest extends TestCase
             ])
             ->assertStatus(200);
 
-        $this->assertDatabaseHas('course_categories', ['id' => $categoryId, 'name' => 'Advanced Business English']);
+        $this->assertDatabaseHas('course_categories', [
+            'id' => $categoryId, 'name' => 'Advanced Business English', 'catalog_revision' => 2,
+        ]);
+        $this->assertNotNull(CourseCategory::findOrFail($categoryId)->local_override_at);
 
         // 5. Delete
         $this->actingAs($this->admin)
@@ -186,7 +189,10 @@ class AdminCrudApiTest extends TestCase
             ])
             ->assertStatus(200);
 
-        $this->assertDatabaseHas('courses', ['id' => $courseId, 'title' => 'Updated New Course', 'status' => 'published']);
+        $this->assertDatabaseHas('courses', [
+            'id' => $courseId, 'title' => 'Updated New Course', 'status' => 'published', 'catalog_revision' => 2,
+        ]);
+        $this->assertNotNull(Course::findOrFail($courseId)->local_override_at);
 
         // 5. Delete
         $this->actingAs($this->admin)
@@ -255,7 +261,10 @@ class AdminCrudApiTest extends TestCase
             ])
             ->assertStatus(200);
 
-        $this->assertDatabaseHas('lessons', ['id' => $lessonId, 'title' => 'Updated Grammar Basics']);
+        $this->assertDatabaseHas('lessons', [
+            'id' => $lessonId, 'title' => 'Updated Grammar Basics', 'catalog_revision' => 2,
+        ]);
+        $this->assertNotNull(Lesson::findOrFail($lessonId)->local_override_at);
 
         // 5. Delete
         $this->actingAs($this->admin)
@@ -397,6 +406,9 @@ class AdminCrudApiTest extends TestCase
             ->assertStatus(204);
 
         $this->assertDatabaseMissing('quizzes', ['id' => $quizId]);
+        $lesson->refresh();
+        $this->assertSame(3, $lesson->catalog_revision);
+        $this->assertNotNull($lesson->local_override_at);
     }
 
     /**

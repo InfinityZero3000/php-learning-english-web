@@ -7,6 +7,7 @@ use App\Models\AdminImportRun;
 use App\Models\OperationsAudit;
 use App\Services\Import\CategoryImporter;
 use App\Services\Import\CourseImporter;
+use App\Services\Import\LessonContentImporter;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -14,6 +15,10 @@ class AdminImportRunner
 {
     public function run(AdminImportRun $run): void
     {
+        if (! config('features.lexilingo_import')) {
+            throw new RuntimeException('LexiLingo import is disabled.');
+        }
+
         DB::transaction(function () use ($run): void {
             $lock = AdminImportLock::query()->lockForUpdate()->findOrFail($run->entity);
             if ((int) $lock->current_run_id !== $run->id) {
@@ -26,8 +31,11 @@ class AdminImportRunner
             'categories' => app(CategoryImporter::class),
             'courses' => app(CourseImporter::class),
             'vocabulary' => app(LexiLingoVocabularySync::class),
+            'lessons' => app(LessonContentImporter::class),
             default => throw new RuntimeException('Unsupported import entity.'),
         };
+        $importer->forRun($run->id);
+        $importer->stageOnly($run->entity === 'categories');
         $result = $importer->import(
             limit: $run->requested_limit,
             reset: $run->reset,
@@ -35,8 +43,12 @@ class AdminImportRunner
         );
 
         DB::transaction(function () use ($run, $result): void {
+            // TODO(#45): introduce applying/applied states once staged
+            // items gate the write path — today the write already
+            // happened above, so 'review-ready' just means "browse what
+            // was written."
             $run->update([
-                'status' => 'succeeded',
+                'status' => 'review-ready',
                 'processed' => $result->processed,
                 'skipped' => $result->skipped,
                 'result_cursor' => $result->nextCursor,

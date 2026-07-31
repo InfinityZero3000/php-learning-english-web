@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Controllers\AdminGoogleAuthController;
 use App\Http\Controllers\Controller;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\AdminGoogleAccess;
 use App\Support\SafeFrontendPath;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
@@ -29,6 +31,11 @@ class OAuthController extends Controller
     public function callback(Request $request, string $provider): RedirectResponse
     {
         $this->validateProvider($provider);
+
+        if ($provider === 'google' && $request->session()->pull('google_admin_oauth_mode') === 'login') {
+            return app(AdminGoogleAuthController::class)->callback($request, app(AdminGoogleAccess::class));
+        }
+
         $next = SafeFrontendPath::normalize($request->session()->pull('auth.oauth_next'));
 
         if ($request->query('error')) {

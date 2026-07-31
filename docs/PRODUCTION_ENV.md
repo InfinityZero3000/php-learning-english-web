@@ -72,13 +72,58 @@ Không sử dụng Mailtrap Sandbox ở production.
 | Biến | Bắt buộc | Secret | Mục đích |
 |---|---:|---:|---|
 | `LEXILINGO_BACKEND_URL` | Khi sync dataset | Không | HTTPS origin của Backend Service, không thêm `/api/v1` |
-| `LEXILINGO_AI_URL` | Khi dùng AI/STT/TTS | Không | HTTPS origin của AI Service |
+| `LEXILINGO_AI_URL` | Khi dùng AI/STT/TTS/TraceCAG | Không | HTTPS origin của AI Service |
+| `LEXILINGO_PARTNER_API_KEY` | Khi sync category/course/vocabulary | Có | Gửi bằng `X-LexiLingo-API-Key`, dùng cho `LexiLingoClient::partner()` |
 | `LEXILINGO_IMPORT_KEY` | Khi sync lesson content protected | Có | Key chỉ có quyền `content:read`; không dùng admin token 30 phút |
 | `LEXILINGO_AI_SERVICE_SECRET` | Khi gọi internal AI | Có | Gửi bằng `X-AI-Service-Secret` |
+| `LEXILINGO_TRACE_CAG_SERVICE_TOKEN` | Khi bật `FEATURE_AI` | Có | Gửi bằng `X-LexiLingo-Service-Token` tới `POST /api/v1/integrations/trace-cag/v1/analyze`. Phải khớp `TRACE_CAG_SERVICE_TOKEN_HASH` (SHA-256 của token này) phía AI Service, cùng với `TRACE_CAG_EXTERNAL_ENABLED=true` — hai biến đó **không nằm trong repo này**, đặt trực tiếp trên AI Service |
+| `LEXILINGO_SUBJECT_HMAC_SECRET` | Khi bật `FEATURE_AI` | Có | Tối thiểu 32 ký tự; ký subject ẩn danh (HMAC-SHA256 của `user_id`) gửi cho TraceCAG thay vì lộ `user_id` thật. Thiếu biến này TraceCAG luôn trả kết quả `degraded` (fallback nội bộ), không lỗi 500 |
 | `LEXILINGO_TIMEOUT` | Không | Không | `30`; code giới hạn trong khoảng 1–60 giây |
+| `LEXILINGO_CONNECT_TIMEOUT` | Không | Không | `5`; timeout kết nối riêng, giới hạn 1–30 giây. `traceCag()` còn có thêm hard timeout 15s ở tầng gọi |
 | `LEXILINGO_AI_RETRY_TIMES` | Không | Không | `2`; số lần thử lại khi timeout/5xx trên proxy AI (`/api/v1/ai/*`, `/api/v1/stt/*`, `/api/v1/tts/*`), không retry lỗi 4xx |
 | `LEXILINGO_AI_RETRY_DELAY_MS` | Không | Không | `200`; thời gian chờ giữa các lần retry |
 | `LEXILINGO_AI_MAX_AUDIO_KB` | Không | Không | `10240` (10 MB); giới hạn dung lượng file audio gửi lên cho pronunciation/STT |
+
+### Feature flag AI/TraceCAG
+
+| Biến | Bắt buộc | Secret | Mục đích |
+|---|---:|---:|---|
+| `FEATURE_AI` | Không | Không | Mặc định `false`. Bật `POST /api/v1/ai/translate`, `/pronunciation`, `/speech-to-text`, `/text-to-speech` và `/ai/trace-cag`. Tắt thì mọi endpoint này trả `503 FEATURE_DISABLED` ngay, không gọi AI Service |
+
+`/ai/trace-cag` (chấm/gợi ý bài tập có cấu trúc — `TraceCagController` → `LexiLingoTraceCag` → `POST /api/v1/integrations/trace-cag/v1/analyze`) đã có sẵn: idempotent theo `X-Request-ID`, timeout 15s, và **tự động fallback** sang kết quả xác định (`degraded: true`) khi AI Service lỗi hoặc credential thiếu — không bao giờ chặn luồng học của learner. Bật `FEATURE_AI` mà thiếu `LEXILINGO_TRACE_CAG_SERVICE_TOKEN`/`LEXILINGO_SUBJECT_HMAC_SECRET` thì endpoint vẫn trả `200` nhưng luôn `degraded`.
+
+### Feature flag import (hai cấp, tách biệt)
+
+| Biến | Bắt buộc | Secret | Mục đích |
+|---|---:|---:|---|
+| `FEATURE_LEXILINGO_IMPORT` | Không | Không | Mặc định `false`. Bật fetch/staging. Khi `false`, mọi đường ghi đều bị chặn: HTTP start/reset, `RunAdminImport`, `AdminImportRunner` và cả hai lệnh CLI — job đã xếp hàng không lách được cổng này |
+| `FEATURE_LEXILINGO_IMPORT_APPLY` | Không | Không | Mặc định `false` và **phải giữ `false` ở production** cho tới khi có đủ bằng chứng release. Chỉ mở đúng `POST /api/v1/admin/imports/runs/{run}/apply` — thao tác duy nhất ghi bản ghi đã staged vào catalog |
+
+Hai cờ tách biệt có chủ đích: staging dữ liệu để review không bao giờ kéo theo
+quyền ghi. Bật `FEATURE_LEXILINGO_IMPORT_APPLY` phải đi kèm `php artisan config:clear`
+**và** restart queue worker, vì runtime web và runtime queue đọc config cache riêng.
+
+Ngoài cờ, apply còn bị chặn bởi phân quyền: Super Admin (`apply-content-import`)
+kèm Google re-auth mới trong 15 phút, ràng buộc theo user id + Google subject +
+session id. Thiếu freshness trả `428`, sai quyền trả `403` (quyền được kiểm tra
+trước, nên vai trò thấp không bao giờ nhận `428`). Hiện apply mới hỗ trợ
+`categories`; entity khác trả `422`.
+
+### Mô hình sở hữu catalog
+
+Mỗi bản ghi catalog mang `source_system` + `external_id` (identity ghép),
+`source_fingerprint`, `source_snapshot`, `local_override_at` và `catalog_revision`.
+Sync bỏ qua hàng có `local_override_at`, nên chỉnh sửa của admin không bị import
+ghi đè. Apply so `catalog_revision` + `source_fingerprint` đã ghi lúc staging;
+hàng đã đổi được đánh `stale` thay vì bị ghi đè.
+
+### Danh tính dùng cho release rehearsal
+
+| Biến | Bắt buộc | Secret | Mục đích |
+|---|---:|---:|---|
+| `RELEASE_LEARNER_EMAIL` | Chỉ ở staging | Không | Tài khoản learner chuyên dụng cho smoke test; không dùng tài khoản cá nhân |
+| `RELEASE_ADMIN_EMAIL` | Chỉ ở staging | Không | Tài khoản admin chuyên dụng |
+| `RELEASE_SUPER_ADMIN_EMAIL` | Chỉ ở staging | Không | Tài khoản super admin chuyên dụng để kiểm tra apply |
 
 Public category/course/vocabulary request không được gửi import key. Vocabulary
 được đồng bộ vào MySQL bằng:
@@ -103,8 +148,10 @@ fly ssh console -C "php artisan lexilingo:import all --dry-run"
 `--reset` bỏ qua checkpoint đã lưu và chạy lại từ offset 0. Import idempotent
 theo `external_id`, an toàn khi chạy lại cùng payload. Hai bảng vận hành:
 
-- `lexilingo_import_checkpoints`: vị trí (`cursor`) đã đồng bộ theo từng
-  entity (`categories`/`courses`/`vocabulary`), dùng để resume.
+- `lexilingo_import_checkpoints`: vị trí (`cursor`) catalog **thật sự** đã đồng
+  bộ tới theo từng entity, dùng để resume. Entity ghi trực tiếp tiến cursor ngay
+  lúc fetch; entity staged (`categories`) chỉ tiến khi apply thành công và run
+  không còn item chờ duyệt, nên một run bị huỷ không làm mất trang dữ liệu.
 - `lexilingo_import_failures`: payload gốc + lỗi validate của các bản ghi bị
   từ chối (không làm fail cả trang) — kiểm tra bảng này khi nghi ngờ dữ liệu
   import thiếu.

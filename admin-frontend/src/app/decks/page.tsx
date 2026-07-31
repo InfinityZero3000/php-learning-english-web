@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/components/AdminLayout';
+import AccessibleDialog from '@/components/AccessibleDialog';
 import { adminCatalog, type VocabularyDeck } from '@/lib/api';
 
 interface Deck {
@@ -38,37 +39,33 @@ function DeckModal({ deck, onClose, onSave }: {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}>
-      <div className="w-full max-w-md rounded-3xl" style={{ backgroundColor: '#ffffff', border: '2px solid #bdc8d2', borderBottom: '6px solid #bdc8d2' }}>
-        <div className="p-6 flex justify-between items-center rounded-t-[22px]" style={{ borderBottom: '2px solid #bdc8d2', backgroundColor: '#f5f3f3' }}>
-          <h3 className="text-lg font-extrabold" style={{ color: '#1b1c1c' }}>{form.id ? 'Edit Deck' : 'New Deck'}</h3>
-          <button onClick={onClose} className="p-2 rounded-xl" onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#e9e8e7')} onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
-            <span className="material-symbols-outlined">close</span>
+    <AccessibleDialog
+      title={form.id ? 'Edit Deck' : 'New Deck'}
+      onClose={onClose}
+      className="max-w-md"
+    >
+      <form onSubmit={submit} className="mt-5 space-y-4">
+        {error && <div role="alert" className="p-3 rounded-xl text-sm font-semibold" style={{ backgroundColor: '#ffdad6', color: '#93000a' }}>{error}</div>}
+        <div>
+          <label htmlFor="deck-name" className="block text-xs font-bold uppercase tracking-wider mb-1.5" style={{ color: '#3e4850' }}>Deck Name *</label>
+          <input id="deck-name" name="name" type="text" required value={form.name ?? ''} onChange={e => set('name', e.target.value)} className="w-full p-3.5 rounded-xl outline-none text-sm font-medium" style={{ border: '2px solid #bdc8d2', backgroundColor: '#fbf9f9', color: '#1b1c1c' }} onFocus={e => (e.target.style.borderColor = '#006590')} onBlur={e => (e.target.style.borderColor = '#bdc8d2')} placeholder="e.g. Business Vocabulary" />
+        </div>
+        <div>
+          <label htmlFor="deck-description" className="block text-xs font-bold uppercase tracking-wider mb-1.5" style={{ color: '#3e4850' }}>Description</label>
+          <textarea id="deck-description" name="description" value={form.description ?? ''} onChange={e => set('description', e.target.value)} rows={3} className="w-full p-3.5 rounded-xl outline-none text-sm font-medium resize-none" style={{ border: '2px solid #bdc8d2', backgroundColor: '#fbf9f9', color: '#1b1c1c' }} onFocus={e => (e.target.style.borderColor = '#006590')} onBlur={e => (e.target.style.borderColor = '#bdc8d2')} placeholder="What does this deck cover?" />
+        </div>
+        <div className="flex items-center gap-3 p-3.5 rounded-xl" style={{ border: '2px solid #bdc8d2', backgroundColor: '#fbf9f9' }}>
+          <input type="checkbox" id="isPublic" name="isPublic" checked={form.isPublic ?? false} onChange={e => set('isPublic', e.target.checked)} className="w-4 h-4 rounded" style={{ accentColor: '#006590' }} />
+          <label htmlFor="isPublic" className="text-sm font-bold" style={{ color: '#1b1c1c' }}>Public deck (visible to all users)</label>
+        </div>
+        <div className="flex gap-3 pt-2">
+          <button type="button" onClick={onClose} className="btn-tactile flex-1 py-3 rounded-xl font-bold text-sm uppercase tracking-wide" style={{ backgroundColor: '#efeded', color: '#1b1c1c', borderBottom: '4px solid #bdc8d2' }}>Cancel</button>
+          <button type="submit" disabled={saving} className="btn-tactile flex-1 py-3 rounded-xl font-bold text-sm uppercase tracking-wide" style={{ backgroundColor: saving ? '#bdc8d2' : '#006590', color: '#ffffff', borderBottom: '4px solid #004c6e' }}>
+            {saving ? 'Saving...' : (form.id ? 'Update' : 'Create Deck')}
           </button>
         </div>
-        <form onSubmit={submit} className="p-6 space-y-4">
-          {error && <div className="p-3 rounded-xl text-sm font-semibold" style={{ backgroundColor: '#ffdad6', color: '#93000a' }}>{error}</div>}
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider mb-1.5" style={{ color: '#3e4850' }}>Deck Name *</label>
-            <input required value={form.name ?? ''} onChange={e => set('name', e.target.value)} className="w-full p-3.5 rounded-xl outline-none text-sm font-medium" style={{ border: '2px solid #bdc8d2', backgroundColor: '#fbf9f9', color: '#1b1c1c' }} onFocus={e => (e.target.style.borderColor = '#006590')} onBlur={e => (e.target.style.borderColor = '#bdc8d2')} placeholder="e.g. Business Vocabulary" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider mb-1.5" style={{ color: '#3e4850' }}>Description</label>
-            <textarea value={form.description ?? ''} onChange={e => set('description', e.target.value)} rows={3} className="w-full p-3.5 rounded-xl outline-none text-sm font-medium resize-none" style={{ border: '2px solid #bdc8d2', backgroundColor: '#fbf9f9', color: '#1b1c1c' }} onFocus={e => (e.target.style.borderColor = '#006590')} onBlur={e => (e.target.style.borderColor = '#bdc8d2')} placeholder="What does this deck cover?" />
-          </div>
-          <div className="flex items-center gap-3 p-3.5 rounded-xl" style={{ border: '2px solid #bdc8d2', backgroundColor: '#fbf9f9' }}>
-            <input type="checkbox" id="isPublic" checked={form.isPublic ?? false} onChange={e => set('isPublic', e.target.checked)} className="w-4 h-4 rounded" style={{ accentColor: '#006590' }} />
-            <label htmlFor="isPublic" className="text-sm font-bold" style={{ color: '#1b1c1c' }}>Public deck (visible to all users)</label>
-          </div>
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="btn-tactile flex-1 py-3 rounded-xl font-bold text-sm uppercase tracking-wide" style={{ backgroundColor: '#efeded', color: '#1b1c1c', borderBottom: '4px solid #bdc8d2' }}>Cancel</button>
-            <button type="submit" disabled={saving} className="btn-tactile flex-1 py-3 rounded-xl font-bold text-sm uppercase tracking-wide" style={{ backgroundColor: saving ? '#bdc8d2' : '#006590', color: '#ffffff', borderBottom: '4px solid #004c6e' }}>
-              {saving ? 'Saving...' : (form.id ? 'Update' : 'Create Deck')}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </AccessibleDialog>
   );
 }
 

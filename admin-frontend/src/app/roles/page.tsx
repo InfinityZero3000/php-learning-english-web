@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/components/AdminLayout';
-import { adminUsers, roleManagement, type AdminRole, type AdminUser, type TeacherScope } from '@/lib/api';
+import { adminUsers, redirectToGoogleStepUp, roleManagement, type AdminRole, type AdminUser, type TeacherScope } from '@/lib/api';
 
 export default function RolesPage() {
   return <AdminLayout title="Roles & Teacher Scope" requiredRole="super_admin"><PageContent /></AdminLayout>;
@@ -46,6 +46,7 @@ function PageContent() {
       setScopes((items) => items.some((item) => item.id === created.id) ? items : [created, ...items]);
       setMessage('Teacher scope assigned.');
     } catch (reason) {
+      if (redirectToGoogleStepUp(reason, '/roles')) return;
       setMessage(reason instanceof Error ? reason.message : 'Could not assign teacher.');
     }
   }
@@ -56,6 +57,7 @@ function PageContent() {
       setScopes((items) => items.filter((item) => item.id !== id));
       setMessage('Teacher scope removed.');
     } catch (reason) {
+      if (redirectToGoogleStepUp(reason, '/roles')) return;
       setMessage(reason instanceof Error ? reason.message : 'Could not remove teacher scope.');
     }
   }

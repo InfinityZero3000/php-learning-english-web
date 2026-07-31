@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Assignment;
+use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\LearningEvent;
 use App\Models\LearningSession;
@@ -17,6 +18,8 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class LearningSessionService
 {
+    public function __construct(private readonly CourseLearningPath $paths) {}
+
     public function plan(User $user): array
     {
         $priority = 1;
@@ -39,12 +42,7 @@ class LearningSessionService
         }
 
         foreach (Enrollment::query()->where('user_id', $user->id)->where('status', 'active')->get() as $enrollment) {
-            $lesson = $enrollment->course->lessons()
-                ->where('status', 'published')
-                ->whereDoesntHave('progress', fn ($query) => $query->where('user_id', $user->id))
-                ->orderBy('sort_order')
-                ->first();
-            if ($lesson) {
+            if ($this->paths->nextEligibleLesson($user, $enrollment)) {
                 $items[] = ['id' => $enrollment->id, 'type' => 'course_activity', 'priority' => $priority++];
             }
         }
@@ -76,51 +74,101 @@ class LearningSessionService
         }
 
         if (isset($input['assignment_id'])) {
-            return DB::transaction(function () use ($user, $input, $requestId, $fingerprint): LearningSession {
-                $assignment = Assignment::query()
-                    ->with(['lesson', 'vocabulary.lesson'])->lockForUpdate()
-                    ->whereKey($input['assignment_id'])->where('learner_id', $user->id)
-                    ->whereIn('status', ['pending', 'in_progress'])->first();
-                if (! $assignment) {
-                    throw new HttpException(403, 'Assignment is not available to this learner.');
+            try {
+                return DB::transaction(function () use ($user, $input, $requestId, $fingerprint): LearningSession {
+                    $assignment = Assignment::query()
+                        ->with(['lesson', 'vocabulary.lesson'])->lockForUpdate()
+                        ->whereKey($input['assignment_id'])->where('learner_id', $user->id)
+                        ->whereIn('status', ['pending', 'in_progress'])->first();
+                    if (! $assignment) {
+                        throw new HttpException(403, 'Assignment is not available to this learner.');
+                    }
+                    if ($replay = LearningEvent::query()->where('request_id', $requestId)->first()) {
+                        return $this->replay($replay, $user, 'session_started', $fingerprint);
+                    }
+                    if ($existing = LearningSession::query()->where('user_id', $user->id)->where('status', 'active')
+                        ->where('summary->assignment_id', $assignment->id)->latest()->first()) {
+                        $this->bindSession($existing, $user, $requestId, $fingerprint);
+
+                        return $existing;
+                    }
+                    $lesson = $assignment->lesson ?? $assignment->vocabulary?->lesson;
+                    if (! $lesson) {
+                        throw new ConflictHttpException('Assignment has no learnable lesson.');
+                    }
+                    $assignment->update(['status' => 'in_progress']);
+
+                    return $this->createSession($user, [
+                        'course_id' => $lesson->course_id,
+                        'lesson_id' => $lesson->id,
+                        'summary' => ['assignment_id' => $assignment->id, 'vocabulary_id' => $assignment->vocabulary_id],
+                    ], $requestId, $fingerprint);
+                });
+            } catch (QueryException $exception) {
+                $replay = LearningEvent::query()->where('request_id', $requestId)->first();
+                if (! $replay) {
+                    throw $exception;
                 }
-                if ($existing = LearningSession::query()->where('user_id', $user->id)->where('status', 'active')
-                    ->where('summary->assignment_id', $assignment->id)->latest()->first()) {
+
+                return $this->replay($replay, $user, 'session_started', $fingerprint);
+            }
+        }
+
+        try {
+            return DB::transaction(function () use ($user, $input, $requestId, $fingerprint): LearningSession {
+                $enrollment = Enrollment::query()
+                    ->whereKey($input['enrollment_id'] ?? null)
+                    ->where('user_id', $user->id)
+                    ->where('status', 'active')
+                    ->lockForUpdate()
+                    ->first();
+                if (! $enrollment) {
+                    throw new HttpException(403, 'Enrollment is not available to this learner.');
+                }
+                $course = Course::query()->lockForUpdate()->findOrFail($enrollment->course_id);
+                $enrollment->setRelation('course', $course);
+                if ($course->status !== 'published') {
+                    throw new ConflictHttpException('The course is not available for a new session.');
+                }
+                if ($replay = LearningEvent::query()->where('request_id', $requestId)->first()) {
+                    return $this->replay($replay, $user, 'session_started', $fingerprint);
+                }
+
+                $existing = LearningSession::query()
+                    ->where('enrollment_id', $enrollment->id)
+                    ->where('user_id', $user->id)
+                    ->where('status', 'active')
+                    ->when($input['lesson_id'] ?? null, fn ($query, $lessonId) => $query->where('lesson_id', $lessonId))
+                    ->orderByDesc('started_at')
+                    ->orderByDesc('id')
+                    ->first();
+                if ($existing) {
+                    $this->bindSession($existing, $user, $requestId, $fingerprint);
+
                     return $existing;
                 }
-                $lesson = $assignment->lesson ?? $assignment->vocabulary?->lesson;
+
+                $lesson = isset($input['lesson_id'])
+                    ? $this->paths->eligibleLesson($user, $enrollment, $input['lesson_id'])
+                    : $this->paths->nextEligibleLesson($user, $enrollment);
                 if (! $lesson) {
-                    throw new ConflictHttpException('Assignment has no learnable lesson.');
+                    throw new ConflictHttpException('This course has no remaining lesson.');
                 }
-                $assignment->update(['status' => 'in_progress']);
 
                 return $this->createSession($user, [
-                    'course_id' => $lesson->course_id, 'lesson_id' => $lesson->id,
-                    'summary' => ['assignment_id' => $assignment->id, 'vocabulary_id' => $assignment->vocabulary_id],
+                    'enrollment_id' => $enrollment->id,
+                    'course_id' => $enrollment->course_id,
+                    'lesson_id' => $lesson->id,
                 ], $requestId, $fingerprint);
             });
-        }
+        } catch (QueryException $exception) {
+            $replay = LearningEvent::query()->where('request_id', $requestId)->first();
+            if (! $replay) {
+                throw $exception;
+            }
 
-        $enrollment = Enrollment::query()
-            ->whereKey($input['enrollment_id'] ?? null)
-            ->where('user_id', $user->id)
-            ->where('status', 'active')
-            ->first();
-        if (! $enrollment) {
-            throw new HttpException(403, 'Enrollment is not available to this learner.');
+            return $this->replay($replay, $user, 'session_started', $fingerprint);
         }
-        $lesson = $enrollment->course->lessons()
-            ->where('status', 'published')
-            ->whereDoesntHave('progress', fn ($query) => $query->where('user_id', $user->id))
-            ->orderBy('sort_order')
-            ->first();
-        if (! $lesson) {
-            throw new ConflictHttpException('This course has no remaining lesson.');
-        }
-
-        return $this->createSession($user, [
-            'enrollment_id' => $enrollment->id, 'course_id' => $enrollment->course_id, 'lesson_id' => $lesson->id,
-        ], $requestId, $fingerprint);
     }
 
     public function next(User $user, LearningSession $session): array
@@ -186,7 +234,7 @@ class LearningSessionService
                 }
                 $activityCount = $answeredVocabularyIds->count();
                 if (! $practiceOnly) {
-                    Progress::firstOrCreate(
+                    Progress::updateOrCreate(
                         ['user_id' => $user->id, 'lesson_id' => $session->lesson_id],
                         ['completed_at' => now('UTC')],
                     );
@@ -207,10 +255,8 @@ class LearningSessionService
                 ];
                 $session->update(['status' => 'completed', 'completed_at' => now('UTC'), 'summary' => $summary]);
 
-                if (! $practiceOnly && $session->enrollment && ! $session->enrollment->course->lessons()
-                    ->where('status', 'published')
-                    ->whereDoesntHave('progress', fn ($query) => $query->where('user_id', $user->id))
-                    ->exists()) {
+                if (! $practiceOnly && $session->enrollment
+                    && ! $this->paths->hasIncompleteLessons($user, $session->enrollment)) {
                     $session->enrollment->update(['status' => 'completed', 'completed_at' => now('UTC')]);
                 }
                 LearningEvent::create([
@@ -254,6 +300,18 @@ class LearningSessionService
 
             return $this->replay($replay, $user, 'session_started', $fingerprint);
         }
+    }
+
+    private function bindSession(LearningSession $session, User $user, string $requestId, string $fingerprint): void
+    {
+        LearningEvent::create([
+            'learning_session_id' => $session->id,
+            'user_id' => $user->id,
+            'event_type' => 'session_started',
+            'request_id' => $requestId,
+            'occurred_at' => now('UTC'),
+            'metadata' => ['idempotency_fingerprint' => $fingerprint],
+        ]);
     }
 
     private function replay(LearningEvent $event, User $user, string $type, string $fingerprint): LearningSession
