@@ -29,6 +29,7 @@ class AdminImportRunner
             default => throw new RuntimeException('Unsupported import entity.'),
         };
         $importer->forRun($run->id);
+        $importer->stageOnly($run->entity === 'categories');
         $result = $importer->import(
             limit: $run->requested_limit,
             reset: $run->reset,

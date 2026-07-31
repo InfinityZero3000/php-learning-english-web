@@ -86,7 +86,7 @@ class AdminImportHistoryApiTest extends TestCase
         $this->assertStringNotContainsString('do-not-leak-me', $json);
     }
 
-    public function test_run_transitions_to_review_ready_and_stages_new_and_update_items(): void
+    public function test_run_transitions_to_review_ready_without_writing_the_category(): void
     {
         $this->seed();
         config()->set('services.lexilingo.backend_url', 'http://localhost');
@@ -107,14 +107,18 @@ class AdminImportHistoryApiTest extends TestCase
         $this->assertDatabaseHas('staged_items', [
             'admin_import_run_id' => $firstRunId, 'external_id' => 'cat-1', 'classification' => 'new',
         ]);
+        // Issue #45: categories are staged-only now — the run reaches
+        // review-ready without ever writing course_categories.
+        $this->assertDatabaseMissing('course_categories', ['external_id' => 'cat-1']);
 
+        // Re-running without an apply in between still classifies the item
+        // as 'new', because nothing was actually written the first time.
         $second = $this->actingAs($admin)->withHeader('X-Request-ID', (string) Str::uuid())
             ->postJson('/api/v1/admin/imports', ['entity' => 'categories', 'limit' => 50])
             ->assertStatus(202);
         $secondRunId = $second->json('data.id');
-        $this->assertDatabaseHas('admin_import_runs', ['id' => $secondRunId, 'status' => 'review-ready']);
         $this->assertDatabaseHas('staged_items', [
-            'admin_import_run_id' => $secondRunId, 'external_id' => 'cat-1', 'classification' => 'update',
+            'admin_import_run_id' => $secondRunId, 'external_id' => 'cat-1', 'classification' => 'new',
         ]);
     }
 

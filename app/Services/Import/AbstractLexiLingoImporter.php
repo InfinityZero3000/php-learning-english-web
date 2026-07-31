@@ -29,6 +29,8 @@ abstract class AbstractLexiLingoImporter
 
     protected ?int $runId = null;
 
+    protected bool $stageOnly = false;
+
     public function __construct(
         protected readonly LexiLingoClient $client,
         protected readonly LexiLingoSchemaValidator $validator,
@@ -48,6 +50,20 @@ abstract class AbstractLexiLingoImporter
     public function forRun(?int $runId): static
     {
         $this->runId = $runId;
+
+        return $this;
+    }
+
+    /**
+     * When true, importers that check this flag (currently only
+     * CategoryImporter — see issue #45) skip their actual write and only
+     * record a StagedItem for later super-admin approval/apply. Importers
+     * that never check the flag are unaffected, so their direct-apply
+     * behavior stays exactly as it was before this flag existed.
+     */
+    public function stageOnly(bool $flag = true): static
+    {
+        $this->stageOnly = $flag;
 
         return $this;
     }
@@ -146,6 +162,9 @@ abstract class AbstractLexiLingoImporter
             'classification' => $classification,
             'incoming_snapshot' => array_intersect_key($incoming, $allowlist),
             'existing_snapshot' => $existing ? array_intersect_key($existing->getAttributes(), $allowlist) : null,
+            // Captured so a later apply can detect the target row changed
+            // between staging and approval and refuse to overwrite it.
+            'existing_revision' => $existing?->updated_at?->toISOString(),
             'errors' => $safeErrors === [] ? null : $safeErrors,
         ]);
     }
