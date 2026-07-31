@@ -3,9 +3,14 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { IconArrowRight, IconBook2, IconBrain, IconClock, IconSchool } from "@tabler/icons-react";
-import { api, type Enrollment, type LearningPlan } from "@/lib/api";
+import { api, ApiError, type Enrollment, type LearningPlan } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+
+function message(reason: unknown) {
+  if (reason instanceof ApiError && reason.status === 401) return "Hãy đăng nhập để xem kế hoạch học tập hôm nay.";
+  return reason instanceof Error ? reason.message : "Không thể tải kế hoạch hôm nay.";
+}
 
 export function TodayPage() {
   const [plan, setPlan] = useState<LearningPlan | null>(null);
@@ -15,7 +20,7 @@ export function TodayPage() {
   useEffect(() => {
     Promise.all([api.learningPlan(), api.enrollments()])
       .then(([nextPlan, nextEnrollments]) => { setPlan(nextPlan); setEnrollments(nextEnrollments); })
-      .catch((reason) => setError(reason.message));
+      .catch((reason) => setError(message(reason)));
   }, []);
 
   const counts = (type: string) => plan?.items.filter((item) => item.type === type).length ?? 0;

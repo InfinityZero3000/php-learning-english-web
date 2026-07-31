@@ -2,8 +2,9 @@ FROM composer:2 AS composer
 
 FROM php:8.5-fpm-alpine
 
-RUN apk add --no-cache icu-dev libzip-dev \
-    && docker-php-ext-install intl pdo_mysql zip \
+RUN apk add --no-cache icu-dev libzip-dev libpng-dev libjpeg-turbo-dev freetype-dev \
+    && docker-php-ext-configure gd --with-jpeg --with-freetype \
+    && docker-php-ext-install intl pdo_mysql zip gd \
     && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS \
     && pecl install redis \
     && docker-php-ext-enable redis \
