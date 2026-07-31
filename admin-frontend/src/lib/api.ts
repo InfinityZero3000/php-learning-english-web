@@ -180,10 +180,22 @@ export type AdminFsrsAnalytics = { type: 'fsrs_analytics'; reviews: number; aver
 export type AdminProgressAnalytics = { type: 'progress_analytics'; completed_lessons: number; by_course: CourseAggregate[]; by_date: DateBucket[] };
 export type AdminImportCheckpoint = { entity: AdminImportEntity; cursor: number; last_synced_at: string | null; failures: number };
 export type AdminImportEntity = 'categories' | 'courses' | 'vocabulary';
+export type AdminImportRunStatus = 'pending' | 'running' | 'succeeded' | 'review-ready' | 'approved' | 'failed';
 export type AdminImportRun = {
-  id: string; request_id: string; entity: AdminImportEntity; status: 'pending' | 'running' | 'succeeded' | 'failed';
+  id: string; request_id: string; entity: AdminImportEntity; status: AdminImportRunStatus;
   requested_limit: number; reset: boolean; starting_cursor: number; processed: number | null; skipped: number | null;
   result_cursor: number | null; error_code: string | null; error_message: string | null; created_at: string; updated_at: string;
+  staged_new_count?: number; staged_update_count?: number; staged_invalid_count?: number;
+};
+
+export type StagedItemClassification = 'new' | 'update' | 'invalid' | 'conflict' | 'unchanged';
+export type StagedItem = {
+  id: number; admin_import_run_id: number; entity: AdminImportEntity; external_id: string | null;
+  classification: StagedItemClassification;
+  incoming_snapshot: Record<string, unknown> | null;
+  existing_snapshot: Record<string, unknown> | null;
+  errors: string[] | null;
+  status: 'staged'; created_at: string; updated_at: string;
 };
 export type AdminNotification = { id: number; type: string; severity: string; state: string; summary: string; created_at: string | null; resolved_at: string | null; read: boolean };
 export type AdminPreferences = { notifications: { operational: boolean }; ui: { compact_sidebar?: boolean } };
@@ -244,7 +256,11 @@ export const adminLearning = {
 
 export const adminImports = {
   checkpoints: () => request<{ data: AdminImportCheckpoint[] }>('/api/v1/admin/imports').then(({ data }) => data),
+  runs: (params: { entity?: AdminImportEntity; status?: string; from?: string; to?: string; page?: number; perPage?: number } = {}) =>
+    request<{ data: AdminImportRun[]; meta: PageMeta }>(`/api/v1/admin/imports/runs?${query({ entity: params.entity, status: params.status, from: params.from, to: params.to, page: params.page, per_page: params.perPage })}`),
   run: (id: string) => request<{ data: AdminImportRun }>(`/api/v1/admin/imports/runs/${id}`).then(({ data }) => data),
+  items: (runId: string, params: { classification?: StagedItemClassification; page?: number; perPage?: number } = {}) =>
+    request<{ data: StagedItem[]; meta: PageMeta }>(`/api/v1/admin/imports/runs/${runId}/items?${query({ classification: params.classification, page: params.page, per_page: params.perPage })}`),
   start: (entity: AdminImportEntity, limit: number) => mutation<{ data: AdminImportRun }>('/api/v1/admin/imports', 'POST', { entity, limit }).then(({ data }) => data),
   resume: (entity: AdminImportEntity, limit: number) => mutation<{ data: AdminImportRun }>('/api/v1/admin/imports', 'POST', { entity, limit }).then(({ data }) => data),
   reset: (entity: AdminImportEntity, limit = 100) => mutation<{ data: AdminImportRun }>('/api/v1/admin/imports/reset', 'POST', { entity, limit }).then(({ data }) => data),
