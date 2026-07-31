@@ -181,9 +181,11 @@ Controller, Form Request, Policy, Resource và Service chỉ được tạo khi 
 ## Trạng thái triển khai
 
 Auth/profile, catalog, quiz, progress, FSRS, learning session, teacher,
-admin/super-admin và hai giao diện Next.js đã có implementation và test. Các
-việc còn lại trước release chủ yếu là đồng bộ OpenAPI, xác minh LexiLingo và
-smoke/rollback trên production; xem
+admin/super-admin và hai giao diện Next.js đã có implementation và test.
+OpenAPI đã đồng bộ với runtime (parity hai chiều được `ApiContractParityTest`
+khoá). Các việc còn lại trước release là mở `apply` sang đủ 6 entity import
+(hiện chỉ `categories`), xác minh LexiLingo với provider thật, smoke test theo
+vai trò trên staging và diễn tập backup/rollback; xem
 [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
 Quy trình cộng tác và tự động deploy được mô tả tại [Development Workflow](docs/DEVELOPMENT_WORKFLOW.md).
