@@ -241,7 +241,9 @@ Route::prefix('api/v1')->group(function (): void {
             Route::get('/admin/imports', [AdminContentOperationsController::class, 'checkpoints']);
             Route::post('/admin/imports', [AdminContentOperationsController::class, 'start']);
             Route::post('/admin/imports/reset', [AdminContentOperationsController::class, 'reset']);
+            Route::get('/admin/imports/runs', [AdminContentOperationsController::class, 'runs']);
             Route::get('/admin/imports/runs/{adminImportRun}', [AdminContentOperationsController::class, 'run']);
+            Route::get('/admin/imports/runs/{adminImportRun}/items', [AdminContentOperationsController::class, 'items']);
             Route::get('/admin/content-feed', [AdminContentOperationsController::class, 'feed']);
             Route::get('/admin/notifications', [AdminContentOperationsController::class, 'notifications']);
             Route::post('/admin/notifications/{supervisionAlert}/read', [AdminContentOperationsController::class, 'readNotification']);

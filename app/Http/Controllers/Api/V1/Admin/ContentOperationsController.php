@@ -9,6 +9,7 @@ use App\Models\AdminImportRun;
 use App\Models\AdminPreference;
 use App\Models\LexiLingoImportCheckpoint;
 use App\Models\LexiLingoImportFailure;
+use App\Models\StagedItem;
 use App\Models\SupervisionAlert;
 use App\Support\ApiResponse;
 use App\Support\LexiLingoClient;
@@ -28,6 +29,8 @@ class ContentOperationsController extends Controller
     public function checkpoints(Request $request): JsonResponse
     {
         $this->content($request);
+        // TODO(#45): expose failure resolution lifecycle once staged-item
+        // review lands — today failures are a count only.
         $checkpoints = collect(self::ENTITIES)->map(function (string $entity): array {
             $checkpoint = LexiLingoImportCheckpoint::query()->where('entity', $entity)->first();
 
@@ -42,11 +45,72 @@ class ContentOperationsController extends Controller
         return ApiResponse::success($checkpoints);
     }
 
+    public function runs(Request $request): JsonResponse
+    {
+        $this->content($request);
+
+        $data = $request->validate([
+            'entity' => ['nullable', 'in:'.implode(',', self::ENTITIES)],
+            'status' => ['nullable', 'in:pending,running,succeeded,review-ready,approved,failed'],
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+        $perPage = (int) ($data['per_page'] ?? 20);
+
+        $page = AdminImportRun::query()
+            ->withCount([
+                'stagedItems as staged_new_count' => fn ($q) => $q->where('classification', 'new'),
+                'stagedItems as staged_update_count' => fn ($q) => $q->where('classification', 'update'),
+                'stagedItems as staged_invalid_count' => fn ($q) => $q->where('classification', 'invalid'),
+            ])
+            ->when($data['entity'] ?? null, fn ($q, $entity) => $q->where('entity', $entity))
+            ->when($data['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
+            ->when($data['from'] ?? null, fn ($q, $from) => $q->where('created_at', '>=', "{$from} 00:00:00"))
+            ->when($data['to'] ?? null, fn ($q, $to) => $q->where('created_at', '<=', "{$to} 23:59:59"))
+            ->latest('created_at')
+            ->paginate($perPage);
+
+        return ApiResponse::success(
+            collect($page->items())->map(fn (AdminImportRun $run): array => [
+                ...$this->runData($run),
+                'staged_new_count' => $run->staged_new_count,
+                'staged_update_count' => $run->staged_update_count,
+                'staged_invalid_count' => $run->staged_invalid_count,
+            ]),
+            meta: ['page' => $page->currentPage(), 'per_page' => $page->perPage(), 'total' => $page->total()],
+        );
+    }
+
     public function run(Request $request, AdminImportRun $adminImportRun): JsonResponse
     {
         $this->content($request);
 
         return ApiResponse::success($this->runData($adminImportRun));
+    }
+
+    public function items(Request $request, AdminImportRun $adminImportRun): JsonResponse
+    {
+        $this->content($request);
+
+        $data = $request->validate([
+            'classification' => ['nullable', 'in:new,update,invalid,conflict,unchanged'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+        $perPage = (int) ($data['per_page'] ?? 25);
+
+        $page = $adminImportRun->stagedItems()
+            ->when($data['classification'] ?? null, fn ($q, $classification) => $q->where('classification', $classification))
+            ->latest('id')
+            ->paginate($perPage);
+
+        return ApiResponse::success(
+            collect($page->items())->map(fn (StagedItem $item): array => $item->only([
+                'id', 'admin_import_run_id', 'entity', 'external_id', 'classification',
+                'incoming_snapshot', 'existing_snapshot', 'errors', 'status', 'created_at', 'updated_at',
+            ])),
+            meta: ['page' => $page->currentPage(), 'per_page' => $page->perPage(), 'total' => $page->total()],
+        );
     }
 
     public function start(Request $request): JsonResponse
