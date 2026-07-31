@@ -35,6 +35,32 @@ paths:
           headers:
             Set-Cookie:
               schema: { type: string }
+  /api/v1/capabilities:
+    get:
+      summary: Read feature-flag capabilities for the current (optional) session
+      operationId: capabilities
+      security: []
+      responses:
+        "200":
+          description: Capability map keyed by feature
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [capabilities]
+                    properties:
+                      capabilities:
+                        type: object
+                        additionalProperties:
+                          type: object
+                          required: [status, enabled]
+                          properties:
+                            status: { type: string, enum: [enabled, unconfigured, role_required] }
+                            enabled: { type: boolean }
   /api/v1/vocabulary:
     get:
       summary: Read locally persisted vocabulary
