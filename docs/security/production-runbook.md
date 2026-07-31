@@ -51,6 +51,14 @@ Apply là Super Admin only, cần Google re-auth mới, khoá hàng đích, so
 đánh `stale` và **không** bị ghi đè. Chỉ item `status='staged'` được ghi, nên
 gọi lại cùng lệnh là no-op.
 
+Checkpoint (`lexilingo_import_checkpoints.cursor`) ghi vị trí catalog **thật sự**
+đã đồng bộ tới, nên nó chỉ tiến khi dữ liệu đã nằm trong catalog: ngay lúc fetch
+với entity ghi trực tiếp, và lúc apply với entity staged. Một staged run bị huỷ
+hoặc không bao giờ được duyệt sẽ không đẩy cửa sổ fetch đi — lần fetch sau vẫn
+thấy đúng trang đó. Checkpoint cũng chỉ tiến khi run không còn item nào ở
+`status='staged'`; item `stale` kết thúc run mà không ghi được hàng của nó, muốn
+lấy lại phải `--reset`.
+
 **Không bao giờ dùng `migrate:rollback` để hoàn tác một import đã apply.** Cột
 ownership là additive; rollback migration sẽ mất provenance của mọi nguồn. Muốn
 hoàn tác nội dung, restore từ backup dữ liệu (mục 2b).
