@@ -195,6 +195,8 @@ class AdminGoogleLoginTest extends TestCase
     public function test_admin_redirect_step_sends_google_back_to_the_admin_domains_own_callback(): void
     {
         $this->seed();
+        config()->set('admin_access.admin_emails', []);
+        config()->set('admin_access.super_admin_emails', ['owner@example.com']);
         config()->set('app.admin_frontend_url', 'http://admin.test');
         $challenge = $this->challenge();
 
