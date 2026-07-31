@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AdminImportRun extends Model
 {
@@ -21,5 +22,10 @@ class AdminImportRun extends Model
     public function actor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'actor_id');
+    }
+
+    public function stagedItems(): HasMany
+    {
+        return $this->hasMany(StagedItem::class);
     }
 }

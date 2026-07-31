@@ -4,12 +4,31 @@ namespace App\Services\Import;
 
 use App\Models\LexiLingoImportCheckpoint;
 use App\Models\LexiLingoImportFailure;
+use App\Models\StagedItem;
 use App\Support\LexiLingoClient;
 use App\Support\LexiLingoSchemaValidator;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
 
 abstract class AbstractLexiLingoImporter
 {
+    /**
+     * Allowlisted fields copied into a StagedItem's incoming/existing
+     * snapshot for the admin review diff. Deliberately separate from (and
+     * wider than) archiveFailure()'s allowlist, but still a strict
+     * intersection — anything not named here can never leak into a
+     * snapshot regardless of what the provider sends. Nested
+     * units/lessons arrays and raw lesson HTML content are intentionally
+     * excluded (Course->Unit->Lesson staged review is out of scope here).
+     */
+    private const STAGED_SNAPSHOT_FIELDS = [
+        'id', 'external_id', 'slug', 'name', 'title', 'word', 'description', 'definition',
+        'translation', 'pronunciation', 'language', 'level', 'part_of_speech',
+        'difficulty_level', 'tags', 'color', 'icon', 'status', 'thumbnail_url', 'estimated_duration',
+    ];
+
+    protected ?int $runId = null;
+
     public function __construct(
         protected readonly LexiLingoClient $client,
         protected readonly LexiLingoSchemaValidator $validator,
@@ -19,6 +38,19 @@ abstract class AbstractLexiLingoImporter
      * Checkpoint/failure-log key: 'categories', 'courses', 'vocabulary'.
      */
     abstract public function entity(): string;
+
+    /**
+     * Associate this importer instance with an admin_import_run so
+     * stageItem() records staged-review rows. No-op (never called) for
+     * direct/CLI/dry-run usage, which keeps the existing direct-apply
+     * import path byte-for-byte unchanged.
+     */
+    public function forRun(?int $runId): static
+    {
+        $this->runId = $runId;
+
+        return $this;
+    }
 
     /**
      * Fetch, validate and (unless dry-run) persist one page starting at the
@@ -82,6 +114,40 @@ abstract class AbstractLexiLingoImporter
             ['entity' => $this->entity(), 'external_id' => $externalId],
             ['payload' => $safePayload, 'errors' => $safeErrors],
         );
+    }
+
+    /**
+     * Record a read-only staged-review row alongside the (unmodified)
+     * direct-apply write. No-op when this importer has no run context
+     * (forRun() never called), so direct/CLI/dry-run/test usage is
+     * unaffected.
+     *
+     * TODO(#44 follow-up/#45): compute 'conflict' (local edits diverge
+     * from provider) and 'unchanged' (shallow-equal payload) once a real
+     * field-level comparator exists — today only 'new'/'update'/'invalid'
+     * are produced.
+     */
+    protected function stageItem(?string $externalId, array $incoming, ?Model $existing, string $classification, array $errors = []): void
+    {
+        if ($this->runId === null) {
+            return;
+        }
+
+        $allowlist = array_flip(self::STAGED_SNAPSHOT_FIELDS);
+        $safeErrors = array_map(
+            fn (mixed $error): string => mb_substr(is_scalar($error) ? (string) $error : 'Invalid provider payload.', 0, 500),
+            array_slice($errors, 0, 20),
+        );
+
+        StagedItem::create([
+            'admin_import_run_id' => $this->runId,
+            'entity' => $this->entity(),
+            'external_id' => $externalId,
+            'classification' => $classification,
+            'incoming_snapshot' => array_intersect_key($incoming, $allowlist),
+            'existing_snapshot' => $existing ? array_intersect_key($existing->getAttributes(), $allowlist) : null,
+            'errors' => $safeErrors === [] ? null : $safeErrors,
+        ]);
     }
 
     protected function logWarning(string $message, array $context = []): void

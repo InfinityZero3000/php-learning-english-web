@@ -28,6 +28,7 @@ class AdminImportRunner
             'vocabulary' => app(LexiLingoVocabularySync::class),
             default => throw new RuntimeException('Unsupported import entity.'),
         };
+        $importer->forRun($run->id);
         $result = $importer->import(
             limit: $run->requested_limit,
             reset: $run->reset,
@@ -35,8 +36,12 @@ class AdminImportRunner
         );
 
         DB::transaction(function () use ($run, $result): void {
+            // TODO(#45): introduce applying/applied states once staged
+            // items gate the write path — today the write already
+            // happened above, so 'review-ready' just means "browse what
+            // was written."
             $run->update([
-                'status' => 'succeeded',
+                'status' => 'review-ready',
                 'processed' => $result->processed,
                 'skipped' => $result->skipped,
                 'result_cursor' => $result->nextCursor,

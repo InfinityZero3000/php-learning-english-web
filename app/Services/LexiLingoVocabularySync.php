@@ -54,12 +54,14 @@ class LexiLingoVocabularySync extends AbstractLexiLingoImporter
 
                     if (! $dryRun) {
                         $this->archiveFailure((string) $item['id'], $item, $errors);
+                        $this->stageItem((string) $item['id'], $item, null, 'invalid', $errors);
                     }
 
                     continue;
                 }
 
                 if (! $dryRun) {
+                    $existing = Vocabulary::where('external_id', (string) $item['id'])->first();
                     Vocabulary::updateOrCreate(
                         ['external_id' => (string) $item['id']],
                         [
@@ -74,6 +76,7 @@ class LexiLingoVocabularySync extends AbstractLexiLingoImporter
                             'external_audio_url' => $item['audio_url'] ?? null,
                         ],
                     );
+                    $this->stageItem((string) $item['id'], $item, $existing, $existing ? 'update' : 'new');
                 }
 
                 $count++;

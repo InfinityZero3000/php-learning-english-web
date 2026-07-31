@@ -81,6 +81,7 @@ class CourseImporter extends AbstractLexiLingoImporter
 
                 if (! $dryRun) {
                     $this->archiveFailure($externalId, $item, [$e->getMessage()]);
+                    $this->stageItem($externalId, $item, null, 'invalid', [$e->getMessage()]);
                 }
             }
         }
@@ -105,6 +106,9 @@ class CourseImporter extends AbstractLexiLingoImporter
      * Upsert one course plus its nested units/lessons. Runs inside the
      * caller's DB::transaction so a failure anywhere here rolls back the
      * whole course (units and lessons included), not just the failing row.
+     *
+     * TODO(#45): stage unit/lesson-level changes once nested dependency
+     * review is in scope — today only the top-level course is staged.
      */
     private function importCourseWithUnits(array $item, string $externalId, array $units, bool $dryRun): void
     {
@@ -114,6 +118,7 @@ class CourseImporter extends AbstractLexiLingoImporter
         $course = null;
 
         if (! $dryRun) {
+            $existing = Course::where('external_id', $externalId)->first();
             $course = Course::updateOrCreate(
                 ['external_id' => $externalId],
                 [
@@ -127,6 +132,7 @@ class CourseImporter extends AbstractLexiLingoImporter
                     'total_xp' => $item['total_xp'] ?? 0,
                 ]
             );
+            $this->stageItem($externalId, $item, $existing, $existing ? 'update' : 'new');
         }
 
         foreach ($units as $unit) {
