@@ -9,6 +9,7 @@ use App\Support\CatalogFingerprint;
 use App\Support\LexiLingoClient;
 use App\Support\LexiLingoSchemaValidator;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
@@ -125,7 +126,7 @@ abstract class AbstractLexiLingoImporter
 
         $checkpoint = $this->checkpoint();
         $checkpoint->cursor = $replace ? $cursor : max((int) $checkpoint->cursor, $cursor);
-        $checkpoint->last_synced_at = now();
+        $checkpoint->last_synced_at = Carbon::now();
         $checkpoint->save();
     }
 
@@ -233,5 +234,48 @@ abstract class AbstractLexiLingoImporter
     protected function logInfo(string $message, array $context = []): void
     {
         Log::info($message, ['entity' => $this->entity(), ...$context]);
+    }
+
+    /**
+     * For page-based APIs (categories, courses), return the fixed server page
+     * size. This decouples the client-side limit from the server's pagination
+     * so that changing the limit between runs never causes skipped/duplicated
+     * items.
+     */
+    protected function serverPageSize(): int
+    {
+        return 100;
+    }
+
+    /**
+     * Fetch one page from a page-based upstream API at the correct offset,
+     * returning only the slice the caller should process.
+     *
+     * Returns: [slice of items to process, next absolute cursor]
+     */
+    protected function fetchPageSlice(string $endpoint, int $offset, int $limit, array $query = []): array
+    {
+        $pageSize = $this->serverPageSize();
+        $page = intdiv($offset, $pageSize) + 1;
+
+        $payload = $this->client->partner()
+            ->get($endpoint, array_merge($query, [
+                'page' => $page,
+                'page_size' => $pageSize,
+            ]))
+            ->throw()
+            ->json();
+
+        $allItems = $this->items($payload);
+
+        $skipInPage = $offset % $pageSize;
+
+        // Slice the page to only the items we have not yet processed,
+        // capped at the requested limit.
+        $slice = array_slice($allItems, $skipInPage, $limit);
+
+        $nextCursor = $offset + count($slice);
+
+        return [$slice, $nextCursor];
     }
 }
