@@ -80,6 +80,7 @@ class AdminContentOperationsApiTest extends TestCase
         $super = $this->user('super_admin');
         $this->actingAs($super);
         session()->put('google_admin_reauthenticated_at', now()->subMinutes(16)->timestamp);
+        session()->put('google_admin_reauthenticated.at', now()->subMinutes(16)->timestamp);
         $this->withHeader('X-Request-ID', (string) Str::uuid())
             ->postJson('/api/v1/admin/imports/reset', ['entity' => 'categories', 'limit' => 1])
             ->assertStatus(428);

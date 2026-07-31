@@ -15,7 +15,7 @@ use App\Models\StagedItem;
 use App\Models\SupervisionAlert;
 use App\Support\ApiResponse;
 use App\Support\LexiLingoClient;
-use App\Support\RecentPassword;
+use App\Support\RecentGoogleAdmin;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\JsonResponse;
@@ -125,10 +125,13 @@ class ContentOperationsController extends Controller
      * TODO(#45 follow-up) on CourseImporter/LessonContentImporter for why
      * courses/vocabulary/lessons aren't wired here yet.
      */
-    public function apply(Request $request, AdminImportRun $adminImportRun, RecentPassword $recentPassword): JsonResponse
+    public function apply(Request $request, AdminImportRun $adminImportRun, RecentGoogleAdmin $recentGoogle): JsonResponse
     {
+        // Capability first: a role that may not apply gets 403, never a 428 that
+        // would confirm it is otherwise authorized and merely needs to re-auth.
         abort_unless($request->user()->can('apply-content-import'), 403);
-        $recentPassword->require($request);
+        abort_unless(config('features.lexilingo_import_apply'), 503, 'LexiLingo import apply is disabled.');
+        $recentGoogle->require($request);
         abort_unless($adminImportRun->entity === 'categories', 422, 'Apply is only available for categories right now.');
 
         $data = $request->validate([
@@ -211,11 +214,11 @@ class ContentOperationsController extends Controller
         return $this->reserve($request, false);
     }
 
-    public function reset(Request $request, RecentPassword $recentPassword): JsonResponse
+    public function reset(Request $request, RecentGoogleAdmin $recentGoogle): JsonResponse
     {
         abort_unless($request->user()->can('retry-content-sync'), 403);
         abort_unless(config('features.lexilingo_import'), 503, 'LexiLingo import is disabled.');
-        $recentPassword->require($request);
+        $recentGoogle->require($request);
 
         return $this->reserve($request, true);
     }
