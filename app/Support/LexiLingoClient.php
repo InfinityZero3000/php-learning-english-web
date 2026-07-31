@@ -14,14 +14,6 @@ class LexiLingoClient
         return $this->client('backend_url');
     }
 
-    public function protectedBackend(): PendingRequest
-    {
-        return $this->backend()->withHeader(
-            'X-Import-Key',
-            $this->credential('import_key'),
-        );
-    }
-
     public function partner(): PendingRequest
     {
         $maxRetries = min(5, max(0, (int) config('services.lexilingo.import_max_retries', 3)));

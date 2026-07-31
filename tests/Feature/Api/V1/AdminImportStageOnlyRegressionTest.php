@@ -78,7 +78,7 @@ class AdminImportStageOnlyRegressionTest extends TestCase
         $this->seed();
         config()->set('features.lexilingo_import', true);
         config()->set('services.lexilingo.backend_url', 'http://localhost');
-        config()->set('services.lexilingo.import_key', 'import-secret');
+        config()->set('services.lexilingo.partner_api_key', 'partner-secret');
         // Provider-owned rows: the content importer only touches lessons whose
         // source_system is 'lexilingo', so a locally authored lesson carrying the
         // same external id is never overwritten.
@@ -88,9 +88,11 @@ class AdminImportStageOnlyRegressionTest extends TestCase
             'title' => 'Lesson', 'slug' => 'lesson-'.Str::random(6), 'sort_order' => 1,
         ]);
         Http::fake([
-            'http://localhost/api/v1/admin/lessons/lesson-ext-1' => Http::response(['data' => [
-                'description' => null, 'prerequisites' => [], 'estimated_minutes' => 10,
-                'pass_threshold' => 60, 'content' => ['text' => 'Hello world'],
+            'http://localhost/api/v1/integrations/lessons/lesson-ext-1/content' => Http::response(['data' => [
+                'id' => 'lesson-ext-1', 'title' => 'Lesson', 'description' => 'Hello world',
+                'lesson_type' => 'vocabulary', 'order_index' => 1, 'xp_reward' => 10,
+                'estimated_minutes' => 10, 'pass_threshold' => 60,
+                'total_exercises' => 0, 'exercises' => [],
             ]]),
         ]);
         $admin = $this->user('admin');

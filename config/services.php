@@ -48,7 +48,6 @@ return [
         'backend_url' => env('LEXILINGO_BACKEND_URL'),
         'ai_url' => env('LEXILINGO_AI_URL'),
         'partner_api_key' => env('LEXILINGO_PARTNER_API_KEY'),
-        'import_key' => env('LEXILINGO_IMPORT_KEY'),
         'ai_service_secret' => env('LEXILINGO_AI_SERVICE_SECRET'),
         'trace_cag_service_token' => env('LEXILINGO_TRACE_CAG_SERVICE_TOKEN'),
         'subject_hmac_secret' => env('LEXILINGO_SUBJECT_HMAC_SECRET'),

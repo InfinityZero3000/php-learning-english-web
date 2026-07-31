@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://learning-english.local/schemas/lexilingo-import.json",
-  "$comment": "Derived from InfinityZero3000/LexiLingo commit 4f74be584a6181acc90dcd72caaae3f47ab3ace1",
+  "$comment": "Derived from InfinityZero3000/LexiLingo commit b4ce2f73b3dc5d6353bc35ff33aa38f11d0d617b",
   "$defs": {
     "Meta": {
       "type": ["object", "array"],
@@ -133,19 +133,53 @@
       },
       "additionalProperties": true
     },
+    "ExerciseOption": {
+      "type": "object",
+      "required": ["id", "text"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "text": { "type": "string", "minLength": 1 },
+        "is_correct": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "Exercise": {
+      "type": "object",
+      "required": ["id", "type", "question", "correct_answer"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": { "type": "string", "enum": ["multiple_choice", "true_false", "fill_blank", "translate", "matching", "reorder"] },
+        "ui_type": { "type": ["string", "null"] },
+        "question": { "type": "string", "minLength": 1 },
+        "options": { "type": ["array", "null"], "items": { "$ref": "#/$defs/ExerciseOption" } },
+        "correct_answer": { "type": "string" },
+        "explanation": { "type": ["string", "null"] },
+        "hint": { "type": ["string", "null"] },
+        "audio_url": { "type": ["string", "null"] },
+        "image_url": { "type": ["string", "null"] },
+        "difficulty": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "points": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
     "LessonContentResponse": {
       "type": "object",
       "required": ["data"],
       "properties": {
         "data": {
           "type": "object",
-          "required": ["description", "prerequisites", "estimated_minutes", "pass_threshold", "content"],
+          "required": ["id", "title", "lesson_type", "order_index", "xp_reward", "pass_threshold", "estimated_minutes", "total_exercises", "exercises"],
           "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "title": { "type": "string", "minLength": 1 },
             "description": { "type": ["string", "null"] },
-            "prerequisites": { "type": "array", "items": { "type": "string" } },
-            "estimated_minutes": { "type": "integer", "minimum": 0 },
+            "lesson_type": { "type": "string", "minLength": 1 },
+            "order_index": { "type": "integer" },
+            "xp_reward": { "type": "integer", "minimum": 0 },
             "pass_threshold": { "type": "integer", "minimum": 0 },
-            "content": {}
+            "estimated_minutes": { "type": "integer", "minimum": 0 },
+            "total_exercises": { "type": "integer", "minimum": 0 },
+            "exercises": { "type": "array", "items": { "$ref": "#/$defs/Exercise" } }
           },
           "additionalProperties": true
         },

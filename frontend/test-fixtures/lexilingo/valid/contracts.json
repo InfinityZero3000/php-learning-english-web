@@ -17,7 +17,7 @@
   },
   {
     "definition": "LessonContentResponse",
-    "payload": { "data": { "description": null, "prerequisites": [], "estimated_minutes": 10, "pass_threshold": 80, "content": { "blocks": [] } }, "meta": {} }
+    "payload": { "data": { "id": "lesson-1", "title": "Greetings", "description": null, "lesson_type": "vocabulary", "order_index": 0, "xp_reward": 10, "pass_threshold": 80, "estimated_minutes": 10, "total_exercises": 1, "exercises": [{ "id": "ex-1", "type": "multiple_choice", "question": "How do you say hello?", "options": [{ "id": "a", "text": "Xin chao", "is_correct": true }], "correct_answer": "a" }] }, "meta": {} }
   },
   {
     "definition": "VocabularyItemList",
