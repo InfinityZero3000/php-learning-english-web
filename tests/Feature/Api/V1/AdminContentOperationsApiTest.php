@@ -35,7 +35,9 @@ class AdminContentOperationsApiTest extends TestCase
             ->assertStatus(202)->assertJsonPath('data.entity', 'categories')
             ->assertJsonPath('data.requested_limit', 10);
         $runId = $response->json('data.id');
-        $this->assertDatabaseHas('admin_import_runs', ['id' => $runId, 'status' => 'succeeded']);
+        // Issue #44: terminal success status renamed to 'review-ready' now that
+        // staged items exist for the admin to browse after a run completes.
+        $this->assertDatabaseHas('admin_import_runs', ['id' => $runId, 'status' => 'review-ready']);
         $this->assertDatabaseHas('lexilingo_import_checkpoints', ['entity' => 'categories', 'cursor' => 1]);
 
         $this->withHeader('X-Request-ID', $requestId)
