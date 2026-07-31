@@ -4,8 +4,8 @@ namespace Database\Seeders;
 
 use App\Models\Answer;
 use App\Models\Course;
-use App\Models\Level;
 use App\Models\Lesson;
+use App\Models\Level;
 use App\Models\Question;
 use App\Models\Quiz;
 use App\Models\Topic;
