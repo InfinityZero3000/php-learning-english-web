@@ -41,6 +41,7 @@ class LessonController extends Controller
     public function store(WriteLessonRequest $request): JsonResponse
     {
         $lesson = Lesson::create($request->validated());
+        $lesson->applyLocalEdit([]);
 
         return ApiResponse::success($this->resource($lesson), status: 201);
     }
@@ -56,7 +57,7 @@ class LessonController extends Controller
     {
         $data = $request->validated();
         unset($data['status']);
-        $lesson->update($data);
+        $lesson->applyLocalEdit($data);
 
         return ApiResponse::success($this->resource($lesson));
     }
@@ -104,7 +105,7 @@ class LessonController extends Controller
             if (($status === 'published' && $locked->status !== 'draft') || ($status === 'archived' && $locked->status === 'archived')) {
                 return false;
             }
-            $locked->update(['status' => $status]);
+            $locked->applyLocalEdit(['status' => $status]);
 
             return $locked;
         });

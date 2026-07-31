@@ -28,6 +28,20 @@ class ProfileApiTest extends TestCase
         $this->assertDatabaseHas('users', ['id' => $user->id, 'name' => 'Deleted user']);
     }
 
+    public function test_learner_account_deletion_still_confirms_the_current_password(): void
+    {
+        $user = User::factory()->create(['password' => 'password']);
+        $this->actingAs($user);
+
+        $this->deleteJson('/api/v1/profile')->assertStatus(422)->assertJsonValidationErrors('password');
+        $this->deleteJson('/api/v1/profile', ['password' => 'wrong-password'])
+            ->assertStatus(422)->assertJsonValidationErrors('password');
+        $this->assertDatabaseHas('users', ['id' => $user->id, 'name' => $user->name]);
+
+        $this->deleteJson('/api/v1/profile', ['password' => 'password'])->assertNoContent();
+        $this->assertDatabaseHas('users', ['id' => $user->id, 'name' => 'Deleted user']);
+    }
+
     public function test_guest_gets_401_on_profile_routes(): void
     {
         $this->putJson('/api/v1/profile', ['name' => 'Updated'])->assertUnauthorized();

@@ -2,16 +2,31 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasCatalogOwnership;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Unit extends Model
 {
+    use HasCatalogOwnership;
+
     protected $fillable = [
-        'course_id', 'external_id', 'title', 'description', 'sort_order',
-        'icon_url', 'background_color',
+        'course_id', 'source_system', 'external_id', 'source_fingerprint',
+        'source_snapshot', 'local_override_at', 'last_synced_at',
+        'catalog_revision', 'title', 'description', 'sort_order',
+        'icon_url', 'background_color', 'status',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'source_snapshot' => 'array',
+            'local_override_at' => 'datetime',
+            'last_synced_at' => 'datetime',
+            'catalog_revision' => 'integer',
+        ];
+    }
 
     public function course(): BelongsTo
     {

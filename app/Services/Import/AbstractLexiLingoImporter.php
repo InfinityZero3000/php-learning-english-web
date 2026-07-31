@@ -5,10 +5,12 @@ namespace App\Services\Import;
 use App\Models\LexiLingoImportCheckpoint;
 use App\Models\LexiLingoImportFailure;
 use App\Models\StagedItem;
+use App\Support\CatalogFingerprint;
 use App\Support\LexiLingoClient;
 use App\Support\LexiLingoSchemaValidator;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
+use RuntimeException;
 
 abstract class AbstractLexiLingoImporter
 {
@@ -55,11 +57,13 @@ abstract class AbstractLexiLingoImporter
     }
 
     /**
-     * When true, importers that check this flag (currently only
-     * CategoryImporter — see issue #45) skip their actual write and only
-     * record a StagedItem for later super-admin approval/apply. Importers
-     * that never check the flag are unaffected, so their direct-apply
-     * behavior stays exactly as it was before this flag existed.
+     * The one switch that decides an entity's write model for this run:
+     * true  → write nothing; stage the row as 'staged' for later approval;
+     * false → write directly via syncFromSource(); stage it as 'applied'.
+     *
+     * Both halves read this same flag (see stageChange()), so a row can never
+     * be live in the catalog and sitting in the approval queue at the same
+     * time. Which entities get which model is decided in AdminImportRunner.
      */
     public function stageOnly(bool $flag = true): static
     {
@@ -133,17 +137,56 @@ abstract class AbstractLexiLingoImporter
     }
 
     /**
-     * Record a read-only staged-review row alongside the (unmodified)
-     * direct-apply write. No-op when this importer has no run context
-     * (forRun() never called), so direct/CLI/dry-run/test usage is
-     * unaffected.
+     * Record one upstream row for the admin review UI.
      *
-     * TODO(#44 follow-up/#45): compute 'conflict' (local edits diverge
-     * from provider) and 'unchanged' (shallow-equal payload) once a real
-     * field-level comparator exists — today only 'new'/'update'/'invalid'
-     * are produced.
+     * Staging serves two different purposes depending on this entity's write
+     * model, and the row's `status` is what tells them apart:
+     *   stageOnly  → nothing was written; status 'staged' means "awaiting approval"
+     *   direct     → the row is already live; status 'applied' means "audit trail"
+     * Without that distinction both look identical to a reviewer, and apply
+     * (which selects on status 'staged') would keep offering rows it will
+     * then refuse. Issue #45 deliberately keeps staging visible for
+     * direct-write entities — this only stops it from reading as a queue.
+     *
+     * Classification comes from the ownership metadata written by
+     * HasCatalogOwnership::syncFromSource(), which is what finally lets
+     * 'conflict' and 'unchanged' be produced instead of merely declared:
+     * a row carrying a local override must never be overwritten, and a row
+     * whose canonical fingerprint is unchanged needs no write at all.
+     *
+     * @param  array  $attributes  the normalized attributes syncFromSource persists,
+     *                             not the raw provider payload — the fingerprint has
+     *                             to be computed over the same canonical shape.
      */
-    protected function stageItem(?string $externalId, array $incoming, ?Model $existing, string $classification, array $errors = []): void
+    protected function stageChange(?string $externalId, array $incoming, ?Model $existing, array $attributes): void
+    {
+        $this->stageItem($externalId, $incoming, $existing, match (true) {
+            $existing === null => 'new',
+            (bool) $existing->local_override_at => 'conflict',
+            $existing->source_fingerprint === CatalogFingerprint::make($this->fingerprintEntity(), $attributes) => 'unchanged',
+            default => 'update',
+        }, status: $this->stageOnly ? 'staged' : 'applied');
+    }
+
+    /** Singular entity key used by CatalogFingerprint. */
+    protected function fingerprintEntity(): string
+    {
+        return match ($this->entity()) {
+            'categories' => 'category',
+            'courses' => 'course',
+            'lessons' => 'lesson',
+            'vocabulary' => 'vocabulary',
+            default => throw new RuntimeException("No fingerprint entity for [{$this->entity()}]."),
+        };
+    }
+
+    /**
+     * Persist one staged-review row. No-op when this importer has no run
+     * context (forRun() never called), so CLI/dry-run/test usage is
+     * unaffected. Callers pass 'invalid' directly; the reviewable
+     * classifications come from stageChange().
+     */
+    protected function stageItem(?string $externalId, array $incoming, ?Model $existing, string $classification, array $errors = [], string $status = 'staged'): void
     {
         if ($this->runId === null) {
             return;
@@ -166,6 +209,7 @@ abstract class AbstractLexiLingoImporter
             // between staging and approval and refuse to overwrite it.
             'existing_revision' => $existing?->updated_at?->toISOString(),
             'errors' => $safeErrors === [] ? null : $safeErrors,
+            'status' => $status,
         ]);
     }
 

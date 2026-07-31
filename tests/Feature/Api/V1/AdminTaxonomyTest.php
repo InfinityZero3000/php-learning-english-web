@@ -129,7 +129,10 @@ class AdminTaxonomyTest extends TestCase
             ->assertJsonPath('data.name', 'Updated Name')
             ->assertJsonPath('data.slug', 'updated-slug');
 
-        $this->assertDatabaseHas('topics', ['id' => $topic->id, 'name' => 'Updated Name']);
+        $this->assertDatabaseHas('topics', [
+            'id' => $topic->id, 'name' => 'Updated Name', 'catalog_revision' => 1,
+        ]);
+        $this->assertNotNull($topic->fresh()->local_override_at);
     }
 
     public function test_admin_can_delete_topic(): void
@@ -248,6 +251,10 @@ class AdminTaxonomyTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.name', 'Updated Cat')
             ->assertJsonPath('data.is_active', false);
+
+        $category->refresh();
+        $this->assertSame(1, $category->catalog_revision);
+        $this->assertNotNull($category->local_override_at);
     }
 
     public function test_admin_can_delete_category(): void

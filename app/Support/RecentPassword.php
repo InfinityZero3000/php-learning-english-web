@@ -5,19 +5,17 @@ namespace App\Support;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\Validator;
-use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class RecentPassword
 {
+    public function __construct(private readonly RecentGoogleAdmin $recentGoogle) {}
+
     public function require(Request $request): void
     {
         if ($request->session()->has('google_admin')) {
-            $confirmedAt = (int) $request->session()->get('google_admin_reauthenticated_at', 0);
-            if (Date::now()->timestamp - $confirmedAt <= 900) {
-                return;
-            }
+            $this->recentGoogle->require($request);
 
-            throw new HttpException(428, 'Recent Google verification is required.');
+            return;
         }
 
         $confirmedAt = $request->session()->get('auth.password_confirmed_at', 0);

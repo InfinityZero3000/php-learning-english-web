@@ -75,6 +75,7 @@ class LessonAdminController extends Controller
         $validated['status'] = $validated['status'] ?? 'draft';
 
         $lesson = Lesson::create($validated);
+        $lesson->applyLocalEdit([]);
 
         Log::info('admin.lesson.created', [
             'user_id' => $request->user()->id,
@@ -114,7 +115,7 @@ class LessonAdminController extends Controller
         // Never overwrite external_id from LexiLingo
         unset($validated['external_id']);
 
-        $lesson->update($validated);
+        $lesson->applyLocalEdit($validated);
 
         Log::info('admin.lesson.updated', [
             'user_id' => $request->user()->id,

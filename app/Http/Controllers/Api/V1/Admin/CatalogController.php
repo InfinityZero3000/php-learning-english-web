@@ -146,7 +146,7 @@ class CatalogController extends Controller
             $updates['audio_path'] = null;
         }
         try {
-            DB::transaction(fn () => $vocabulary->update($updates));
+            DB::transaction(fn () => $vocabulary->applyLocalEdit($updates));
         } catch (\Throwable $exception) {
             Storage::disk('public')->delete($this->ownedVocabularyMediaPaths($new));
             throw $exception;
@@ -224,6 +224,7 @@ class CatalogController extends Controller
         try {
             $course = DB::transaction(function () use ($request, $data, $fingerprint, $topicIds): Course {
                 $course = Course::create($data);
+                $course->applyLocalEdit([]);
                 $course->topics()->sync($topicIds);
                 $this->audit($request, 'course.created', $course, $fingerprint, null);
 
@@ -260,7 +261,7 @@ class CatalogController extends Controller
         try {
             DB::transaction(function () use ($request, $course, $data, $fingerprint, $topicIds): void {
                 $before = $course->toArray();
-                $course->update($data);
+                $course->applyLocalEdit($data);
                 if ($topicIds !== null) {
                     $course->topics()->sync($topicIds);
                 }
@@ -355,7 +356,7 @@ class CatalogController extends Controller
                     return false;
                 }
                 $before = $locked->toArray();
-                $locked->update(['status' => $status]);
+                $locked->applyLocalEdit(['status' => $status]);
                 $this->audit($request, $action, $locked, $fingerprint, $before);
 
                 return $locked;
@@ -441,6 +442,9 @@ class CatalogController extends Controller
         try {
             $model = DB::transaction(function () use ($request, $modelClass, $type, $data, $action, $fingerprint, $vocabularyIds): Model {
                 $model = $modelClass::create($data);
+                if (method_exists($model, 'applyLocalEdit')) {
+                    $model->applyLocalEdit([]);
+                }
                 if ($model instanceof VocabularyDeck && $vocabularyIds) {
                     $model->vocabularies()->sync($this->orderedPivot($vocabularyIds));
                 }
@@ -472,7 +476,11 @@ class CatalogController extends Controller
         try {
             DB::transaction(function () use ($request, $model, $type, $data, $action, $fingerprint, $vocabularyIds): void {
                 $before = $model->toArray();
-                $model->update($data);
+                if (method_exists($model, 'applyLocalEdit')) {
+                    $model->applyLocalEdit($data);
+                } else {
+                    $model->update($data);
+                }
                 if ($model instanceof VocabularyDeck && $vocabularyIds !== null) {
                     $model->vocabularies()->sync($this->orderedPivot($vocabularyIds));
                     $model->loadCount('vocabularies');

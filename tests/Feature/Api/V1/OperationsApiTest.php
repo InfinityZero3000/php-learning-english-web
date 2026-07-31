@@ -23,7 +23,7 @@ class OperationsApiTest extends TestCase
             ->assertJsonStructure(['data' => ['features', 'services', 'open_alerts']]);
     }
 
-    public function test_super_admin_can_version_quota_and_alert_rule_with_recent_password(): void
+    public function test_super_admin_can_version_quota_and_alert_rule_with_recent_google_verification(): void
     {
         $this->seed();
         $admin = $this->user('super_admin');
@@ -34,13 +34,11 @@ class OperationsApiTest extends TestCase
         $this->actingAs($admin)->withHeader('X-Request-ID', (string) Str::uuid())
             ->putJson('/api/v1/admin/operations/quota-policy', [
                 'limits' => ['trace_cag_daily' => 100],
-                'password' => 'password',
             ])->assertOk()->assertJsonPath('data.version', 1);
         $this->withHeader('X-Request-ID', (string) Str::uuid())
             ->putJson("/api/v1/admin/operations/alert-rules/{$rule->id}", [
                 'enabled' => false,
                 'parameters' => ['days' => 10],
-                'password' => 'password',
             ])->assertOk()->assertJsonPath('data.version', 2);
         $this->assertDatabaseCount('operations_audits', 2);
     }
@@ -53,25 +51,55 @@ class OperationsApiTest extends TestCase
 
         $request->putJson('/api/v1/admin/operations/quota-policy', [
             'limits' => ['trace_cag_daily' => 100],
-            'password' => 'password',
         ])->assertOk();
         $request->putJson('/api/v1/admin/operations/quota-policy', [
             'limits' => ['trace_cag_daily' => 100],
-            'password' => 'password',
         ])->assertOk()->assertJsonPath('data.version', 1);
         $request->putJson('/api/v1/admin/operations/quota-policy', [
             'limits' => ['trace_cag_daily' => 200],
-            'password' => 'password',
         ])->assertConflict();
 
         $this->assertDatabaseCount('quota_policies', 1);
         $this->assertDatabaseCount('operations_audits', 1);
     }
 
+    public function test_quota_and_alert_rule_authorize_before_requiring_fresh_google_verification(): void
+    {
+        $this->seed();
+        $rule = AlertRule::create([
+            'rule_key' => 'inactivity', 'version' => 1, 'enabled' => true, 'parameters' => [],
+        ]);
+
+        $this->actingAs($this->user('admin'));
+        session()->forget('google_admin_reauthenticated');
+        $this->withHeader('X-Request-ID', (string) Str::uuid())
+            ->putJson('/api/v1/admin/operations/quota-policy', ['limits' => ['trace_cag_daily' => 10]])
+            ->assertForbidden();
+        $this->withHeader('X-Request-ID', (string) Str::uuid())
+            ->putJson("/api/v1/admin/operations/alert-rules/{$rule->id}", ['enabled' => false, 'parameters' => []])
+            ->assertForbidden();
+
+        $super = $this->user('super_admin');
+        $this->actingAs($super);
+        session()->put('google_admin_reauthenticated.at', now()->subMinutes(16)->timestamp);
+        $this->withHeader('X-Request-ID', (string) Str::uuid())
+            ->putJson('/api/v1/admin/operations/quota-policy', ['limits' => ['trace_cag_daily' => 10]])
+            ->assertStatus(428)->assertJsonPath('message', 'Recent Google verification is required.');
+
+        $this->actingAs($super);
+        session()->put('google_admin_reauthenticated.subject', 'another-google-subject');
+        $this->withHeader('X-Request-ID', (string) Str::uuid())
+            ->putJson("/api/v1/admin/operations/alert-rules/{$rule->id}", ['enabled' => false, 'parameters' => []])
+            ->assertStatus(428);
+
+        $this->assertDatabaseCount('quota_policies', 0);
+        $this->assertDatabaseCount('operations_audits', 0);
+        $this->assertSame(1, $rule->fresh()->version);
+    }
+
     private function user(string $role): User
     {
         return User::factory()->create([
-            'password' => 'password',
             'role_id' => Role::where('slug', $role)->value('id'),
         ]);
     }

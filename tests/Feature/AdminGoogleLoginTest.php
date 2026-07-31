@@ -38,7 +38,8 @@ class AdminGoogleLoginTest extends TestCase
         ])->assertOk()
             ->assertJsonPath('data.return', '/dashboard')
             ->assertJsonPath('data.user.role', 'super_admin')
-            ->assertSessionHas('google_admin.email', 'owner@example.com');
+            ->assertSessionHas('google_admin.email', 'owner@example.com')
+            ->assertSessionHas('google_admin_reauthenticated.subject', 'google-subject-1');
 
         $user = User::query()->where('email', 'owner@example.com')->firstOrFail();
         $this->assertSame('google-subject-1', $user->google_id);
@@ -115,6 +116,23 @@ class AdminGoogleLoginTest extends TestCase
             ->assertRedirect('http://admin.test/login?error=configuration');
 
         $this->assertDatabaseMissing('users', ['email' => 'owner@example.com']);
+    }
+
+    public function test_google_entry_preserves_only_a_safe_import_run_return(): void
+    {
+        $this->seed();
+        config()->set('app.frontend_url', 'http://learner.test');
+        $admin = User::factory()->create([
+            'role_id' => Role::query()->where('slug', 'admin')->value('id'),
+        ]);
+
+        $response = $this->actingAs($admin)->get('/api/v1/auth/oauth/google/admin?return='.urlencode('/import?run=42'));
+        parse_str((string) parse_url($response->headers->get('Location'), PHP_URL_QUERY), $query);
+        $this->assertSame('/import?run=42', Cache::get("admin-google-challenge:{$query['challenge']}")['return']);
+
+        $unsafe = $this->get('/api/v1/auth/oauth/google/admin?return='.urlencode('/import?run=42&next=https://evil.test'));
+        parse_str((string) parse_url($unsafe->headers->get('Location'), PHP_URL_QUERY), $unsafeQuery);
+        $this->assertSame('/dashboard', Cache::get("admin-google-challenge:{$unsafeQuery['challenge']}")['return']);
     }
 
     private function challenge(): string
