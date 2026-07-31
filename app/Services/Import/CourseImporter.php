@@ -22,15 +22,11 @@ class CourseImporter extends AbstractLexiLingoImporter
     {
         $offset = $this->startingCursor($reset, $cursor);
 
-        $payload = $this->client->partner()
-            ->get('/api/v1/integrations/courses', [
-                'page' => intdiv($offset, $limit) + 1,
-                'page_size' => $limit,
-            ])
-            ->throw()
-            ->json();
-
-        $items = $this->items($payload);
+        [$items, $nextCursor] = $this->fetchPageSlice(
+            '/api/v1/integrations/courses',
+            $offset,
+            $limit
+        );
 
         $processed = 0;
         $skipped = 0;
@@ -52,7 +48,7 @@ class CourseImporter extends AbstractLexiLingoImporter
                 ]);
 
                 if (! $dryRun) {
-                    $this->archiveFailure($item['id'] ?? null, $item, $errors);
+                    $this->archiveFailure($item['id'] ?? null, $item, $errors, ImportErrorCode::PayloadInvalid);
                 }
 
                 continue;
@@ -60,34 +56,37 @@ class CourseImporter extends AbstractLexiLingoImporter
 
             $externalId = (string) $item['id'];
 
-            $detail = $this->client->partner()
-                ->get("/api/v1/integrations/courses/{$externalId}")
-                ->throw()
-                ->json();
-
-            $detailData = is_array($detail) ? ($detail['data'] ?? $detail) : [];
-            $units = $detailData['units'] ?? [];
-
+            // Course detail fetch + nested write are one error boundary: a
+            // provider failure or DB conflict on this course must not stop
+            // the remaining courses in the page from being imported.
             try {
+                $detail = $this->client->partner()
+                    ->get("/api/v1/integrations/courses/{$externalId}")
+                    ->throw()
+                    ->json();
+
+                $detailData = is_array($detail) ? ($detail['data'] ?? $detail) : [];
+                $units = $detailData['units'] ?? [];
+
                 DB::transaction(function () use ($item, $externalId, $units, $dryRun) {
                     $this->importCourseWithUnits($item, $externalId, $units, $dryRun);
                 });
                 $processed++;
             } catch (Throwable $e) {
                 $skipped++;
-                $this->logWarning('Course import failed, transaction rolled back', [
+                $errorCode = $this->classifyImportError($e);
+                $this->logWarning('Course import failed, skipping this course', [
                     'external_id' => $externalId,
+                    'error_code' => $errorCode->value,
                     'error' => $e->getMessage(),
                 ]);
 
                 if (! $dryRun) {
-                    $this->archiveFailure($externalId, $item, [$e->getMessage()]);
+                    $this->archiveFailure($externalId, $item, [$e->getMessage()], $errorCode);
                     $this->stageItem($externalId, $item, null, 'invalid', [$e->getMessage()]);
                 }
             }
         }
-
-        $nextCursor = $offset + count($items);
 
         if (! $dryRun) {
             $this->advanceCheckpoint($nextCursor, $reset);
@@ -166,7 +165,7 @@ class CourseImporter extends AbstractLexiLingoImporter
                 ]);
 
                 if (! $dryRun) {
-                    $this->archiveFailure($unit['id'] ?? null, $unit, $unitErrors);
+                    $this->archiveFailure($unit['id'] ?? null, $unit, $unitErrors, ImportErrorCode::PayloadInvalid);
                 }
 
                 continue;

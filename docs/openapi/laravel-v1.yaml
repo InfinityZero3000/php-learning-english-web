@@ -24,14 +24,25 @@ paths:
                 properties:
                   status: { const: ok }
                   version: { const: v1 }
+  /api/v1/csrf-cookie:
+    get:
+      summary: Initialize the CSRF cookie
+      operationId: csrfCookie
+      security: []
+      responses:
+        "204":
+          description: CSRF cookie initialized
+          headers:
+            Set-Cookie:
+              schema: { type: string }
   /api/v1/capabilities:
     get:
-      summary: Read system capability flags for the current user session
-      operationId: getCapabilities
+      summary: Read feature-flag capabilities for the current (optional) session
+      operationId: capabilities
       security: []
       responses:
         "200":
-          description: Capabilities map
+          description: Capability map keyed by feature
           content:
             application/json:
               schema:
@@ -44,17 +55,12 @@ paths:
                     properties:
                       capabilities:
                         type: object
-  /api/v1/csrf-cookie:
-    get:
-      summary: Initialize the CSRF cookie
-      operationId: csrfCookie
-      security: []
-      responses:
-        "204":
-          description: CSRF cookie initialized
-          headers:
-            Set-Cookie:
-              schema: { type: string }
+                        additionalProperties:
+                          type: object
+                          required: [status, enabled]
+                          properties:
+                            status: { type: string, enum: [enabled, unconfigured, role_required] }
+                            enabled: { type: boolean }
   /api/v1/vocabulary:
     get:
       summary: Read locally persisted vocabulary

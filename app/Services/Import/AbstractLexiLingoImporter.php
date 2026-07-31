@@ -9,8 +9,13 @@ use App\Support\CatalogFingerprint;
 use App\Support\LexiLingoClient;
 use App\Support\LexiLingoSchemaValidator;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\QueryException;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
+use Throwable;
 
 abstract class AbstractLexiLingoImporter
 {
@@ -125,11 +130,11 @@ abstract class AbstractLexiLingoImporter
 
         $checkpoint = $this->checkpoint();
         $checkpoint->cursor = $replace ? $cursor : max((int) $checkpoint->cursor, $cursor);
-        $checkpoint->last_synced_at = now();
+        $checkpoint->last_synced_at = Carbon::now();
         $checkpoint->save();
     }
 
-    protected function archiveFailure(?string $externalId, array $payload, array $errors): void
+    protected function archiveFailure(?string $externalId, array $payload, array $errors, ImportErrorCode $errorCode): void
     {
         $safePayload = array_intersect_key($payload, array_flip([
             'id', 'slug', 'name', 'title', 'word', 'language', 'level', 'part_of_speech',
@@ -141,8 +146,23 @@ abstract class AbstractLexiLingoImporter
 
         LexiLingoImportFailure::updateOrCreate(
             ['entity' => $this->entity(), 'external_id' => $externalId],
-            ['payload' => $safePayload, 'errors' => $safeErrors],
+            ['error_code' => $errorCode->value, 'payload' => $safePayload, 'errors' => $safeErrors],
         );
+    }
+
+    /**
+     * Map an exception raised while fetching or persisting a single item to
+     * one of the finite error codes surfaced in run results/audit, instead
+     * of the raw (potentially internal) exception message.
+     */
+    protected function classifyImportError(Throwable $e): ImportErrorCode
+    {
+        return match (true) {
+            $e instanceof ConnectionException => ImportErrorCode::ProviderTimeout,
+            $e instanceof RequestException => ImportErrorCode::ProviderRejected,
+            $e instanceof QueryException => ImportErrorCode::WriteFailed,
+            default => ImportErrorCode::WriteFailed,
+        };
     }
 
     /**
@@ -233,5 +253,48 @@ abstract class AbstractLexiLingoImporter
     protected function logInfo(string $message, array $context = []): void
     {
         Log::info($message, ['entity' => $this->entity(), ...$context]);
+    }
+
+    /**
+     * For page-based APIs (categories, courses), return the fixed server page
+     * size. This decouples the client-side limit from the server's pagination
+     * so that changing the limit between runs never causes skipped/duplicated
+     * items.
+     */
+    protected function serverPageSize(): int
+    {
+        return 100;
+    }
+
+    /**
+     * Fetch one page from a page-based upstream API at the correct offset,
+     * returning only the slice the caller should process.
+     *
+     * Returns: [slice of items to process, next absolute cursor]
+     */
+    protected function fetchPageSlice(string $endpoint, int $offset, int $limit, array $query = []): array
+    {
+        $pageSize = $this->serverPageSize();
+        $page = intdiv($offset, $pageSize) + 1;
+
+        $payload = $this->client->partner()
+            ->get($endpoint, array_merge($query, [
+                'page' => $page,
+                'page_size' => $pageSize,
+            ]))
+            ->throw()
+            ->json();
+
+        $allItems = $this->items($payload);
+
+        $skipInPage = $offset % $pageSize;
+
+        // Slice the page to only the items we have not yet processed,
+        // capped at the requested limit.
+        $slice = array_slice($allItems, $skipInPage, $limit);
+
+        $nextCursor = $offset + count($slice);
+
+        return [$slice, $nextCursor];
     }
 }

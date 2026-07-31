@@ -15,6 +15,7 @@ use App\Services\Import\CategoryImporter;
 use App\Services\Import\CourseImporter;
 use App\Services\LexiLingoVocabularySync;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 use Tests\TestCase;
@@ -343,6 +344,296 @@ class LexiLingoImportTest extends TestCase
             'entity' => 'vocabulary',
             'external_id' => 'lexi-word-bad',
         ]);
+    }
+
+    /**
+     * Verify that changing the limit between import runs does not skip or
+     * duplicate items when the upstream API is page-based (categories, courses).
+     *
+     * Sequence: limit 50 → 100 → 25 → 50 with 250 total items should
+     * process 175 unique items with no gaps and no repeats.
+     */
+    public function test_page_based_cursor_is_stable_across_varying_limits(): void
+    {
+        $totalItems = 250;
+        $allItems = array_map(
+            fn (int $i) => [
+                'id' => "cat-{$i}",
+                'name' => "Category {$i}",
+                'slug' => "category-{$i}",
+                'description' => null,
+                'icon' => null,
+                'color' => null,
+                'course_count' => 0,
+            ],
+            range(0, $totalItems - 1),
+        );
+
+        $serverPageSize = 100;
+
+        Http::fake([
+            'backend.lexilingo.test/api/v1/integrations/categories*' => function (Request $request) use (&$allItems, $serverPageSize) {
+                $query = [];
+                parse_str(parse_url($request->url(), PHP_URL_QUERY) ?? '', $query);
+                $page = max(1, (int) ($query['page'] ?? 1));
+                $pageSize = max(1, (int) ($query['page_size'] ?? $serverPageSize));
+
+                $offset = ($page - 1) * $pageSize;
+                $slice = array_slice($allItems, $offset, $pageSize);
+
+                return Http::response($slice);
+            },
+        ]);
+
+        $importer = $this->app->make(CategoryImporter::class);
+
+        // Run 1: limit 50, cursor starts at 0
+        $r1 = $importer->import(limit: 50, reset: true);
+        $this->assertSame(50, $r1->processed);
+        $this->assertSame(50, $r1->nextCursor);
+
+        // Run 2: limit 100, cursor = 50, should process items 50-99 from page 1 (50 items)
+        $r2 = $importer->import(limit: 100);
+        $this->assertSame(50, $r2->processed, 'Second run should process 50 remaining items on page 1');
+        $this->assertSame(100, $r2->nextCursor);
+
+        // Run 3: limit 25, cursor = 100, should fetch page 2 and process items 100-124
+        $r3 = $importer->import(limit: 25);
+        $this->assertSame(25, $r3->processed);
+        $this->assertSame(125, $r3->nextCursor);
+
+        // Run 4: continue with limit 50, cursor = 125, page 2 skip 25, process items 125-174
+        $r4 = $importer->import(limit: 50);
+        $this->assertSame(50, $r4->processed);
+        $this->assertSame(175, $r4->nextCursor);
+
+        // The processed counts across all runs must equal the number of unique
+        // rows actually persisted -- if any item had been reprocessed by a
+        // later run, the row count would be lower than the processed sum
+        // because upserts on a duplicate external_id do not create new rows.
+        $totalProcessed = $r1->processed + $r2->processed + $r3->processed + $r4->processed;
+        $this->assertSame(175, $totalProcessed, 'Total imported items must equal sum of limits processed');
+        $this->assertDatabaseCount('course_categories', 175);
+
+        // Verify external IDs 0-174 exist with no gaps.
+        $dbIds = CourseCategory::query()->pluck('external_id')->all();
+        $expectedIds = array_map(fn (int $i) => "cat-{$i}", range(0, 174));
+        sort($dbIds, SORT_NATURAL);
+        sort($expectedIds, SORT_NATURAL);
+        $this->assertSame($expectedIds, $dbIds);
+
+        // Checkpoint cursor = 175
+        $this->assertDatabaseHas('lexilingo_import_checkpoints', [
+            'entity' => 'categories',
+            'cursor' => 175,
+        ]);
+    }
+
+    public function test_reset_starts_from_beginning_and_clears_checkpoint(): void
+    {
+        $items = array_map(
+            fn (int $i) => [
+                'id' => "cat-{$i}",
+                'name' => "Category {$i}",
+                'slug' => "category-{$i}",
+                'description' => null,
+                'icon' => null,
+                'color' => null,
+                'course_count' => 0,
+            ],
+            range(0, 149),
+        );
+
+        Http::fake([
+            'backend.lexilingo.test/api/v1/integrations/categories*' => function (Request $request) use (&$items) {
+                $query = [];
+                parse_str(parse_url($request->url(), PHP_URL_QUERY) ?? '', $query);
+                $page = max(1, (int) ($query['page'] ?? 1));
+                $pageSize = max(1, (int) ($query['page_size'] ?? 100));
+                $offset = ($page - 1) * $pageSize;
+
+                return Http::response(array_slice($items, $offset, $pageSize));
+            },
+        ]);
+
+        $importer = $this->app->make(CategoryImporter::class);
+
+        // First import: process 60 items, cursor goes to 60
+        $r1 = $importer->import(limit: 60);
+        $this->assertSame(60, $r1->processed);
+        $this->assertSame(60, $r1->nextCursor);
+        $this->assertDatabaseHas('lexilingo_import_checkpoints', [
+            'entity' => 'categories',
+            'cursor' => 60,
+        ]);
+
+        // Reset: should start from cursor 0 again
+        $r2 = $importer->import(limit: 50, reset: true);
+        $this->assertSame(50, $r2->processed);
+        $this->assertSame(50, $r2->nextCursor);
+        $this->assertDatabaseHas('lexilingo_import_checkpoints', [
+            'entity' => 'categories',
+            'cursor' => 50,
+        ]);
+
+        // Verify items 0-59 exist (from first run) and are exactly 60
+        $dbIds = CourseCategory::query()->pluck('external_id')->all();
+        sort($dbIds, SORT_NATURAL);
+        $expectedIds = array_map(fn (int $i) => "cat-{$i}", range(0, 59));
+        $this->assertSame($expectedIds, $dbIds);
+    }
+
+    public function test_import_is_idempotent_when_rerun_with_same_cursor(): void
+    {
+        $items = array_map(
+            fn (int $i) => [
+                'id' => "cat-{$i}",
+                'name' => "Category {$i}",
+                'slug' => "category-{$i}",
+                'description' => null,
+                'icon' => null,
+                'color' => null,
+                'course_count' => 0,
+            ],
+            range(0, 99),
+        );
+
+        Http::fake([
+            'backend.lexilingo.test/api/v1/integrations/categories*' => function (Request $request) use (&$items) {
+                $query = [];
+                parse_str(parse_url($request->url(), PHP_URL_QUERY) ?? '', $query);
+                $page = max(1, (int) ($query['page'] ?? 1));
+                $pageSize = max(1, (int) ($query['page_size'] ?? 100));
+
+                return Http::response(array_slice($items, ($page - 1) * $pageSize, $pageSize));
+            },
+        ]);
+
+        $importer = $this->app->make(CategoryImporter::class);
+
+        // First run: process 30 items, cursor = 30
+        $importer->import(limit: 30, reset: true);
+        $countBefore = CourseCategory::query()->count();
+        $this->assertSame(30, $countBefore);
+
+        // Rerun with explicit cursor=0 — idempotent, same items upserted
+        $r2 = $importer->import(limit: 30, cursor: 0);
+        $this->assertSame(30, $r2->processed);
+        $countAfter = CourseCategory::query()->count();
+        $this->assertSame(30, $countAfter, 'Rerun with same cursor should not create duplicates');
+
+        // Rerun with cursor=10 (partial overlap)
+        $r3 = $importer->import(limit: 20, cursor: 10);
+        $this->assertSame(20, $r3->processed);
+        $countAfter2 = CourseCategory::query()->count();
+        $this->assertSame(30, $countAfter2, 'Partial overlap rerun should not create duplicates');
+    }
+
+    /**
+     * One course's detail request failing (provider 5xx) must not stop the
+     * other courses in the same page from being imported, and must not
+     * block the checkpoint from advancing (which would otherwise retry the
+     * same failing course forever).
+     */
+    public function test_course_detail_failure_does_not_block_subsequent_courses(): void
+    {
+        Level::create(['name' => 'Beginner', 'slug' => 'beginner', 'sort_order' => 1]);
+        config()->set('services.lexilingo.import_max_retries', 0);
+        config()->set('services.lexilingo.import_delay_ms', 0);
+
+        $courseFixture = fn (string $id, string $title) => [
+            'id' => $id,
+            'title' => $title,
+            'description' => null,
+            'language' => 'en',
+            'level' => 'beginner',
+            'tags' => [],
+            'thumbnail_url' => null,
+            'total_lessons' => 0,
+            'total_xp' => 0,
+            'estimated_duration' => 0,
+        ];
+
+        Http::fake([
+            'backend.lexilingo.test/api/v1/integrations/lessons/*/content' => Http::response([], 404),
+            'backend.lexilingo.test/api/v1/integrations/courses/course-1' => Http::response(['data' => ['id' => 'course-1', 'units' => []]]),
+            'backend.lexilingo.test/api/v1/integrations/courses/course-2' => Http::response(['message' => 'Internal error'], 500),
+            'backend.lexilingo.test/api/v1/integrations/courses/course-3' => Http::response(['data' => ['id' => 'course-3', 'units' => []]]),
+            'backend.lexilingo.test/api/v1/integrations/courses*' => Http::response([
+                $courseFixture('course-1', 'Course One'),
+                $courseFixture('course-2', 'Course Two'),
+                $courseFixture('course-3', 'Course Three'),
+            ]),
+        ]);
+
+        $result = $this->app->make(CourseImporter::class)->import(limit: 50);
+
+        $this->assertSame(2, $result->processed);
+        $this->assertSame(1, $result->skipped);
+        $this->assertSame(3, $result->nextCursor, 'Checkpoint must advance past the whole page even though one course failed');
+
+        $this->assertDatabaseHas('courses', ['external_id' => 'course-1']);
+        $this->assertDatabaseMissing('courses', ['external_id' => 'course-2']);
+        $this->assertDatabaseHas('courses', ['external_id' => 'course-3']);
+
+        $this->assertDatabaseHas('lexilingo_import_failures', [
+            'entity' => 'courses',
+            'external_id' => 'course-2',
+            'error_code' => 'provider_rejected',
+        ]);
+    }
+
+    /**
+     * A DB-level conflict writing one category (e.g. a duplicate slug) must
+     * not roll back categories already persisted earlier in the same page.
+     */
+    public function test_category_write_conflict_does_not_roll_back_other_categories(): void
+    {
+        Http::fake([
+            'backend.lexilingo.test/api/v1/integrations/categories*' => Http::response([
+                ['id' => 'cat-1', 'name' => 'Cat One', 'slug' => 'shared-slug', 'description' => null, 'icon' => null, 'color' => null, 'course_count' => 0],
+                ['id' => 'cat-2', 'name' => 'Cat Two', 'slug' => 'shared-slug', 'description' => null, 'icon' => null, 'color' => null, 'course_count' => 0],
+                ['id' => 'cat-3', 'name' => 'Cat Three', 'slug' => 'cat-3-slug', 'description' => null, 'icon' => null, 'color' => null, 'course_count' => 0],
+            ]),
+        ]);
+
+        $result = $this->app->make(CategoryImporter::class)->import(limit: 50);
+
+        $this->assertSame(2, $result->processed);
+        $this->assertSame(1, $result->skipped);
+
+        $this->assertDatabaseHas('course_categories', ['external_id' => 'cat-1', 'slug' => 'shared-slug']);
+        $this->assertDatabaseMissing('course_categories', ['external_id' => 'cat-2']);
+        $this->assertDatabaseHas('course_categories', ['external_id' => 'cat-3']);
+
+        $this->assertDatabaseHas('lexilingo_import_failures', [
+            'entity' => 'categories',
+            'external_id' => 'cat-2',
+            'error_code' => 'write_failed',
+        ]);
+    }
+
+    public function test_archived_failures_never_contain_provider_credentials_or_raw_payload(): void
+    {
+        Http::fake([
+            'backend.lexilingo.test/api/v1/integrations/categories*' => Http::response([
+                ['id' => 'cat-1', 'name' => 'Cat One', 'slug' => 'dup-slug', 'description' => null, 'icon' => null, 'color' => null, 'course_count' => 0],
+                [
+                    'id' => 'cat-2', 'name' => 'Cat Two', 'slug' => 'dup-slug',
+                    'description' => null, 'icon' => null, 'color' => null, 'course_count' => 0,
+                    'internal_note' => 'should never be archived',
+                ],
+            ]),
+        ]);
+
+        $this->app->make(CategoryImporter::class)->import(limit: 50);
+
+        $failure = LexiLingoImportFailure::query()->where('external_id', 'cat-2')->firstOrFail();
+
+        $this->assertArrayNotHasKey('internal_note', $failure->payload);
+        foreach ($failure->errors as $error) {
+            $this->assertStringNotContainsString('partner-secret', $error);
+        }
     }
 
     public function test_disabled_feature_blocks_both_cli_entry_points_before_network_access(): void

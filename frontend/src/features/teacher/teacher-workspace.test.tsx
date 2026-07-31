@@ -53,7 +53,7 @@ const mockLearners: TeacherLearner[] = [
 const mockAlerts: SupervisionAlert[] = [
   {
     id: 101,
-    learner: { id: 1, name: "Learner One" },
+    learner: { id: 1, name: "Learner One", email: "one@example.com" },
     rule_key: "inactivity_warning",
     severity: "warning",
     state: "open",
@@ -65,17 +65,15 @@ const mockAlerts: SupervisionAlert[] = [
 const mockAssignments: TeacherAssignment[] = [
   {
     id: 201,
-    learner: { id: 1, name: "Learner One" },
-    lesson: { id: 1, title: "Basic Grammar" },
+    learner: { id: 1, name: "Learner One", email: "one@example.com" },
+    lesson: { title: "Basic Grammar" },
     status: "pending",
-    created_at: "2026-07-31T10:00:00Z",
   },
   {
     id: 202,
-    learner: { id: 2, name: "Learner Two" },
-    lesson: { id: 2, title: "Advanced Vocabulary" },
+    learner: { id: 2, name: "Learner Two", email: "two@example.com" },
+    lesson: { title: "Advanced Vocabulary" },
     status: "completed",
-    created_at: "2026-07-30T10:00:00Z",
   },
 ];
 
@@ -83,12 +81,9 @@ const mockCourses: CourseCard[] = [
   {
     id: 1,
     title: "English 101",
-    slug: "english-101",
     description: "Intro course",
-    level: { id: 1, name: "Beginner", slug: "beginner" },
-    topic: { id: 1, name: "General", slug: "general" },
-    lesson_count: 5,
-    vocabulary_count: 50,
+    level: { name: "Beginner" },
+    lessons_count: 5,
   },
 ];
 

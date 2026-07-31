@@ -3,7 +3,7 @@
 namespace App\Services\Import;
 
 use App\Models\CourseCategory;
-use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class CategoryImporter extends AbstractLexiLingoImporter
 {
@@ -16,45 +16,44 @@ class CategoryImporter extends AbstractLexiLingoImporter
     {
         $offset = $this->startingCursor($reset, $cursor);
 
-        $payload = $this->client->partner()
-            ->get('/api/v1/integrations/categories', [
-                'page' => intdiv($offset, $limit) + 1,
-                'page_size' => $limit,
-            ])
-            ->throw()
-            ->json();
-
-        $items = $this->items($payload);
+        [$items, $nextCursor] = $this->fetchPageSlice(
+            '/api/v1/integrations/categories',
+            $offset,
+            $limit
+        );
 
         $processed = 0;
         $skipped = 0;
 
-        DB::transaction(function () use ($items, $dryRun, &$processed, &$skipped) {
-            foreach ($items as $item) {
-                if (! is_array($item)) {
-                    $skipped++;
+        foreach ($items as $item) {
+            if (! is_array($item)) {
+                $skipped++;
 
-                    continue;
-                }
+                continue;
+            }
 
-                $errors = $this->validator->validate('Category', $item);
+            $errors = $this->validator->validate('Category', $item);
 
-                if ($errors !== []) {
-                    $skipped++;
-                    $this->logWarning('Skipped invalid category payload', [
-                        'external_id' => $item['id'] ?? null,
-                        'errors' => $errors,
-                    ]);
-
-                    if (! $dryRun) {
-                        $this->archiveFailure($item['id'] ?? null, $item, $errors);
-                        $this->stageItem($item['id'] ?? null, $item, null, 'invalid', $errors);
-                    }
-
-                    continue;
-                }
+            if ($errors !== []) {
+                $skipped++;
+                $this->logWarning('Skipped invalid category payload', [
+                    'external_id' => $item['id'] ?? null,
+                    'errors' => $errors,
+                ]);
 
                 if (! $dryRun) {
+                    $this->archiveFailure($item['id'] ?? null, $item, $errors, ImportErrorCode::PayloadInvalid);
+                    $this->stageItem($item['id'] ?? null, $item, null, 'invalid', $errors);
+                }
+
+                continue;
+            }
+
+            // Each category is its own write boundary: a DB conflict on
+            // this row must not roll back categories already persisted
+            // earlier in the same page.
+            if (! $dryRun) {
+                try {
                     // Source-scoped: a locally authored row that happens to carry the
                     // same external id is not this importer's target.
                     $existing = CourseCategory::query()
@@ -75,13 +74,22 @@ class CategoryImporter extends AbstractLexiLingoImporter
                         CourseCategory::syncFromSource('category', 'lexilingo', (string) $item['id'], $attributes);
                     }
                     $this->stageChange((string) $item['id'], $item, $existing, $attributes);
+                } catch (Throwable $e) {
+                    $skipped++;
+                    $errorCode = $this->classifyImportError($e);
+                    $this->logWarning('Category write failed, skipping this category', [
+                        'external_id' => $item['id'] ?? null,
+                        'error_code' => $errorCode->value,
+                        'error' => $e->getMessage(),
+                    ]);
+                    $this->archiveFailure($item['id'] ?? null, $item, [$e->getMessage()], $errorCode);
+
+                    continue;
                 }
-
-                $processed++;
             }
-        });
 
-        $nextCursor = $offset + count($items);
+            $processed++;
+        }
 
         if (! $dryRun) {
             $this->advanceCheckpoint($nextCursor, $reset);

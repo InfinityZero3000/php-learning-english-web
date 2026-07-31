@@ -4,12 +4,13 @@ namespace App\Services;
 
 use App\Models\Vocabulary;
 use App\Services\Import\AbstractLexiLingoImporter;
+use App\Services\Import\ImportErrorCode;
 use App\Services\Import\ImportResult;
 use App\Services\Import\TagTopicImporter;
 use App\Support\LexiLingoClient;
 use App\Support\LexiLingoSchemaValidator;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Throwable;
 
 class LexiLingoVocabularySync extends AbstractLexiLingoImporter
 {
@@ -49,30 +50,33 @@ class LexiLingoVocabularySync extends AbstractLexiLingoImporter
         $count = 0;
         $this->lastSkipped = 0;
 
-        DB::transaction(function () use ($items, $dryRun, &$count): void {
-            foreach ($items as $item) {
-                if (! is_array($item) || empty($item['id']) || empty($item['word'])) {
-                    continue;
-                }
+        foreach ($items as $item) {
+            if (! is_array($item) || empty($item['id']) || empty($item['word'])) {
+                continue;
+            }
 
-                $errors = $this->validator->validate('VocabularyItem', $item);
+            $errors = $this->validator->validate('VocabularyItem', $item);
 
-                if ($errors !== []) {
-                    $this->lastSkipped++;
-                    $this->logWarning('Skipped invalid vocabulary payload', [
-                        'external_id' => $item['id'],
-                        'errors' => $errors,
-                    ]);
-
-                    if (! $dryRun) {
-                        $this->archiveFailure((string) $item['id'], $item, $errors);
-                        $this->stageItem((string) $item['id'], $item, null, 'invalid', $errors);
-                    }
-
-                    continue;
-                }
+            if ($errors !== []) {
+                $this->lastSkipped++;
+                $this->logWarning('Skipped invalid vocabulary payload', [
+                    'external_id' => $item['id'],
+                    'errors' => $errors,
+                ]);
 
                 if (! $dryRun) {
+                    $this->archiveFailure((string) $item['id'], $item, $errors, ImportErrorCode::PayloadInvalid);
+                    $this->stageItem((string) $item['id'], $item, null, 'invalid', $errors);
+                }
+
+                continue;
+            }
+
+            // Each vocabulary item is its own write boundary: a DB conflict
+            // on this row must not roll back items already persisted
+            // earlier in the same page.
+            if (! $dryRun) {
+                try {
                     $existing = Vocabulary::query()->where('source_system', 'lexilingo')
                         ->where('external_id', (string) $item['id'])->first();
                     $tags = TagTopicImporter::normalizeTags(is_array($item['tags'] ?? null) ? $item['tags'] : []);
@@ -98,11 +102,22 @@ class LexiLingoVocabularySync extends AbstractLexiLingoImporter
                         Vocabulary::syncFromSource('vocabulary', 'lexilingo', (string) $item['id'], $attributes);
                     }
                     $this->stageChange((string) $item['id'], $item, $existing, $attributes);
-                }
+                } catch (Throwable $e) {
+                    $this->lastSkipped++;
+                    $errorCode = $this->classifyImportError($e);
+                    $this->logWarning('Vocabulary write failed, skipping this item', [
+                        'external_id' => $item['id'],
+                        'error_code' => $errorCode->value,
+                        'error' => $e->getMessage(),
+                    ]);
+                    $this->archiveFailure((string) $item['id'], $item, [$e->getMessage()], $errorCode);
 
-                $count++;
+                    continue;
+                }
             }
-        });
+
+            $count++;
+        }
 
         if (! $dryRun) {
             $this->advanceCheckpoint($offset + count($items), $replaceCheckpoint);
