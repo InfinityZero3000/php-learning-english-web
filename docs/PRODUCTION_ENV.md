@@ -73,8 +73,7 @@ Không sử dụng Mailtrap Sandbox ở production.
 |---|---:|---:|---|
 | `LEXILINGO_BACKEND_URL` | Khi sync dataset | Không | HTTPS origin của Backend Service, không thêm `/api/v1` |
 | `LEXILINGO_AI_URL` | Khi dùng AI/STT/TTS/TraceCAG | Không | HTTPS origin của AI Service |
-| `LEXILINGO_PARTNER_API_KEY` | Khi sync category/course/vocabulary | Có | Gửi bằng `X-LexiLingo-API-Key`, dùng cho `LexiLingoClient::partner()` |
-| `LEXILINGO_IMPORT_KEY` | Khi sync lesson content protected | Có | Key chỉ có quyền `content:read`; không dùng admin token 30 phút |
+| `LEXILINGO_PARTNER_API_KEY` | Khi sync category/course/vocabulary/lesson content | Có | Gửi bằng `X-LexiLingo-API-Key`, dùng cho `LexiLingoClient::partner()`. `LessonContentImporter` cũng dùng key này gọi `GET /api/v1/integrations/lessons/{id}/content` — không có key riêng cho lesson |
 | `LEXILINGO_AI_SERVICE_SECRET` | Khi gọi internal AI | Có | Gửi bằng `X-AI-Service-Secret` |
 | `LEXILINGO_TRACE_CAG_SERVICE_TOKEN` | Khi bật `FEATURE_AI` | Có | Gửi bằng `X-LexiLingo-Service-Token` tới `POST /api/v1/integrations/trace-cag/v1/analyze`. Phải khớp `TRACE_CAG_SERVICE_TOKEN_HASH` (SHA-256 của token này) phía AI Service, cùng với `TRACE_CAG_EXTERNAL_ENABLED=true` — hai biến đó **không nằm trong repo này**, đặt trực tiếp trên AI Service |
 | `LEXILINGO_SUBJECT_HMAC_SECRET` | Khi bật `FEATURE_AI` | Có | Tối thiểu 32 ký tự; ký subject ẩn danh (HMAC-SHA256 của `user_id`) gửi cho TraceCAG thay vì lộ `user_id` thật. Thiếu biến này TraceCAG luôn trả kết quả `degraded` (fallback nội bộ), không lỗi 500 |
@@ -83,6 +82,13 @@ Không sử dụng Mailtrap Sandbox ở production.
 | `LEXILINGO_AI_RETRY_TIMES` | Không | Không | `2`; số lần thử lại khi timeout/5xx trên proxy AI (`/api/v1/ai/*`, `/api/v1/stt/*`, `/api/v1/tts/*`), không retry lỗi 4xx |
 | `LEXILINGO_AI_RETRY_DELAY_MS` | Không | Không | `200`; thời gian chờ giữa các lần retry |
 | `LEXILINGO_AI_MAX_AUDIO_KB` | Không | Không | `10240` (10 MB); giới hạn dung lượng file audio gửi lên cho pronunciation/STT |
+
+`LEXILINGO_IMPORT_KEY`/`X-Import-Key` đã bị xoá — LexiLingo xác nhận biến này chưa từng
+được backend-service đọc (`docs/api_docs.md` của repo LexiLingo). `LessonContentImporter`
+trước đây gọi nhầm route admin nội bộ (`/api/v1/admin/lessons/{id}`, cần session admin
+thật của LexiLingo) thay vì route partner công khai; đã sửa sang
+`GET /api/v1/integrations/lessons/{id}/content`, xác thực bằng `LEXILINGO_PARTNER_API_KEY`
+sẵn có.
 
 ### Feature flag AI/TraceCAG
 
@@ -195,7 +201,7 @@ fly secrets set APP_KEY
 fly secrets set DB_HOST DB_DATABASE DB_USERNAME DB_PASSWORD
 fly secrets set REDIS_URL
 fly secrets set MAIL_USERNAME MAIL_PASSWORD
-fly secrets set LEXILINGO_IMPORT_KEY LEXILINGO_AI_SERVICE_SECRET
+fly secrets set LEXILINGO_PARTNER_API_KEY LEXILINGO_AI_SERVICE_SECRET
 ```
 
 Các URL/config không nhạy cảm có thể đặt trong `fly.toml` hoặc bằng

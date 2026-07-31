@@ -195,7 +195,7 @@ class CourseImporter extends AbstractLexiLingoImporter
                     ->value('source_snapshot');
                 $contentAttributes = array_intersect_key(
                     is_array($existingSnapshot) ? $existingSnapshot : json_decode($existingSnapshot ?: '[]', true, flags: JSON_THROW_ON_ERROR),
-                    array_flip(['content', 'estimated_minutes', 'pass_threshold', 'quiz_tree']),
+                    array_flip(['content', 'estimated_minutes', 'pass_threshold', 'exercises']),
                 );
 
                 Lesson::syncFromSource('lesson', 'lexilingo', $lessonExternalId, [

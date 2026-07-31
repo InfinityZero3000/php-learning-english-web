@@ -11,7 +11,7 @@ final class CatalogFingerprint
         'category' => ['name', 'slug', 'description', 'icon', 'color'],
         'course' => ['category_external_id', 'level', 'title', 'slug', 'description', 'status', 'language', 'thumbnail_url', 'estimated_duration', 'total_xp'],
         'unit' => ['course_external_id', 'title', 'description', 'sort_order', 'icon_url', 'background_color', 'status'],
-        'lesson' => ['unit_external_id', 'title', 'slug', 'content', 'sort_order', 'status', 'lesson_type', 'estimated_minutes', 'xp_reward', 'pass_threshold', 'quiz_tree'],
+        'lesson' => ['unit_external_id', 'title', 'slug', 'content', 'sort_order', 'status', 'lesson_type', 'estimated_minutes', 'xp_reward', 'pass_threshold', 'exercises'],
         'topic' => ['name', 'slug'],
         'vocabulary' => ['word', 'meaning', 'definition', 'translation', 'pronunciation', 'part_of_speech', 'difficulty_level', 'tags', 'example', 'external_audio_url', 'topic_external_ids'],
     ];
