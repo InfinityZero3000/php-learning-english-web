@@ -52,6 +52,7 @@ export function TeacherWorkspace() {
   const [note, setNote] = useState("");
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<"error" | "success" | "info">("info");
 
   const updateQuery = useCallback(
     (changes: Record<string, string | null>) => {
@@ -93,6 +94,11 @@ export function TeacherWorkspace() {
     [updateQuery]
   );
 
+  const notify = (text: string, type: "error" | "success" | "info" = "info") => {
+    setMessage(text);
+    setMessageType(type);
+  };
+
   const load = useCallback(async () => {
     setState("loading");
     setMessage("");
@@ -110,6 +116,7 @@ export function TeacherWorkspace() {
       setState("ready");
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : "Không thể tải teacher workspace.");
+      setMessageType("error");
       setState("error");
     }
   }, []);
@@ -127,7 +134,7 @@ export function TeacherWorkspace() {
       setProgress(nextProgress);
       setEvidence(nextEvidence);
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Không thể tải bằng chứng học tập.");
+      notify(reason instanceof Error ? reason.message : "Không thể tải bằng chứng học tập.", "error");
     }
   }, []);
 
@@ -149,7 +156,7 @@ export function TeacherWorkspace() {
       const response = await api.catalogCourseLessons(Number(value));
       setLessons(response.data);
     } catch {
-      setMessage("Không thể tải danh sách bài học.");
+      notify("Không thể tải danh sách bài học.", "error");
     }
   }
 
@@ -161,18 +168,18 @@ export function TeacherWorkspace() {
       const lesson = await api.catalogLesson(Number(value));
       setVocabularies(lesson.vocabularies ?? []);
     } catch {
-      setMessage("Không thể tải từ vựng bài học.");
+      notify("Không thể tải từ vựng bài học.", "error");
     }
   }
 
   async function createAssignment(event: React.FormEvent) {
     event.preventDefault();
     if (!selectedLearner) {
-      setMessage("Vui lòng chọn học viên trước khi giao bài.");
+      notify("Vui lòng chọn học viên trước khi giao bài.", "error");
       return;
     }
     if (!lessonId || (target === "vocabulary" && !vocabularyId)) {
-      setMessage("Vui lòng chọn lesson và từ vựng hợp lệ.");
+      notify("Vui lòng chọn lesson và từ vựng hợp lệ.", "error");
       return;
     }
     try {
@@ -185,43 +192,43 @@ export function TeacherWorkspace() {
       setAssignments((current) => [created, ...current]);
       setInstructions("");
       setDueAt("");
-      setMessage("Đã giao bài cho học viên.");
+      notify("Đã giao bài cho học viên.", "success");
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Không thể giao bài.");
+      notify(reason instanceof Error ? reason.message : "Không thể giao bài.", "error");
     }
   }
 
   async function saveNote(event: React.FormEvent) {
     event.preventDefault();
     if (!selectedLearner) {
-      setMessage("Vui lòng chọn học viên trước khi lưu ghi chú.");
+      notify("Vui lòng chọn học viên trước khi lưu ghi chú.", "error");
       return;
     }
     if (!note.trim()) {
-      setMessage("Vui lòng nhập nội dung ghi chú hỗ trợ.");
+      notify("Vui lòng nhập nội dung ghi chú hỗ trợ.", "error");
       return;
     }
     try {
       await api.createInterventionNote({ learner_id: selectedLearner, note: note.trim() });
       setNote("");
-      setMessage("Đã lưu intervention note.");
+      notify("Đã lưu intervention note.", "success");
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Không thể lưu ghi chú.");
+      notify(reason instanceof Error ? reason.message : "Không thể lưu ghi chú.", "error");
     }
   }
 
   async function resolve(alert: SupervisionAlert) {
     if (selectedLearner !== alert.learner.id) {
       selectLearner(alert.learner.id);
-      setMessage("Hãy xem bằng chứng của học viên trước khi xác nhận xử lý.");
+      notify("Hãy xem bằng chứng của học viên trước khi xác nhận xử lý.", "info");
       return;
     }
     try {
       const updated = await api.resolveAlert(alert.id, "teacher_reviewed", "Đã xem bằng chứng và lập kế hoạch hỗ trợ.");
       setAlerts((items) => items.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
-      setMessage("Đã đóng cảnh báo sau khi xem bằng chứng.");
+      notify("Đã đóng cảnh báo sau khi xem bằng chứng.", "success");
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Không thể xử lý cảnh báo.");
+      notify(reason instanceof Error ? reason.message : "Không thể xử lý cảnh báo.", "error");
     }
   }
 
@@ -229,9 +236,9 @@ export function TeacherWorkspace() {
     try {
       const updated = await api.updateTeacherAssignment(id, { status });
       setAssignments((items) => items.map((item) => (item.id === id ? updated : item)));
-      setMessage("Đã cập nhật assignment.");
+      notify("Đã cập nhật assignment.", "success");
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Không thể cập nhật assignment.");
+      notify(reason instanceof Error ? reason.message : "Không thể cập nhật assignment.", "error");
     }
   }
 
@@ -265,7 +272,18 @@ export function TeacherWorkspace() {
       </header>
 
       {message && (
-        <p role="status" aria-live="polite" className="rounded-xl border-2 border-primary/20 bg-accent p-4 font-semibold">
+        <p
+          role="status"
+          aria-live="polite"
+          className={`rounded-xl border-2 p-4 font-semibold ${
+            messageType === "error"
+              ? "border-red-300 bg-red-50 text-red-800"
+              : messageType === "success"
+              ? "border-green-300 bg-green-50 text-green-800"
+              : "border-amber-300 bg-amber-50 text-amber-800"
+          }`}
+        >
+          {messageType === "error" ? "⚠️ " : messageType === "success" ? "✅ " : "ℹ️ "}
           {message}
         </p>
       )}

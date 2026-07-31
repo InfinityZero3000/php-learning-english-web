@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "pnpm@9.15.4",
   "scripts": {
-    "dev": "NODE_OPTIONS='--max-old-space-size=512' next dev --hostname 0.0.0.0",
+    "dev": "next dev --hostname 0.0.0.0",
     "build": "next build",
     "start": "next start --hostname 0.0.0.0",
     "lint": "eslint .",
