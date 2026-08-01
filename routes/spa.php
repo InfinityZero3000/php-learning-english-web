@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\Admin\CatalogController as AdminCatalogControlle
 use App\Http\Controllers\Api\V1\Admin\ContentOperationsController as AdminContentOperationsController;
 use App\Http\Controllers\Api\V1\Admin\CourseAdminController;
 use App\Http\Controllers\Api\V1\Admin\CourseCategoryController;
+use App\Http\Controllers\Api\V1\Admin\FileCatalogImportController as AdminFileCatalogImportController;
 use App\Http\Controllers\Api\V1\Admin\LearningController as AdminLearningController;
 use App\Http\Controllers\Api\V1\Admin\LessonAdminController;
 use App\Http\Controllers\Api\V1\Admin\LessonController as AdminLessonController;
@@ -263,6 +264,12 @@ Route::prefix('api/v1')->group(function (): void {
             Route::get('/admin/imports/runs/{adminImportRun}', [AdminContentOperationsController::class, 'run']);
             Route::get('/admin/imports/runs/{adminImportRun}/items', [AdminContentOperationsController::class, 'items']);
             Route::post('/admin/imports/runs/{adminImportRun}/apply', [AdminContentOperationsController::class, 'apply']);
+            Route::get('/admin/imports/file/template', [AdminFileCatalogImportController::class, 'template']);
+            Route::post('/admin/imports/file', [AdminFileCatalogImportController::class, 'upload']);
+            Route::get('/admin/imports/file/runs', [AdminFileCatalogImportController::class, 'runs']);
+            Route::get('/admin/imports/file/runs/{adminImportRun}', [AdminFileCatalogImportController::class, 'run']);
+            Route::get('/admin/imports/file/runs/{adminImportRun}/items', [AdminFileCatalogImportController::class, 'items']);
+            Route::post('/admin/imports/file/runs/{adminImportRun}/apply', [AdminFileCatalogImportController::class, 'apply']);
             Route::get('/admin/content-feed', [AdminContentOperationsController::class, 'feed']);
             Route::get('/admin/notifications', [AdminContentOperationsController::class, 'notifications']);
             Route::post('/admin/notifications/{supervisionAlert}/read', [AdminContentOperationsController::class, 'readNotification']);

@@ -2934,6 +2934,137 @@ paths:
         "422": { $ref: "#/components/responses/ValidationError" }
         "428": { $ref: "#/components/responses/RecentGoogleAuthRequired" }
         "503": { $ref: "#/components/responses/FeatureDisabled" }
+  /api/v1/admin/imports/file:
+    post:
+      summary: Upload a course/unit/lesson/vocabulary file for staged review
+      description: >-
+        Admin-uploaded CSV, XLSX/XLS, or text-layer PDF using the fixed
+        file-catalog-import template (download it from
+        `/api/v1/admin/imports/file/template`). Parses and groups rows into
+        a course/unit/lesson/vocabulary tree and stages one StagedItem per
+        course for review; nothing is written to the catalog yet. Gated by
+        `features.file_catalog_import`. Fully separate from
+        `/api/v1/admin/imports*`: those runs are LexiLingo checkpoint/cursor
+        re-syncs, this is a one-shot upload that only ever creates new
+        records, scoped by `entity = 'file_catalog'`.
+      operationId: createAdminImportsFile
+      security: [{ session: [], csrf: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/RequestId" }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        "201": { $ref: "#/components/responses/DataResponse" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "503": { $ref: "#/components/responses/FeatureDisabled" }
+  /api/v1/admin/imports/file/runs:
+    get:
+      summary: Read admin imports file runs
+      operationId: adminImportsFileRuns
+      security: [{ session: [] }]
+      responses:
+        "200": { $ref: "#/components/responses/DataResponse" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /api/v1/admin/imports/file/runs/{adminImportRun}:
+    get:
+      summary: Read admin imports file runs adminImportRun
+      operationId: adminImportsFileRuns2
+      security: [{ session: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/ImportRunId" }
+      responses:
+        "200": { $ref: "#/components/responses/DataResponse" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/admin/imports/file/runs/{adminImportRun}/items:
+    get:
+      summary: Read admin imports file runs adminImportRun items
+      operationId: adminImportsFileRunsItems
+      security: [{ session: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/ImportRunId" }
+      responses:
+        "200": { $ref: "#/components/responses/DataResponse" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/admin/imports/file/runs/{adminImportRun}/apply:
+    post:
+      summary: Apply a file-catalog import run to the catalog
+      description: >-
+        Creates brand-new Course/Unit/Lesson/Vocabulary rows from a staged
+        file-catalog run. Super Admin only, gated by
+        `features.file_catalog_import` and a Google re-auth bound to this
+        session and subject. Only `file_catalog` runs are accepted; any
+        other entity is rejected with `422`. Each staged course is written
+        in its own transaction — a slug collision or any other failure marks
+        that item `failed` without blocking the rest of the run, and only
+        items with status `staged` are ever written, which makes replaying
+        the same call a no-op.
+      operationId: createAdminImportsFileRunsApply
+      security: [{ session: [], csrf: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/ImportRunId" }
+        - { $ref: "#/components/parameters/RequestId" }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ImportApplyRequest" }
+      responses:
+        "200":
+          description: Per-item outcome of the apply
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [applied, failed]
+                    properties:
+                      applied: { type: array, items: { type: integer } }
+                      failed: { type: array, items: { type: integer } }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "419": { $ref: "#/components/responses/CsrfError" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "428": { $ref: "#/components/responses/RecentGoogleAuthRequired" }
+        "503": { $ref: "#/components/responses/FeatureDisabled" }
+  /api/v1/admin/imports/file/template:
+    get:
+      summary: Download the file-catalog-import CSV template
+      description: >-
+        The header row plus example rows double as the spec for all three
+        supported formats — CSV/XLSX open the file directly, and a
+        text-layer PDF must contain the same header and rows as
+        pipe-delimited plain text lines.
+      operationId: adminImportsFileTemplate
+      security: [{ session: [] }]
+      responses:
+        "200":
+          description: CSV template file
+          content:
+            text/csv:
+              schema: { type: string }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "503": { $ref: "#/components/responses/FeatureDisabled" }
   /api/v1/admin/content-feed:
     get:
       summary: Read admin content feed
