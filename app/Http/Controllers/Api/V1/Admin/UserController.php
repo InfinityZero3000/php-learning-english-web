@@ -67,8 +67,8 @@ class UserController extends Controller
                 'email' => $data['email'],
                 'password' => Hash::make($data['password']),
                 'role_id' => $role->id,
-                'email_verified_at' => now(),
             ]);
+            $user->forceFill(['email_verified_at' => now()])->save();
             $this->audit($request, 'user.created', 'user', $user->id, $fingerprint, null, $this->user($user->load('role:id,name,slug')));
 
             return $user;

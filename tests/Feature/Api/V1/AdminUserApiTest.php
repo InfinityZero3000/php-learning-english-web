@@ -118,6 +118,7 @@ class AdminUserApiTest extends TestCase
                 'name' => 'New User', 'email' => 'new-user@example.com', 'password' => 'password123', 'role' => 'learner',
             ])->assertCreated()->assertJsonPath('data.email', 'new-user@example.com')->json('data');
         $this->assertDatabaseHas('users', ['id' => $created['id'], 'email' => 'new-user@example.com']);
+        $this->assertNotNull($created['email_verified_at'], 'Admin-created users should be pre-verified.');
 
         $this->withHeader('X-Request-ID', (string) Str::uuid())
             ->deleteJson("/api/v1/admin/users/{$created['id']}")->assertNoContent();
