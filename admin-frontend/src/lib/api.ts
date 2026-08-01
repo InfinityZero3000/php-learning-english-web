@@ -164,6 +164,12 @@ export const adminUsers = {
     return request<{ data: AdminUser[]; meta: PageMeta }>(`/api/v1/admin/users?${q}`);
   },
   get: (id: number) => request<{ data: AdminUser }>(`/api/v1/admin/users/${id}`).then(({ data }) => data),
+  create: (payload: { name: string; email: string; password: string; role: string }) =>
+    request<{ data: AdminUser }>('/api/v1/admin/users', {
+      method: 'POST', headers: { 'X-Request-ID': crypto.randomUUID() }, body: JSON.stringify(payload)
+    }).then(({ data }) => data),
+  remove: (id: number) =>
+    request<null>(`/api/v1/admin/users/${id}`, { method: 'DELETE', headers: { 'X-Request-ID': crypto.randomUUID() } }),
   assignRole: (id: number, role: string) =>
     request<{ data: AdminUser }>(`/api/v1/admin/users/${id}/role`, {
       method: 'PUT', headers: { 'X-Request-ID': crypto.randomUUID() }, body: JSON.stringify({ role })

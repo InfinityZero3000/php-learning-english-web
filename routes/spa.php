@@ -201,7 +201,9 @@ Route::prefix('api/v1')->group(function (): void {
             Route::get('/admin/operations/audit-events', [OperationsController::class, 'audits']);
             Route::get('/admin/audit-logs', [AuditLogController::class, 'index']);
             Route::get('/admin/users', [AdminUserController::class, 'index']);
+            Route::post('/admin/users', [AdminUserController::class, 'store']);
             Route::get('/admin/users/{user}', [AdminUserController::class, 'show']);
+            Route::delete('/admin/users/{user}', [AdminUserController::class, 'destroy'])->whereNumber('user');
             Route::put('/admin/users/{user}/role', [AdminUserController::class, 'updateRole']);
             Route::get('/admin/roles', [AdminUserController::class, 'roles']);
             Route::get('/admin/operations/teacher-assignments', [AdminUserController::class, 'teacherAssignments']);
