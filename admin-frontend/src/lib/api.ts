@@ -298,6 +298,40 @@ export const adminImports = {
   reset: (entity: AdminImportEntity, limit = 100) => mutation<{ data: AdminImportRun }>('/api/v1/admin/imports/reset', 'POST', { entity, limit }).then(({ data }) => data),
 };
 
+export type FileCatalogVocabulary = { word: string; meaning: string; pronunciation: string | null; part_of_speech: string | null; example: string | null };
+export type FileCatalogLesson = { title: string; content: string; vocabulary: FileCatalogVocabulary[] };
+export type FileCatalogUnit = { title: string; lessons: FileCatalogLesson[] };
+export type FileCatalogCourseTree = { title: string; slug: string; units: FileCatalogUnit[] };
+export type FileCatalogStagedItem = {
+  id: number; admin_import_run_id: number; entity: 'file_catalog'; external_id: string | null;
+  classification: 'new' | 'invalid';
+  incoming_snapshot: FileCatalogCourseTree | null;
+  existing_snapshot: null;
+  errors: string[] | null;
+  status: 'staged' | 'applied' | 'stale' | 'failed'; created_at: string; updated_at: string;
+};
+
+/** Bulk course/unit/lesson/vocabulary import from an admin-uploaded CSV/XLSX/XLS/PDF file. */
+export const adminFileImports = {
+  templateUrl: '/api/v1/admin/imports/file/template',
+  upload: (file: File) => {
+    const body = new FormData();
+    body.append('file', file);
+
+    return request<{ data: { run: AdminImportRun; staged_items: { data: FileCatalogStagedItem[]; meta: PageMeta } } }>(
+      '/api/v1/admin/imports/file',
+      { method: 'POST', headers: { 'X-Request-ID': crypto.randomUUID() }, body },
+    ).then(({ data }) => data);
+  },
+  runs: (params: { status?: string; page?: number; perPage?: number } = {}) =>
+    request<{ data: AdminImportRun[]; meta: PageMeta }>(`/api/v1/admin/imports/file/runs?${query({ status: params.status, page: params.page, per_page: params.perPage })}`),
+  run: (id: string) => request<{ data: AdminImportRun }>(`/api/v1/admin/imports/file/runs/${id}`).then(({ data }) => data),
+  items: (runId: string, params: { page?: number; perPage?: number } = {}) =>
+    request<{ data: FileCatalogStagedItem[]; meta: PageMeta }>(`/api/v1/admin/imports/file/runs/${runId}/items?${query({ page: params.page, per_page: params.perPage })}`),
+  apply: (runId: string, itemIds?: number[]) =>
+    mutation<{ data: { applied: number[]; failed: number[] } }>(`/api/v1/admin/imports/file/runs/${runId}/apply`, 'POST', itemIds ? { item_ids: itemIds } : {}).then(({ data }) => data),
+};
+
 export const adminFeed = {
   search: (source: 'youtube' | 'news', q = '') => request<{ data: ContentFeedItem[] }>(`/api/v1/admin/content-feed?${query({ source, q })}`).then(({ data }) => data),
 };

@@ -16,6 +16,7 @@ export const adminNavigation = [
       { href: '/flashcards', icon: 'translate', label: 'Vocabulary' },
       { href: '/decks', icon: 'style', label: 'Decks' },
       { href: '/import', icon: 'cloud_download', label: 'Import Jobs' },
+      { href: '/import-file', icon: 'upload_file', label: 'File Import' },
       { href: '/content', icon: 'dynamic_feed', label: 'Content Feed' },
     ],
   },
