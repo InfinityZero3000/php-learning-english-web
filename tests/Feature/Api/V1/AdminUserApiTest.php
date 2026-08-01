@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Api\V1;
 
+use App\Models\AdminImportRun;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -133,6 +134,22 @@ class AdminUserApiTest extends TestCase
             ->deleteJson("/api/v1/admin/users/{$superAdmin->id}")
             ->assertUnprocessable()->assertJsonValidationErrors('user');
         $this->assertDatabaseHas('users', ['id' => $superAdmin->id]);
+    }
+
+    public function test_deleting_a_user_with_related_records_returns_a_clean_error_instead_of_a_crash(): void
+    {
+        $this->seed();
+        $superAdmin = $this->user('super_admin');
+        $actor = $this->user('admin');
+        AdminImportRun::create([
+            'request_id' => (string) Str::uuid(), 'entity' => 'courses', 'payload_fingerprint' => str_repeat('a', 64),
+            'actor_id' => $actor->id, 'status' => 'pending', 'requested_limit' => 10,
+        ]);
+
+        $this->actingAs($superAdmin)->withHeader('X-Request-ID', (string) Str::uuid())
+            ->deleteJson("/api/v1/admin/users/{$actor->id}")
+            ->assertUnprocessable()->assertJsonValidationErrors('user');
+        $this->assertDatabaseHas('users', ['id' => $actor->id]);
     }
 
     private function user(string $role): User
