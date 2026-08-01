@@ -56,7 +56,7 @@ class FileCatalogTreeBuilder
 
             if (count($row) !== count($header)) {
                 $this->recordError($courses, $unassignedErrors, $courseTitleRaw,
-                    "Row {$lineNumber}: expected ".count($header)." columns, got ".count($row).'.');
+                    "Row {$lineNumber}: expected ".count($header).' columns, got '.count($row).'.');
 
                 continue;
             }

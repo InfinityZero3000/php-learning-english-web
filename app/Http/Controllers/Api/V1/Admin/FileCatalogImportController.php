@@ -17,6 +17,7 @@ use App\Support\RecentGoogleAdmin;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -313,7 +314,7 @@ class FileCatalogImportController extends Controller
     }
 
     /**
-     * @return array{data: \Illuminate\Support\Collection, meta: array}
+     * @return array{data: Collection, meta: array}
      */
     private function stagedItemsPayload(AdminImportRun $run, int $perPage = 25): array
     {

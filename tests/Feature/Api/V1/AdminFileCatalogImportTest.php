@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Api\V1;
 
-use App\Models\AdminImportRun;
 use App\Models\Course;
 use App\Models\Role;
 use App\Models\User;
