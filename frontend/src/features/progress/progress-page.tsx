@@ -14,8 +14,10 @@ import {
 } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { AppShellLoading } from "@/components/layout/app-shell";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { api, type SupervisedDashboard } from "@/lib/api";
 
 const stateLabels = {
@@ -61,23 +63,21 @@ export function ProgressPage() {
 
   const maxForecast = Math.max(1, ...dashboard.fsrs.forecast.map((item) => item.count));
 
-  return <div className="space-y-8 pb-8">
-    <header className="relative isolate overflow-hidden rounded-[2rem] bg-slate-950 px-6 py-8 text-white shadow-2xl sm:px-10 sm:py-10">
-      <div aria-hidden="true" className="absolute -right-16 -top-24 h-72 w-72 rounded-full bg-cyan-400/20 blur-3xl" />
-      <div aria-hidden="true" className="absolute -bottom-32 left-1/3 h-64 w-64 rounded-full bg-violet-500/20 blur-3xl" />
-      <div className="relative grid items-end gap-8 lg:grid-cols-[1fr_auto]">
+  return <div className="mx-auto max-w-6xl space-y-8 pb-8">
+    <header className="overflow-hidden rounded-3xl border-2 border-primary/20 bg-gradient-to-br from-[#006590] to-[#0891b2] p-7 text-white shadow-xl md:p-10">
+      <div className="grid items-end gap-8 lg:grid-cols-[1fr_auto]">
         <div className="max-w-2xl">
-          <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[.22em] text-cyan-300">
+          <p className="flex items-center gap-2 font-display text-sm font-bold uppercase tracking-[0.14em] text-cyan-100">
             <IconSparkles className="h-4 w-4" /> Learning intelligence
           </p>
-          <h2 className="mt-4 font-display text-4xl font-black leading-tight sm:text-5xl">Hành trình của bạn</h2>
-          <p className="mt-4 max-w-xl text-base leading-7 text-slate-300">
+          <h2 className="mt-3 font-display text-3xl font-bold leading-tight md:text-5xl">Hành trình của bạn</h2>
+          <p className="mt-4 max-w-xl text-base leading-7 text-cyan-50">
             Tiến độ course, nhịp ghi nhớ và hoạt động luyện tập được tính từ dữ liệu học thật của bạn.
           </p>
         </div>
         <Link
           href="/review"
-          className="inline-flex h-14 items-center justify-center gap-3 rounded-2xl bg-cyan-300 px-6 font-display font-black text-slate-950 transition hover:-translate-y-0.5 hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-300"
+          className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-white px-6 font-display text-base font-bold uppercase tracking-[0.05em] text-primary transition hover:bg-cyan-50"
         >
           {dashboard.fsrs.due_count > 0 ? `Ôn ${dashboard.fsrs.due_count} thẻ ngay` : "Mở chế độ ôn tập"}
           <IconArrowRight className="h-5 w-5" />
@@ -86,35 +86,35 @@ export function ProgressPage() {
     </header>
 
     <section aria-labelledby="memory-title" className="grid gap-5 xl:grid-cols-[1.15fr_.85fr]">
-      <Card className="overflow-hidden border-0 bg-gradient-to-br from-indigo-950 via-indigo-900 to-violet-900 p-6 text-white shadow-xl sm:p-8">
+      <Card className="p-6 sm:p-8">
         <div className="flex flex-wrap items-start justify-between gap-6">
           <div>
-            <p className="text-xs font-black uppercase tracking-[.2em] text-indigo-200">Memory signal</p>
-            <h3 id="memory-title" className="mt-2 font-display text-3xl font-black">Sức khỏe ghi nhớ</h3>
+            <p className="font-bold uppercase tracking-wider text-primary">Memory signal</p>
+            <h3 id="memory-title" className="mt-1 font-display text-2xl font-bold">Sức khỏe ghi nhớ</h3>
           </div>
-          <div className="grid h-14 w-14 place-items-center rounded-2xl bg-white/10"><IconBrain className="h-7 w-7" /></div>
+          <span className="rounded-2xl bg-accent p-3 text-accent-foreground"><IconBrain className="h-7 w-7" /></span>
         </div>
-        <div className="mt-8 grid gap-4 sm:grid-cols-3">
+        <div className="mt-6 grid gap-4 sm:grid-cols-3">
           <InsightMetric label="Retention" value={dashboard.fsrs.retention == null ? null : `${Math.round(dashboard.fsrs.retention * 100)}%`} />
           <InsightMetric label="Stability TB" value={dashboard.fsrs.average_stability == null ? null : `${dashboard.fsrs.average_stability} ngày`} />
           <InsightMetric label="Difficulty TB" value={dashboard.fsrs.average_difficulty == null ? null : dashboard.fsrs.average_difficulty} />
         </div>
-        <p className="mt-5 text-sm text-indigo-200">{dashboard.fsrs.reviewed_cards} thẻ đã có lịch sử ôn để phân tích.</p>
+        <p className="mt-5 text-sm text-muted-foreground">{dashboard.fsrs.reviewed_cards} thẻ đã có lịch sử ôn để phân tích.</p>
       </Card>
 
       <Card className="p-6 sm:p-8">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-black uppercase tracking-[.18em] text-primary">FSRS states</p>
-            <h3 className="mt-1 font-display text-2xl font-black">Trạng thái thẻ</h3>
+            <p className="font-bold uppercase tracking-wider text-primary">FSRS states</p>
+            <h3 className="mt-1 font-display text-2xl font-bold">Trạng thái thẻ</h3>
           </div>
           <IconTargetArrow className="h-7 w-7 text-primary" />
         </div>
         <div className="mt-6 grid grid-cols-2 gap-3">
-          {dashboard.fsrs.state_distribution.map((item) => <div key={item.state} className="rounded-2xl border border-border/70 bg-muted/40 p-4">
+          {dashboard.fsrs.state_distribution.map((item) => <div key={item.state} className="rounded-2xl border-2 border-border p-4">
             <span aria-hidden="true" className={`mb-3 block h-2 w-8 rounded-full ${stateColors[item.state]}`} />
             <p className="text-sm font-bold text-muted-foreground">{stateLabels[item.state]}</p>
-            <p className="mt-1 font-display text-3xl font-black tabular-nums">{item.count}</p>
+            <p className="mt-1 font-display text-3xl font-bold tabular-nums">{item.count}</p>
           </div>)}
         </div>
       </Card>
@@ -123,8 +123,8 @@ export function ProgressPage() {
     <section aria-labelledby="forecast-title">
       <div className="mb-4 flex items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-black uppercase tracking-[.18em] text-primary">Next seven days</p>
-          <h3 id="forecast-title" className="mt-1 font-display text-2xl font-black">Lịch thẻ đến hạn</h3>
+          <p className="font-bold uppercase tracking-wider text-primary">Next seven days</p>
+          <h3 id="forecast-title" className="mt-1 font-display text-2xl font-bold">Lịch thẻ đến hạn</h3>
         </div>
         <p className="text-sm font-bold text-muted-foreground">UTC · do server tính</p>
       </div>
@@ -134,7 +134,7 @@ export function ProgressPage() {
           const label = shortDate(item.date);
           return <li key={item.date} className="flex h-full min-w-0 flex-col items-center justify-end gap-2">
             <span className="sr-only">{label}: {item.count} thẻ</span>
-            <span aria-hidden="true" className="text-xs font-black tabular-nums">{item.count}</span>
+            <span aria-hidden="true" className="text-xs font-bold tabular-nums">{item.count}</span>
             <div aria-hidden="true" className="flex h-36 w-full items-end rounded-xl bg-muted/70 p-1">
               <div className="w-full rounded-lg bg-gradient-to-t from-primary to-cyan-400 transition-[height]" style={{ height: `${Math.max(item.count ? 10 : 2, item.count / maxForecast * 100)}%` }} />
             </div>
@@ -148,23 +148,21 @@ export function ProgressPage() {
     <section aria-labelledby="courses-title">
       <div className="mb-4 flex items-center gap-3">
         <div className="grid h-11 w-11 place-items-center rounded-2xl bg-primary/10 text-primary"><IconBook2 className="h-6 w-6" /></div>
-        <div><p className="text-xs font-black uppercase tracking-[.18em] text-primary">Course map</p><h3 id="courses-title" className="font-display text-2xl font-black">Tiến độ khóa học</h3></div>
+        <div><p className="font-bold uppercase tracking-wider text-primary">Course map</p><h3 id="courses-title" className="font-display text-2xl font-bold">Tiến độ khóa học</h3></div>
       </div>
       <div className="grid gap-5 lg:grid-cols-2">
         {dashboard.courses.map((course) => <Card key={course.id} className="overflow-hidden">
-          <div className="border-b border-border/70 bg-muted/30 p-6">
+          <div className="border-b-2 border-border bg-muted/30 p-6">
             <div className="flex items-start justify-between gap-4">
-              <div><h4 className="font-display text-2xl font-black">{course.title}</h4><p className="mt-1 text-sm text-muted-foreground">{course.completed_lessons}/{course.total_lessons} lesson hoàn thành</p></div>
-              <span className="rounded-full bg-primary px-3 py-1 text-sm font-black text-primary-foreground">{course.progress_percent}%</span>
+              <div><h4 className="font-display text-2xl font-bold">{course.title}</h4><p className="mt-1 text-sm text-muted-foreground">{course.completed_lessons}/{course.total_lessons} lesson hoàn thành</p></div>
+              <span className="rounded-full bg-primary px-3 py-1 text-sm font-bold text-primary-foreground">{course.progress_percent}%</span>
             </div>
-            <div role="progressbar" aria-label={`Tiến độ ${course.title}`} aria-valuenow={course.progress_percent} aria-valuemin={0} aria-valuemax={100} className="mt-5 h-2 overflow-hidden rounded-full bg-border">
-              <div className="h-full rounded-full bg-gradient-to-r from-primary to-cyan-400" style={{ width: `${course.progress_percent}%` }} />
-            </div>
+            <Progress value={course.progress_percent} className="mt-5" />
           </div>
           <div className="space-y-5 p-6">
             {course.units.map((unit) => <article key={unit.id ?? "general"} aria-labelledby={`unit-${course.id}-${unit.id ?? "general"}`}>
               <div className="flex items-center justify-between gap-3">
-                <h5 id={`unit-${course.id}-${unit.id ?? "general"}`} className="font-display text-lg font-black">{unit.title}</h5>
+                <h5 id={`unit-${course.id}-${unit.id ?? "general"}`} className="font-display text-lg font-bold">{unit.title}</h5>
                 <span className="text-xs font-bold text-muted-foreground">{unit.completed_lessons}/{unit.total_lessons}</span>
               </div>
               <ul className="mt-3 space-y-2">
@@ -197,7 +195,7 @@ export function ProgressPage() {
         </div>
         {dashboard.quiz_performance.recent.map((attempt) => <div key={attempt.id} className="flex items-center justify-between gap-3 rounded-2xl bg-muted/50 p-4">
           <div className="min-w-0"><p className="truncate font-bold">{attempt.quiz_title}</p><p className="truncate text-sm text-muted-foreground">{attempt.lesson_title}</p></div>
-          <span className="font-display text-xl font-black text-primary">{attempt.score}%</span>
+          <span className="font-display text-xl font-bold text-primary">{attempt.score}%</span>
         </div>)}
         {dashboard.quiz_performance.recent.length === 0 && <p className="text-sm text-muted-foreground">Chưa có kết quả quiz.</p>}
       </ActivityPanel>
@@ -208,7 +206,7 @@ export function ProgressPage() {
           <SmallMetric label="Phát âm tốt nhất" value={dashboard.listening.best_pronunciation_score == null ? "—" : Math.round(dashboard.listening.best_pronunciation_score)} />
         </div>
         {dashboard.listening.recent.map((item) => <div key={item.id} className="rounded-2xl bg-muted/50 p-4">
-          <div className="flex items-center justify-between gap-3"><p className="truncate font-bold">{item.title}</p><span className="font-black text-primary">{item.watched_percentage}%</span></div>
+          <div className="flex items-center justify-between gap-3"><p className="truncate font-bold">{item.title}</p><span className="font-bold text-primary">{item.watched_percentage}%</span></div>
           <p className="mt-1 text-sm text-muted-foreground">{item.shadowing_attempts} lượt shadowing</p>
         </div>)}
         {dashboard.listening.recent.length === 0 && <p className="text-sm text-muted-foreground">Chưa có bài luyện nghe.</p>}
@@ -218,25 +216,25 @@ export function ProgressPage() {
 }
 
 function InsightMetric({ label, value }: { label: string; value: string | number | null }) {
-  return <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
-    <p className="text-xs font-bold uppercase tracking-wider text-indigo-200">{label}</p>
-    <p className="mt-2 font-display text-3xl font-black">{value ?? "Chưa đủ dữ liệu"}</p>
+  return <div className="rounded-2xl border-2 border-border p-4">
+    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{label}</p>
+    <p className="mt-2 font-display text-3xl font-bold text-primary">{value ?? "Chưa đủ dữ liệu"}</p>
   </div>;
 }
 
 function SmallMetric({ label, value }: { label: string; value: string | number }) {
-  return <div className="min-w-0 flex-1 rounded-xl border border-border/70 p-3"><p className="text-[11px] font-bold text-muted-foreground">{label}</p><p className="mt-1 font-display text-lg font-black">{value}</p></div>;
+  return <div className="min-w-0 flex-1 rounded-xl border-2 border-border p-3"><p className="text-[11px] font-bold text-muted-foreground">{label}</p><p className="mt-1 font-display text-lg font-bold">{value}</p></div>;
 }
 
 function ActivityPanel({ icon, eyebrow, title, children }: { icon: React.ReactNode; eyebrow: string; title: string; children: React.ReactNode }) {
   return <Card className="p-5">
-    <div className="mb-5 flex items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.16em] text-primary">{eyebrow}</p><h3 className="mt-1 font-display text-xl font-black">{title}</h3></div><span className="text-primary">{icon}</span></div>
+    <div className="mb-5 flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-wider text-primary">{eyebrow}</p><h3 className="mt-1 font-display text-xl font-bold">{title}</h3></div><span className="text-primary">{icon}</span></div>
     <div className="space-y-3">{children}</div>
   </Card>;
 }
 
 function Status({ status }: { status: string }) {
-  return <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-black uppercase text-primary">{status === "completed" ? "Hoàn thành" : "Đang học"}</span>;
+  return <Badge variant={status === "completed" ? "success" : "default"}>{status === "completed" ? "Hoàn thành" : "Đang học"}</Badge>;
 }
 
 function EmptyState({ text }: { text: string }) {
