@@ -132,6 +132,38 @@ curl http://localhost:8080/health
 
 Redis phải trả `PONG`; health endpoint phải trả HTTP 200.
 
+## Tài khoản demo
+
+`database/seeders` chỉ tạo role, level, topic và course mẫu — **không tạo
+user nào**. Không có tài khoản đăng nhập sẵn sau `migrate --seed`.
+
+- **Learner**: tạo bằng cách gọi `POST /api/v1/auth/register`, sau đó xác
+  minh email — local mặc định `MAIL_MAILER=smtp` nên email không tự đến; xác
+  minh nhanh bằng tinker:
+  ```bash
+  docker compose exec app php artisan tinker --execute="
+  \$u = App\Models\User::updateOrCreate(['email' => 'user@example.com'], [
+    'name' => 'Demo Learner',
+    'password' => Illuminate\Support\Facades\Hash::make('user123'),
+    'role_id' => App\Models\Role::where('slug', 'learner')->value('id'),
+  ]);
+  \$u->markEmailAsVerified();
+  "
+  ```
+  Sau bước này, `user@example.com` / `user123` đăng nhập được qua
+  `POST /api/v1/auth/login` như bình thường (khớp `learner_email`/
+  `learner_password` trong `postman/local.postman_environment.json`).
+- **Admin / Super Admin**: mọi route `/api/v1/admin/catalog/*`, `/admin/users`,
+  `/admin/operations/*` và `/admin/imports/*` nằm sau middleware `google.admin`
+  — bắt buộc đăng nhập Google thật với email nằm trong `ADMIN_GOOGLE_EMAILS`/
+  `SUPER_ADMIN_GOOGLE_EMAILS` (xem
+  [Production Environment Variables](docs/PRODUCTION_ENV.md)). Không có cách
+  giả lập hợp lệ bằng email/password hay Postman/curl thuần; phải cấu hình
+  Google OAuth app thật + hai biến whitelist trên rồi đăng nhập qua trình
+  duyệt tại admin frontend. Vì vậy các request admin trong Postman collection
+  (folder `0b`, `5`, `6` và phần admin của `8`) chỉ chạy được thủ công sau khi
+  đã có session Google-admin thật, không chạy được qua `newman run` một lượt.
+
 ## Postman
 
 Bộ Postman collection + environment tại `postman/` là nguồn xác minh API
@@ -140,6 +172,8 @@ chỉ liên kết tới đây, không tạo bản sao khác.
 
 ```bash
 docker compose exec app php artisan migrate:fresh --seed
+# Tạo tài khoản learner demo theo mục "Tài khoản demo" ở trên trước khi chạy
+# bất kỳ folder nào cần đăng nhập.
 # Import postman/php-learning-english-web.postman_collection.json
 # và postman/local.postman_environment.json vào Postman, hoặc chạy CLI:
 npx newman run postman/php-learning-english-web.postman_collection.json \
@@ -181,9 +215,11 @@ Controller, Form Request, Policy, Resource và Service chỉ được tạo khi 
 ## Trạng thái triển khai
 
 Auth/profile, catalog, quiz, progress, FSRS, learning session, teacher,
-admin/super-admin và hai giao diện Next.js đã có implementation và test. Các
-việc còn lại trước release chủ yếu là đồng bộ OpenAPI, xác minh LexiLingo và
-smoke/rollback trên production; xem
+admin/super-admin và hai giao diện Next.js đã có implementation và test.
+OpenAPI đã đồng bộ với runtime (parity hai chiều được `ApiContractParityTest`
+khoá). Các việc còn lại trước release là mở `apply` sang đủ 6 entity import
+(hiện chỉ `categories`), xác minh LexiLingo với provider thật, smoke test theo
+vai trò trên staging và diễn tập backup/rollback; xem
 [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
 Quy trình cộng tác và tự động deploy được mô tả tại [Development Workflow](docs/DEVELOPMENT_WORKFLOW.md).
