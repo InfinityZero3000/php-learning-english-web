@@ -95,13 +95,19 @@ class UserController extends Controller
             return response()->json(null, 204);
         }
 
-        DB::transaction(function () use ($request, $user, $fingerprint): void {
-            $locked = User::query()->lockForUpdate()->findOrFail($user->id);
-            $before = $this->user($locked->load('role:id,name,slug'));
-            TeacherAssignment::query()->where('teacher_id', $locked->id)->orWhere('learner_id', $locked->id)->delete();
-            $locked->delete();
-            $this->audit($request, 'user.deleted', 'user', $user->id, $fingerprint, $before, null);
-        });
+        try {
+            DB::transaction(function () use ($request, $user, $fingerprint): void {
+                $locked = User::query()->lockForUpdate()->findOrFail($user->id);
+                $before = $this->user($locked->load('role:id,name,slug'));
+                TeacherAssignment::query()->where('teacher_id', $locked->id)->orWhere('learner_id', $locked->id)->delete();
+                $locked->delete();
+                $this->audit($request, 'user.deleted', 'user', $user->id, $fingerprint, $before, null);
+            });
+        } catch (QueryException $exception) {
+            throw ValidationException::withMessages([
+                'user' => 'Không thể xóa: tài khoản vẫn còn dữ liệu liên kết (phân công giám sát, ghi chú, lịch sử thao tác...).',
+            ]);
+        }
 
         return response()->json(null, 204);
     }
