@@ -91,6 +91,50 @@ class AdminUserApiTest extends TestCase
         $this->assertDatabaseMissing('teacher_assignments', ['learner_id' => $target->id]);
     }
 
+    public function test_only_super_admin_can_create_or_delete_users(): void
+    {
+        $this->seed();
+        $admin = $this->user('admin');
+        $target = $this->user('learner');
+
+        $this->actingAs($admin)->withHeader('X-Request-ID', (string) Str::uuid())
+            ->postJson('/api/v1/admin/users', [
+                'name' => 'New User', 'email' => 'new-user@example.com', 'password' => 'password123', 'role' => 'learner',
+            ])->assertForbidden();
+        $this->withHeader('X-Request-ID', (string) Str::uuid())
+            ->deleteJson("/api/v1/admin/users/{$target->id}")->assertForbidden();
+        $this->assertDatabaseMissing('users', ['email' => 'new-user@example.com']);
+        $this->assertDatabaseHas('users', ['id' => $target->id]);
+    }
+
+    public function test_super_admin_can_create_and_delete_a_user(): void
+    {
+        $this->seed();
+        $superAdmin = $this->user('super_admin');
+
+        $created = $this->actingAs($superAdmin)->withHeader('X-Request-ID', (string) Str::uuid())
+            ->postJson('/api/v1/admin/users', [
+                'name' => 'New User', 'email' => 'new-user@example.com', 'password' => 'password123', 'role' => 'learner',
+            ])->assertCreated()->assertJsonPath('data.email', 'new-user@example.com')->json('data');
+        $this->assertDatabaseHas('users', ['id' => $created['id'], 'email' => 'new-user@example.com']);
+
+        $this->withHeader('X-Request-ID', (string) Str::uuid())
+            ->deleteJson("/api/v1/admin/users/{$created['id']}")->assertNoContent();
+        $this->assertDatabaseMissing('users', ['id' => $created['id']]);
+        $this->assertDatabaseCount('operations_audits', 2);
+    }
+
+    public function test_super_admin_cannot_delete_own_account(): void
+    {
+        $this->seed();
+        $superAdmin = $this->user('super_admin');
+
+        $this->actingAs($superAdmin)->withHeader('X-Request-ID', (string) Str::uuid())
+            ->deleteJson("/api/v1/admin/users/{$superAdmin->id}")
+            ->assertUnprocessable()->assertJsonValidationErrors('user');
+        $this->assertDatabaseHas('users', ['id' => $superAdmin->id]);
+    }
+
     private function user(string $role): User
     {
         return User::factory()->create([

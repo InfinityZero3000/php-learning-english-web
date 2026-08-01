@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { IconRefresh } from "@tabler/icons-react";
+import { IconAlertCircle, IconCheck, IconInfoCircle, IconRefresh } from "@tabler/icons-react";
 import {
   api,
   type CourseCard,
@@ -273,7 +273,7 @@ export function TeacherWorkspace() {
         <p
           role="status"
           aria-live="polite"
-          className={`rounded-xl border-2 p-4 font-semibold ${
+          className={`flex items-center gap-2 rounded-xl border-2 p-4 font-semibold ${
             messageType === "error"
               ? "border-red-300 bg-red-50 text-red-800"
               : messageType === "success"
@@ -281,7 +281,13 @@ export function TeacherWorkspace() {
               : "border-amber-300 bg-amber-50 text-amber-800"
           }`}
         >
-          {messageType === "error" ? "⚠️ " : messageType === "success" ? "✅ " : "ℹ️ "}
+          {messageType === "error" ? (
+            <IconAlertCircle className="h-5 w-5 shrink-0" />
+          ) : messageType === "success" ? (
+            <IconCheck className="h-5 w-5 shrink-0" />
+          ) : (
+            <IconInfoCircle className="h-5 w-5 shrink-0" />
+          )}
           {message}
         </p>
       )}

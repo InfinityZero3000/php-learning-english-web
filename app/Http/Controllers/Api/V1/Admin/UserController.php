@@ -14,6 +14,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class UserController extends Controller
@@ -41,6 +43,67 @@ class UserController extends Controller
         Gate::authorize('manage', User::class);
 
         return ApiResponse::success($this->user($user->load('role:id,name,slug')));
+    }
+
+    public function store(Request $request, RecentGoogleAdmin $recentGoogle): JsonResponse
+    {
+        abort_unless($request->user()->can('manage-roles'), 403);
+        $recentGoogle->require($request);
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:100'],
+            'email' => ['required', 'email', 'unique:users,email'],
+            'password' => ['required', 'string', 'min:8'],
+            'role' => ['required', 'string', 'exists:roles,slug'],
+        ]);
+        $fingerprint = $this->fingerprint([$data['email'], $data['role']]);
+        if ($audit = $this->replay($request, 'user.created', $fingerprint)) {
+            return ApiResponse::success($this->user(User::with('role:id,name,slug')->findOrFail($audit->target_id)), status: 201);
+        }
+
+        $role = Role::query()->where('slug', $data['role'])->firstOrFail();
+        $user = DB::transaction(function () use ($request, $data, $role, $fingerprint): User {
+            $user = User::create([
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'password' => Hash::make($data['password']),
+                'role_id' => $role->id,
+                'email_verified_at' => now(),
+            ]);
+            $this->audit($request, 'user.created', 'user', $user->id, $fingerprint, null, $this->user($user->load('role:id,name,slug')));
+
+            return $user;
+        });
+
+        return ApiResponse::success($this->user($user), status: 201);
+    }
+
+    public function destroy(Request $request, User $user, RecentGoogleAdmin $recentGoogle): JsonResponse
+    {
+        abort_unless($request->user()->can('manage-roles'), 403);
+        $recentGoogle->require($request);
+
+        if ($user->is($request->user())) {
+            throw ValidationException::withMessages(['user' => 'Không thể tự xóa tài khoản của chính mình.']);
+        }
+        if ($user->hasRole('super_admin')
+            && User::query()->whereHas('role', fn ($query) => $query->where('slug', 'super_admin'))->count() <= 1) {
+            throw ValidationException::withMessages(['user' => 'Không thể xóa Super Admin cuối cùng.']);
+        }
+
+        $fingerprint = $this->fingerprint([$user->id, 'delete']);
+        if ($this->replay($request, 'user.deleted', $fingerprint)) {
+            return response()->json(null, 204);
+        }
+
+        DB::transaction(function () use ($request, $user, $fingerprint): void {
+            $locked = User::query()->lockForUpdate()->findOrFail($user->id);
+            $before = $this->user($locked->load('role:id,name,slug'));
+            TeacherAssignment::query()->where('teacher_id', $locked->id)->orWhere('learner_id', $locked->id)->delete();
+            $locked->delete();
+            $this->audit($request, 'user.deleted', 'user', $user->id, $fingerprint, $before, null);
+        });
+
+        return response()->json(null, 204);
     }
 
     public function roles(Request $request): JsonResponse
